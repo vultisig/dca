@@ -5,12 +5,14 @@ import (
 	"net"
 
 	"github.com/DataDog/datadog-go/statsd"
+	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/graceful"
+	"github.com/vultisig/recipes/common"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/policy"
 	"github.com/vultisig/verifier/plugin/policy/policy_pg"
@@ -99,7 +101,9 @@ func main() {
 		vaultStorage,
 		asynqClient,
 		asynqInspector,
-		&dca.Spec{},
+		dca.NewSpec(map[common.Chain]ecommon.Address{
+			common.Ethereum: ecommon.HexToAddress(cfg.Uniswap.RouterV2.Ethereum),
+		}),
 		append([]echo.MiddlewareFunc{
 			server.DataDogMiddleware(statsdClient),
 		}, server.DefaultMiddlewares()...),

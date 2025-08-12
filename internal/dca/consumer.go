@@ -182,7 +182,10 @@ func evmPubToAddress(pub string) (ecommon.Address, error) {
 	}
 
 	if len(pubBytes) != 64 {
-		return ecommon.Address{}, fmt.Errorf("invalid public key length: expected 64 bytes, got %d", len(pubBytes))
+		return ecommon.Address{}, fmt.Errorf(
+			"invalid public key length: expected 64 bytes, got %d",
+			len(pubBytes),
+		)
 	}
 
 	hash := crypto.Keccak256(pubBytes)

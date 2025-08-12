@@ -14,7 +14,16 @@ type config struct {
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database
 	Redis        plugin_config.Redis
+	Uniswap      uniswapConfig
 	DataDog      dataDog
+}
+
+type uniswapConfig struct {
+	RouterV2 router
+}
+
+type router struct {
+	Ethereum string
 }
 
 type dataDog struct {

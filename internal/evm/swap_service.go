@@ -8,17 +8,17 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type SwapService struct {
+type swapService struct {
 	providers []Provider
 }
 
-func NewSwapService(providers []Provider) *SwapService {
-	return &SwapService{
+func newSwapService(providers []Provider) *swapService {
+	return &swapService{
 		providers: providers,
 	}
 }
 
-func (s *SwapService) FindBestAmountOut(
+func (s *swapService) FindBestAmountOut(
 	ctx context.Context,
 	from Params,
 	to Params,

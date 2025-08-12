@@ -22,6 +22,14 @@ type ProviderV2 struct {
 	router common.Address
 }
 
+func ConstructorV2(
+	router common.Address,
+) evm_swap.ProviderConstructor {
+	return func(chain rcommon.Chain, client *ethclient.Client, sdk *evm.SDK) evm_swap.Provider {
+		return NewProviderV2(chain, client, sdk, router)
+	}
+}
+
 func NewProviderV2(chain rcommon.Chain, rpc *ethclient.Client, evmSDK *evm.SDK, router common.Address) *ProviderV2 {
 	return &ProviderV2{
 		chain:  chain,

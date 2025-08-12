@@ -124,7 +124,9 @@ func main() {
 		logger.Fatalf("failed to initialize policy service: %v", err)
 	}
 
-	ethRpc, ethSdk, err := evm.NewNetwork(common.Ethereum, cfg.Rpc.Ethereum.URL)
+	ethNetwork, err := evm.NewNetwork(common.Ethereum, cfg.Rpc.Ethereum.URL, []evm.ProviderConstructor{
+		uniswap.ConstructorV2(ecommon.HexToAddress(cfg.Uniswap.RouterV2.Ethereum)),
+	})
 	if err != nil {
 		logger.Fatalf("failed to initialize Ethereum network: %v", err)
 	}
@@ -132,17 +134,7 @@ func main() {
 	dcaConsumer := dca.NewConsumer(
 		policyService,
 		evm.NewManager(map[common.Chain]*evm.Network{
-			common.Ethereum: {
-				Approve: evm.NewApproveService(ethRpc, ethSdk),
-				Swap: evm.NewSwapService([]evm.Provider{
-					uniswap.NewProviderV2(
-						common.Ethereum,
-						ethRpc,
-						ethSdk,
-						ecommon.HexToAddress(cfg.Uniswap.RouterV2.Ethereum),
-					),
-				}),
-			},
+			common.Ethereum: ethNetwork,
 		}),
 		keysign.NewSigner(
 			logger,

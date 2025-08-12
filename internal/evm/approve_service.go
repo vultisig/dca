@@ -11,19 +11,19 @@ import (
 	"github.com/vultisig/recipes/sdk/evm/codegen/erc20"
 )
 
-type ApproveService struct {
+type approveService struct {
 	rpc *ethclient.Client
 	sdk *evm.SDK
 }
 
-func NewApproveService(rpc *ethclient.Client, sdk *evm.SDK) *ApproveService {
-	return &ApproveService{
+func newApproveService(rpc *ethclient.Client, sdk *evm.SDK) *approveService {
+	return &approveService{
 		rpc: rpc,
 		sdk: sdk,
 	}
 }
 
-func (a *ApproveService) CheckAllowance(
+func (a *approveService) CheckAllowance(
 	ctx context.Context,
 	tokenAddress, owner, spender common.Address,
 	amount *big.Int,

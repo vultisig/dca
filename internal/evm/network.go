@@ -8,18 +8,28 @@ import (
 	"github.com/vultisig/recipes/sdk/evm"
 )
 
-func NewNetwork(chain rcommon.Chain, rpcUrl string) (*ethclient.Client, *evm.SDK, error) {
+type ProviderConstructor func(rcommon.Chain, *ethclient.Client, *evm.SDK) Provider
+
+func NewNetwork(chain rcommon.Chain, rpcUrl string, providers []ProviderConstructor) (*Network, error) {
 	evmID, err := chain.EvmID()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get EVM ID: %w", err)
+		return nil, fmt.Errorf("failed to get EVM ID: %w", err)
 	}
 
 	rpc, err := ethclient.Dial(rpcUrl)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to connect to RPC: %w", err)
+		return nil, fmt.Errorf("failed to connect to RPC: %w", err)
 	}
 
 	sdk := evm.NewSDK(evmID, rpc, rpc.Client())
 
-	return rpc, sdk, nil
+	var swaps []Provider
+	for _, provider := range providers {
+		swaps = append(swaps, provider(chain, rpc, sdk))
+	}
+
+	return &Network{
+		Approve: newApproveService(rpc, sdk),
+		Swap:    newSwapService(swaps),
+	}, nil
 }

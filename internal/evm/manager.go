@@ -7,8 +7,8 @@ import (
 )
 
 type Network struct {
-	Approve *ApproveService
-	Swap    *SwapService
+	Approve *approveService
+	Swap    *swapService
 }
 
 type Manager struct {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/kaptinlin/jsonschema"
-	"github.com/vultisig/dca/internal/uniswap"
 	"github.com/vultisig/recipes/common"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
@@ -41,6 +41,13 @@ const (
 
 type Spec struct {
 	plugin.Unimplemented
+	uniswapRouterV2 map[common.Chain]ecommon.Address
+}
+
+func NewSpec(uniswapRouterV2 map[common.Chain]ecommon.Address) *Spec {
+	return &Spec{
+		uniswapRouterV2: uniswapRouterV2,
+	}
 }
 
 func (s *Spec) validateConfiguration(cfg map[string]any) error {
@@ -71,6 +78,11 @@ func (s *Spec) validateConfiguration(cfg map[string]any) error {
 func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	if err := s.validateConfiguration(cfg); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
+	}
+
+	ethRouterV2, ok := s.uniswapRouterV2[common.Ethereum]
+	if !ok {
+		return nil, fmt.Errorf("ethereum router v2 address not found")
 	}
 
 	rules := []*rtypes.Rule{{
@@ -117,7 +129,7 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		Target: &rtypes.Target{
 			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
 			Target: &rtypes.Target_Address{
-				Address: uniswap.RouterV2[common.Ethereum].Hex(),
+				Address: ethRouterV2.Hex(),
 			},
 		},
 	}, {
@@ -156,7 +168,7 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		Target: &rtypes.Target{
 			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
 			Target: &rtypes.Target_Address{
-				Address: uniswap.RouterV2[common.Ethereum].Hex(),
+				Address: ethRouterV2.Hex(),
 			},
 		},
 	}, {
@@ -167,7 +179,7 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 			Constraint: &rtypes.Constraint{
 				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: uniswap.RouterV2[common.Ethereum].Hex(),
+					FixedValue: ethRouterV2.Hex(),
 				},
 			},
 		}, {
