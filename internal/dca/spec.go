@@ -1,11 +1,27 @@
 package dca
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/kaptinlin/jsonschema"
+	"github.com/vultisig/dca/internal/uniswap"
+	"github.com/vultisig/recipes/common"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
+	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
 	"github.com/vultisig/verifier/types"
+)
+
+const (
+	fromChain  = "fromChain"
+	fromAsset  = "fromAsset"
+	fromAmount = "fromAmount"
+
+	toChain   = "toChain"
+	toAsset   = "toAsset"
+	toAddress = "toAddress"
 )
 
 const (
@@ -23,12 +39,206 @@ const (
 	monthly  = "monthly"
 )
 
-type Spec struct{}
+type Spec struct {
+	plugin.Unimplemented
+}
+
+func (s *Spec) validateConfiguration(cfg map[string]any) error {
+	spec, err := s.GetRecipeSpecification()
+	if err != nil {
+		return fmt.Errorf("failed to get recipe specification: %w", err)
+	}
+
+	schemaMap := spec.Configuration.AsMap()
+	schemaBytes, err := json.Marshal(schemaMap)
+	if err != nil {
+		return fmt.Errorf("failed to marshal schema: %w", err)
+	}
+
+	compiler := jsonschema.NewCompiler()
+	schema, err := compiler.Compile(schemaBytes)
+	if err != nil {
+		return fmt.Errorf("failed to compile JSON schema: %w", err)
+	}
+
+	if err := schema.Validate(cfg); err != nil {
+		return fmt.Errorf("configuration validation error: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
+	if err := s.validateConfiguration(cfg); err != nil {
+		return nil, fmt.Errorf("configuration validation failed: %w", err)
+	}
+
+	rules := []*rtypes.Rule{{
+		Resource: "ethereum.uniswapV2_router.swapExactTokensForTokens",
+		Effect:   rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: []*rtypes.ParameterConstraint{{
+			ParameterName: "amountIn",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: cfg[fromAmount].(string),
+				},
+			},
+		}, {
+			ParameterName: "amountOutMin",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+			},
+		}, {
+			ParameterName: "path",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: strings.Join([]string{
+						cfg[fromAsset].(string),
+						cfg[toAsset].(string),
+					}, ","),
+				},
+			},
+		}, {
+			ParameterName: "to",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: cfg[toAddress].(string),
+				},
+			},
+		}, {
+			ParameterName: "deadline",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+			},
+		}},
+		Target: &rtypes.Target{
+			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: &rtypes.Target_Address{
+				Address: uniswap.RouterV2[common.Ethereum].Hex(),
+			},
+		},
+	}, {
+		Resource: "ethereum.uniswapV2_router.swapExactETHForTokens",
+		Effect:   rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: []*rtypes.ParameterConstraint{{
+			ParameterName: "amountOutMin",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+			},
+		}, {
+			ParameterName: "path",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: strings.Join([]string{
+						cfg[fromAsset].(string),
+						cfg[toAsset].(string),
+					}, ","),
+				},
+			},
+		}, {
+			ParameterName: "to",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: cfg[toAddress].(string),
+				},
+			},
+		}, {
+			ParameterName: "deadline",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+			},
+		}},
+		Target: &rtypes.Target{
+			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: &rtypes.Target_Address{
+				Address: uniswap.RouterV2[common.Ethereum].Hex(),
+			},
+		},
+	}, {
+		Resource: "ethereum.erc20.approve",
+		Effect:   rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: []*rtypes.ParameterConstraint{{
+			ParameterName: "spender",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: uniswap.RouterV2[common.Ethereum].Hex(),
+				},
+			},
+		}, {
+			ParameterName: "amount",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+			},
+		}},
+		Target: &rtypes.Target{
+			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: &rtypes.Target_Address{
+				Address: cfg[fromAsset].(string),
+			},
+		},
+	}}
+
+	var rateLimitWindow uint32
+	freq := cfg[frequency].(string)
+
+	switch freq {
+	case minutely:
+		rateLimitWindow = 60
+	case hourly:
+		rateLimitWindow = 3600
+	case daily:
+		rateLimitWindow = 86400
+	case weekly:
+		rateLimitWindow = 604800
+	case biWeekly:
+		rateLimitWindow = 1209600
+	case monthly:
+		rateLimitWindow = 2592000
+	default:
+		return nil, fmt.Errorf("unknown frequency: %s", freq)
+	}
+
+	return &rtypes.PolicySuggest{
+		RateLimitWindow: conv.Ptr(rateLimitWindow),
+		MaxTxsPerWindow: conv.Ptr(uint32(2)),
+		Rules:           rules,
+	}, nil
+}
 
 func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	cfg, err := plugin.RecipeConfiguration(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
+			fromChain: map[string]any{
+				"type": "string",
+				"enum": []any{
+					common.Ethereum.String(),
+				},
+			},
+			fromAsset: map[string]any{
+				"type": "string",
+			},
+			fromAmount: map[string]any{
+				"type": "number",
+			},
+			toChain: map[string]any{
+				"type": "string",
+				"enum": []any{
+					common.Ethereum.String(),
+				},
+			},
+			toAsset: map[string]any{
+				"type": "string",
+			},
+			toAddress: map[string]any{
+				"type": "string",
+			},
 			endDate: map[string]any{
 				"type":   "string",
 				"format": "date-time",
@@ -47,6 +257,12 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		},
 		"required": []any{
 			frequency,
+			fromChain,
+			fromAsset,
+			fromAmount,
+			toChain,
+			toAsset,
+			toAddress,
 		},
 	})
 	if err != nil {
@@ -75,7 +291,7 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 					},
 					{
 						ParameterName:  "amountOutMin",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_MIN,
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
 						Required:       true,
 					},
 					{
@@ -90,7 +306,61 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 					},
 					{
 						ParameterName:  "deadline",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_MIN,
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+						Required:       true,
+					},
+				},
+				Required: true,
+			},
+			{
+				ResourcePath: &rtypes.ResourcePath{
+					ChainId:    "ethereum",
+					ProtocolId: "uniswapV2_router",
+					FunctionId: "swapExactETHForTokens",
+					Full:       "ethereum.uniswapV2_router.swapExactETHForTokens",
+				},
+				Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+					{
+						ParameterName:  "amountOutMin",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+						Required:       true,
+					},
+					{
+						ParameterName:  "path",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Required:       true,
+					},
+					{
+						ParameterName:  "to",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Required:       true,
+					},
+					{
+						ParameterName:  "deadline",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+						Required:       true,
+					},
+				},
+				Required: true,
+			},
+			{
+				ResourcePath: &rtypes.ResourcePath{
+					ChainId:    "ethereum",
+					ProtocolId: "erc20",
+					FunctionId: "approve",
+					Full:       "ethereum.erc20.approve",
+				},
+				Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+					{
+						ParameterName:  "spender",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Required:       true,
+					},
+					{
+						ParameterName:  "amount",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
 						Required:       true,
 					},
 				},
@@ -100,7 +370,9 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		Configuration: cfg,
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
-			SupportedChains:    []string{"ethereum"},
+			SupportedChains: []string{
+				common.Ethereum.String(),
+			},
 		},
 	}, nil
 }

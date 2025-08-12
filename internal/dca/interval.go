@@ -25,6 +25,10 @@ func (i *Interval) FromNowWhenNext(policy types.PluginPolicy) (time.Time, error)
 	var next time.Time
 	freq := cfg[frequency].GetStringValue()
 	switch freq {
+	case minutely:
+		next = time.Now().Add(time.Minute)
+	case hourly:
+		next = time.Now().Add(time.Hour)
 	case daily:
 		next = time.Now().AddDate(0, 0, 1)
 	case weekly:
