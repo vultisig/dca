@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: busybox
+          ports:
+            - containerPort: 80
+              name: health
+          env:
+            - name: HEALTHPORT
+              value: "80"
+            - name: VAULTSERVICE_RELAY_SERVER
+              value: "https://api.vultisig.com/router"
+            - name: VAULTSERVICE_LOCALPARTYPREFIX
+              value: "vultisig-dca-0000"
+            - name: VAULTSERVICE_ENCRYPTIONSECRET
+              value: "test123"
+            - name: VAULTSERVICE_DOSETUPMSG
+              value: "true"
+            - name: VERIFIER_URL
+              value: "http://localhost:8080"
+            - name: VERIFIER_TOKEN
+              value: "localhost-apikey-dca"
+            - name: VERIFIER_PARTYPREFIX
+              value: "verifier"
+            - name: RPC_ETHEREUM_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: ethereum
+            - name: UNISWAP_ROUTERV2_ETHEREUM
+              valueFrom:
+                configMapKeyRef:
+                  name: uniswap
+                  key: router-v2-ethereum
+            - name: BLOCKSTORAGE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: minio
+                  key: host
+            - name: BLOCKSTORAGE_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: minio
+                  key: region
+            - name: BLOCKSTORAGE_ACCESSKEY
+              valueFrom:
+                configMapKeyRef:
+                  name: minio
+                  key: accessKey
+            - name: BLOCKSTORAGE_SECRETKEY
+              valueFrom:
+                configMapKeyRef:
+                  name: minio
+                  key: secretKey
+            - name: BLOCKSTORAGE_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: minio
+                  key: bucket
+            - name: POSTGRES_DSN
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres
+                  key: dsn
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: redis
+                  key: host
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: redis
+                  key: port
+            - name: DATADOG_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: datadog
+                  key: host
+            - name: DATADOG_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: datadog
+                  key: port
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80

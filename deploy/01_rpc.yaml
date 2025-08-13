@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rpc
+data:
+  bitcoin: "https://bitcoin-rpc.publicnode.com"
+  ethereum: "https://ethereum-rpc.publicnode.com"

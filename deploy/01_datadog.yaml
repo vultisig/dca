@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datadog
+data:
+  host: "localhost"
+  port: "8125"

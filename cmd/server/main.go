@@ -6,12 +6,10 @@ import (
 	"net"
 	"os"
 
-	"github.com/DataDog/datadog-go/statsd"
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/graceful"
@@ -55,11 +53,6 @@ func main() {
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	})
-
-	statsdClient, err := statsd.New(net.JoinHostPort(cfg.DataDog.Host, cfg.DataDog.Port))
-	if err != nil {
-		logger.Fatalf("failed to initialize DataDog client: %v", err)
-	}
 
 	vaultStorage, err := vault.NewBlockStorageImp(cfg.BlockStorage)
 	if err != nil {
@@ -110,9 +103,7 @@ func main() {
 		dca.NewSpec(map[common.Chain]ecommon.Address{
 			common.Ethereum: ecommon.HexToAddress(cfg.Uniswap.RouterV2.Ethereum),
 		}),
-		append([]echo.MiddlewareFunc{
-			server.DataDogMiddleware(statsdClient),
-		}, server.DefaultMiddlewares()...),
+		server.DefaultMiddlewares(),
 	)
 
 	go func() {
@@ -133,7 +124,6 @@ type config struct {
 	Postgres     plugin_config.Database
 	Redis        plugin_config.Redis
 	Uniswap      uniswapConfig
-	DataDog      dataDog
 }
 
 type uniswapConfig struct {
@@ -142,11 +132,6 @@ type uniswapConfig struct {
 
 type router struct {
 	Ethereum string
-}
-
-type dataDog struct {
-	Host string
-	Port string
 }
 
 func newConfig() (config, error) {
