@@ -12,7 +12,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/sirupsen/logrus v1.9.3
-	github.com/vultisig/recipes v0.0.0-20250811174115-368ae4bab6f6
+	github.com/vultisig/recipes v0.0.0-20250813025500-6e37f7098adf
 	github.com/vultisig/verifier v0.0.0-20250811183319-e6cef9d1b324
 )
 

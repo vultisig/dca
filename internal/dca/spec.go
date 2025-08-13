@@ -172,6 +172,53 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 			},
 		},
 	}, {
+		Resource: "ethereum.uniswapV2_router.swapExactTokensForETH",
+		Effect:   rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: []*rtypes.ParameterConstraint{{
+			ParameterName: "amountIn",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: cfg[fromAmount].(string),
+				},
+			},
+		}, {
+			ParameterName: "amountOutMin",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+			},
+		}, {
+			ParameterName: "path",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: strings.Join([]string{
+						cfg[fromAsset].(string),
+						cfg[toAsset].(string),
+					}, ","),
+				},
+			},
+		}, {
+			ParameterName: "to",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: cfg[toAddress].(string),
+				},
+			},
+		}, {
+			ParameterName: "deadline",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+			},
+		}},
+		Target: &rtypes.Target{
+			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: &rtypes.Target_Address{
+				Address: ethRouterV2.Hex(),
+			},
+		},
+	}, {
 		Resource: "ethereum.erc20.approve",
 		Effect:   rtypes.Effect_EFFECT_ALLOW,
 		ParameterConstraints: []*rtypes.ParameterConstraint{{
@@ -333,6 +380,43 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 				},
 				Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
 				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+					{
+						ParameterName:  "amountOutMin",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+						Required:       true,
+					},
+					{
+						ParameterName:  "path",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Required:       true,
+					},
+					{
+						ParameterName:  "to",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Required:       true,
+					},
+					{
+						ParameterName:  "deadline",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+						Required:       true,
+					},
+				},
+				Required: true,
+			},
+			{
+				ResourcePath: &rtypes.ResourcePath{
+					ChainId:    "ethereum",
+					ProtocolId: "uniswapV2_router",
+					FunctionId: "swapExactTokensForETH",
+					Full:       "ethereum.uniswapV2_router.swapExactTokensForETH",
+				},
+				Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+					{
+						ParameterName:  "amountIn",
+						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Required:       true,
+					},
 					{
 						ParameterName:  "amountOutMin",
 						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,

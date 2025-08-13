@@ -3,6 +3,7 @@ package dca
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -13,28 +14,33 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/hibiken/asynq"
 	"github.com/vultisig/dca/internal/evm"
+	"github.com/vultisig/dca/internal/status"
 	"github.com/vultisig/recipes/common"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/policy"
 	"github.com/vultisig/verifier/plugin/scheduler"
+	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/rpc"
 )
 
 type Consumer struct {
 	policy policy.Service
 	evm    *evm.Manager
 	signer *keysign.Signer
+	status *status.Status
 }
 
 func NewConsumer(
 	policy policy.Service,
 	evm *evm.Manager,
 	signer *keysign.Signer,
+	status *status.Status,
 ) *Consumer {
 	return &Consumer{
 		policy: policy,
 		evm:    evm,
 		signer: signer,
+		status: status,
 	}
 }
 
@@ -121,8 +127,27 @@ func (c *Consumer) Handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("failed to check allowance & build approve: %w", err)
 	}
 	if shouldApprove {
-		_ = approveTx
-		// TODO - sign & broadcast & waitMined approve
+		hash, er := c.signAndBroadcast(ctx, approveTx)
+		if er != nil {
+			return fmt.Errorf("failed to sign & broadcast approve: %w", er)
+		}
+		st, er := c.status.WaitMined(ctx, hash)
+		if er != nil {
+			return fmt.Errorf(
+				"failed to wait approve: %s, hash=%s, chain=%s",
+				st,
+				hash,
+				fromChainTyped.String(),
+			)
+		}
+		if st != rpc.TxOnChainSuccess {
+			return fmt.Errorf(
+				"failed to land approve: %s, hash=%s, chain=%s",
+				st,
+				hash,
+				fromChainTyped.String(),
+			)
+		}
 	}
 
 	swapTx, err := network.Swap.FindBestAmountOut(
@@ -143,10 +168,16 @@ func (c *Consumer) Handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("failed to build swap tx: %w", err)
 	}
 
-	_ = swapTx
-	// TODO - sign & broadcast swap tx
+	_, err = c.signAndBroadcast(ctx, swapTx)
+	if err != nil {
+		return fmt.Errorf("failed to sign & broadcast swap: %w", err)
+	}
 
-	return fmt.Errorf("handle method not yet fully implemented - requires external dependencies")
+	return nil
+}
+
+func (c *Consumer) signAndBroadcast(ctx context.Context, tx []byte) (string, error) {
+	return "", errors.New("not implemented")
 }
 
 func getChainFromCfg(cfg map[string]interface{}, field string) (common.Chain, error) {
