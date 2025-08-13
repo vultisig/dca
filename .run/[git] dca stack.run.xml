@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="[git] dca stack" type="CompoundRunConfigurationType">
+    <toRun name="[git] scheduler" type="GoApplicationRunConfiguration" />
+    <toRun name="[git] server" type="GoApplicationRunConfiguration" />
+    <toRun name="[git] tx_indexer" type="GoApplicationRunConfiguration" />
+    <toRun name="[git] worker" type="GoApplicationRunConfiguration" />
+    <method v="2" />
+  </configuration>
+</component>

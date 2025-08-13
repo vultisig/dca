@@ -2,12 +2,18 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"os"
 
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/dca"
+	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/verifier/plugin"
+	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/policy/policy_pg"
 	"github.com/vultisig/verifier/plugin/scheduler"
 	"github.com/vultisig/verifier/plugin/scheduler/scheduler_pg"
@@ -19,6 +25,7 @@ func main() {
 	defer cancel()
 
 	logger := logrus.New()
+	logger.SetOutput(os.Stdout)
 	logger.SetLevel(logrus.DebugLevel)
 
 	cfg, err := newConfig()
@@ -27,7 +34,7 @@ func main() {
 	}
 
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
-		Addr:     cfg.Redis.Host,
+		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	})
@@ -67,8 +74,31 @@ func main() {
 		policyStorage,
 	)
 
+	healthServer := health.New(cfg.HealthPort)
+	go func() {
+		er := healthServer.Start(ctx, logger)
+		if er != nil {
+			logger.Errorf("health server failed: %v", er)
+		}
+	}()
+
 	err = worker.Run()
 	if err != nil {
 		logger.Fatalf("failed to run worker: %v", err)
 	}
+}
+
+type config struct {
+	Postgres   plugin_config.Database
+	Redis      plugin_config.Redis
+	HealthPort int
+}
+
+func newConfig() (config, error) {
+	var cfg config
+	err := envconfig.Process("", &cfg)
+	if err != nil {
+		return config{}, fmt.Errorf("failed to process env var: %w", err)
+	}
+	return cfg, nil
 }

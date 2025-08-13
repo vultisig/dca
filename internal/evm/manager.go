@@ -3,12 +3,15 @@ package evm
 import (
 	"fmt"
 
+	"github.com/vultisig/dca/internal/status"
 	"github.com/vultisig/recipes/common"
 )
 
 type Network struct {
 	Approve *approveService
 	Swap    *swapService
+	Signer  *signerService
+	Status  *status.Status
 }
 
 type Manager struct {

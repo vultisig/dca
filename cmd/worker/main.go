@@ -2,17 +2,23 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"os"
 
 	"github.com/DataDog/datadog-go/statsd"
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/evm"
+	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/uniswap"
 	"github.com/vultisig/recipes/common"
 	"github.com/vultisig/verifier/plugin"
+	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/policy"
 	"github.com/vultisig/verifier/plugin/policy/policy_pg"
@@ -21,6 +27,7 @@ import (
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
+	"github.com/vultisig/verifier/vault_config"
 	"github.com/vultisig/vultiserver/relay"
 )
 
@@ -28,6 +35,7 @@ func main() {
 	ctx := context.Background()
 
 	logger := logrus.New()
+	logger.SetOutput(os.Stdout)
 	logger.SetLevel(logrus.DebugLevel)
 
 	cfg, err := newConfig()
@@ -45,7 +53,7 @@ func main() {
 	}
 
 	redisOptions := asynq.RedisClientOpt{
-		Addr:     cfg.Redis.Host + ":" + cfg.Redis.Port,
+		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
 		Username: cfg.Redis.User,
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
@@ -85,7 +93,7 @@ func main() {
 	)
 
 	vaultService, err := vault.NewManagementService(
-		cfg.VaultServiceConfig,
+		cfg.VaultService,
 		client,
 		sdClient,
 		vaultStorage,
@@ -124,9 +132,29 @@ func main() {
 		logger.Fatalf("failed to initialize policy service: %v", err)
 	}
 
-	ethNetwork, err := evm.NewNetwork(common.Ethereum, cfg.Rpc.Ethereum.URL, []evm.ProviderConstructor{
-		uniswap.ConstructorV2(ecommon.HexToAddress(cfg.Uniswap.RouterV2.Ethereum)),
-	})
+	signer := keysign.NewSigner(
+		logger,
+		relay.NewRelayClient(cfg.VaultService.Relay.Server),
+		[]keysign.Emitter{
+			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
+			keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.Token),
+		},
+		[]string{
+			cfg.VaultService.LocalPartyPrefix,
+			cfg.Verifier.PartyPrefix,
+		},
+	)
+
+	ethNetwork, err := evm.NewNetwork(
+		ctx,
+		common.Ethereum,
+		cfg.Rpc.Ethereum.URL,
+		[]evm.ProviderConstructor{
+			uniswap.ConstructorV2(ecommon.HexToAddress(cfg.Uniswap.RouterV2.Ethereum)),
+		},
+		signer,
+		txIndexerService,
+	)
 	if err != nil {
 		logger.Fatalf("failed to initialize Ethereum network: %v", err)
 	}
@@ -136,19 +164,15 @@ func main() {
 		evm.NewManager(map[common.Chain]*evm.Network{
 			common.Ethereum: ethNetwork,
 		}),
-		keysign.NewSigner(
-			logger,
-			relay.NewRelayClient(cfg.VaultServiceConfig.Relay.Server),
-			[]keysign.Emitter{
-				keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
-				keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.Token),
-			},
-			[]string{
-				cfg.VaultServiceConfig.LocalPartyPrefix,
-				cfg.Verifier.PartyPrefix,
-			},
-		),
 	)
+
+	healthServer := health.New(cfg.HealthPort)
+	go func() {
+		er := healthServer.Start(ctx, logger)
+		if er != nil {
+			logger.Errorf("health server failed: %v", er)
+		}
+	}()
 
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(tasks.TypePluginTransaction, dcaConsumer.Handle)
@@ -158,4 +182,46 @@ func main() {
 	if err != nil {
 		logger.Fatalf("failed to run consumer: %v", err)
 	}
+}
+
+type config struct {
+	VaultService vault_config.Config
+	BlockStorage vault_config.BlockStorage
+	Postgres     plugin_config.Database
+	Redis        plugin_config.Redis
+	Verifier     plugin_config.Verifier
+	Rpc          rpc
+	Uniswap      uniswapConfig
+	DataDog      dataDog
+	HealthPort   int
+}
+
+type uniswapConfig struct {
+	RouterV2 router
+}
+
+type router struct {
+	Ethereum string
+}
+
+type rpc struct {
+	Ethereum rpcItem
+}
+
+type rpcItem struct {
+	URL string
+}
+
+type dataDog struct {
+	Host string
+	Port string
+}
+
+func newConfig() (config, error) {
+	var cfg config
+	err := envconfig.Process("", &cfg)
+	if err != nil {
+		return config{}, fmt.Errorf("failed to process env var: %w", err)
+	}
+	return cfg, nil
 }

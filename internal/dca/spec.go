@@ -80,6 +80,10 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
+	if cfg[fromChain] != cfg[toChain] {
+		return nil, fmt.Errorf("only same chain swaps supported, got %s->%s", cfg[fromChain], cfg[toChain])
+	}
+
 	ethRouterV2, ok := s.uniswapRouterV2[common.Ethereum]
 	if !ok {
 		return nil, fmt.Errorf("ethereum router v2 address not found")

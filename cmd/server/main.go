@@ -2,24 +2,29 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"os"
 
 	"github.com/DataDog/datadog-go/statsd"
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/graceful"
 	"github.com/vultisig/recipes/common"
 	"github.com/vultisig/verifier/plugin"
+	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/policy"
 	"github.com/vultisig/verifier/plugin/policy/policy_pg"
 	"github.com/vultisig/verifier/plugin/redis"
 	"github.com/vultisig/verifier/plugin/scheduler/scheduler_pg"
 	"github.com/vultisig/verifier/plugin/server"
 	"github.com/vultisig/verifier/vault"
+	"github.com/vultisig/verifier/vault_config"
 )
 
 func main() {
@@ -27,6 +32,7 @@ func main() {
 	defer cancel()
 
 	logger := logrus.New()
+	logger.SetOutput(os.Stdout)
 	logger.SetLevel(logrus.DebugLevel)
 
 	cfg, err := newConfig()
@@ -40,12 +46,12 @@ func main() {
 	}
 
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
-		Addr:     cfg.Redis.Host,
+		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	})
 	asynqInspector := asynq.NewInspector(asynq.RedisClientOpt{
-		Addr:     cfg.Redis.Host,
+		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	})
@@ -119,4 +125,35 @@ func main() {
 	if err != nil {
 		logger.Fatalf("failed to start server: %v", err)
 	}
+}
+
+type config struct {
+	Server       server.Config
+	BlockStorage vault_config.BlockStorage
+	Postgres     plugin_config.Database
+	Redis        plugin_config.Redis
+	Uniswap      uniswapConfig
+	DataDog      dataDog
+}
+
+type uniswapConfig struct {
+	RouterV2 router
+}
+
+type router struct {
+	Ethereum string
+}
+
+type dataDog struct {
+	Host string
+	Port string
+}
+
+func newConfig() (config, error) {
+	var cfg config
+	err := envconfig.Process("", &cfg)
+	if err != nil {
+		return config{}, fmt.Errorf("failed to process env var: %w", err)
+	}
+	return cfg, nil
 }

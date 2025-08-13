@@ -1,0 +1,21 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="[git] tx_indexer" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="dca" />
+    <working_directory value="$PROJECT_DIR$" />
+    <envs>
+      <env name="BASE_DATABASE_DSN" value="postgres://myuser:mypassword@localhost:5431/dca?sslmode=disable" />
+      <env name="BASE_RPC_ETHEREUM_URL" value="https://ethereum-rpc.publicnode.com" />
+      <env name="BASE_RPC_BITCOIN_URL" value="https://bitcoin-rpc.publicnode.com" />
+      <env name="BASE_INTERVAL" value="30s" />
+      <env name="BASE_ITERATIONTIMEOUT" value="30s" />
+      <env name="BASE_MARKLOSTAFTER" value="2h" />
+      <env name="BASE_CONCURRENCY" value="5" />
+      <env name="HEALTHPORT" value="8183" />
+    </envs>
+    <kind value="FILE" />
+    <package value="github.com/vultisig/dca/cmd/tx_indexer" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/tx_indexer/main.go" />
+    <method v="2" />
+  </configuration>
+</component>
