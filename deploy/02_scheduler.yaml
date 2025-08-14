@@ -21,6 +21,7 @@ spec:
       containers:
         - name: scheduler
           image: busybox
+          command: ["/app/main"]
           ports:
             - containerPort: 80
               name: health

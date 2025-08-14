@@ -19,6 +19,7 @@ spec:
       containers:
         - name: tx-indexer
           image: busybox
+          command: ["/app/main"]
           ports:
             - containerPort: 80
               name: health
