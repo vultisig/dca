@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a DCA (Dollar Cost Averaging) plugin for the Vultisig ecosystem that enables automated, recurring cryptocurrency swaps on Ethereum using Uniswap V2. The plugin operates as part of a larger policy-based transaction verification system.
+This is a DCA (Dollar Cost Averaging) plugin for the Vultisig ecosystem that enables automated, recurring cryptocurrency swaps across multiple EVM chains using Uniswap V2. The plugin operates as part of a larger policy-based transaction verification system, supporting 8 EVM networks with official Uniswap V2 deployments.
 
 ## Architecture
 
@@ -51,8 +51,8 @@ All services use environment-based configuration. Key configuration areas:
 
 - **Database**: PostgreSQL connection settings
 - **Redis**: Task queue and caching configuration  
-- **Blockchain RPCs**: Ethereum node endpoints
-- **Uniswap**: Router contract addresses per chain
+- **Blockchain RPCs**: Multi-chain EVM node endpoints (publicnode.com)
+- **Uniswap**: Official Uniswap V2 router contract addresses for all supported chains
 - **Vault**: Block storage and key management settings
 - **DataDog**: Metrics and monitoring integration
 
@@ -147,10 +147,87 @@ go test ./internal/uniswap/
 
 ## Chain Support
 
-Currently supports **Ethereum mainnet only**, with architecture designed for multi-chain expansion. The system uses the Vultisig recipes framework for blockchain abstractions.
+Currently supports **8 EVM chains** with official Uniswap V2 deployments:
+
+- **Ethereum** (`0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D`)
+- **Arbitrum** (`0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24`)
+- **Avalanche** (`0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24`) 
+- **BNB Chain** (`0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24`)
+- **Base** (`0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24`)
+- **Blast** (`0xBB66Eb1c5e875933D44DAe661dbD80e5D9B03035`)
+- **Optimism** (`0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2`)
+- **Polygon** (`0xedf6066a2b290C185783862C7F4776A2C8077AD1`)
+
+The system uses the Vultisig recipes framework for blockchain abstractions and dynamically generates policy rules for all supported chains.
+
+## Multi-Chain Architecture
+
+### Dynamic Chain Support
+
+The DCA plugin has been architected for seamless multi-chain expansion:
+
+- **Dynamic Policy Generation**: The `spec.go` file automatically generates resource patterns and policy rules for all EVM chains
+- **Chain-Agnostic Resource Paths**: Resource paths are dynamically constructed using chain names (e.g., `ethereum.uniswapV2_router.swapExactTokensForTokens`, `arbitrum.uniswapV2_router.swapExactTokensForTokens`)  
+- **Unified Configuration**: Single configuration structure supports all chains with consistent environment variable patterns
+- **Network Initialization**: Worker service automatically initializes EVM networks for all configured chains with appropriate RPC endpoints and router addresses
+
+### Configuration Patterns
+
+All chain-specific configurations follow consistent patterns:
+
+```bash
+# RPC Endpoints
+RPC_{CHAIN}_URL="https://{chain}-rpc.publicnode.com"
+
+# Uniswap V2 Routers (official addresses)
+UNISWAP_ROUTERV2_{CHAIN}="0x{official_router_address}"
+
+# TX Indexer RPCs
+BASE_RPC_{CHAIN}_URL="https://{chain}-rpc.publicnode.com"
+```
+
+This design allows for easy addition of new EVM chains by simply adding their configuration without code changes.
 
 ## Monitoring and Observability
 
 - DataDog integration for metrics and monitoring
 - Structured logging with configurable levels
 - Transaction indexing for audit and verification purposes
+- Health check endpoints available on `/healthz` for all services
+- Network-specific logging for multi-chain operations
+
+## Recent Improvements
+
+### Multi-Chain Expansion (Latest)
+
+- **Expanded from Ethereum-only to 8 EVM chains** with official Uniswap V2 support
+- **Updated all router addresses** to use official Uniswap V2 deployment addresses
+- **Removed unsupported chains** (CronosChain, Zksync) that lack official Uniswap V2 deployments
+- **Dynamic spec generation** for automatic policy rule creation across all chains
+- **Unified configuration patterns** for consistent multi-chain management
+
+### Infrastructure Updates
+
+- **Updated RPC endpoints** to use publicnode.com for reliable blockchain access
+- **Enhanced Kubernetes manifests** with multi-chain ConfigMaps and environment variables
+- **Improved GoLand run configurations** for local development across all chains
+- **TX Indexer integration** expanded to support all EVM chains
+
+### Code Quality & Architecture
+
+- **Type-safe chain handling** using the recipes framework
+- **Comprehensive error handling** with chain-specific validation
+- **Consistent logging patterns** with chain identification
+- **Maintainable configuration** through structured environment variable patterns
+- **Zero breaking changes** while expanding functionality
+
+## Development Best Practices
+
+When working with this codebase:
+
+1. **Chain Support**: Always consider multi-chain implications when making changes
+2. **Configuration**: Follow the established `{SERVICE}_{CHAIN}_{CONFIG}` environment variable pattern
+3. **Resource Paths**: Use lowercase chain names for resource path construction
+4. **Router Addresses**: Only use official Uniswap V2 router addresses from [Uniswap docs](https://docs.uniswap.org/contracts/v2/reference/smart-contracts/v2-deployments)
+5. **Testing**: Ensure all changes work across supported EVM chains
+6. **Error Handling**: Include chain identification in error messages and logs
