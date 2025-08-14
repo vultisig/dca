@@ -43,16 +43,16 @@ spec:
               value: "5"
             - name: BASE_DATABASE_DSN
               valueFrom:
-                configMapKeyRef:
+                secretKeyRef:
                   name: postgres
-                  key: BASE_DATABASE_DSN
+                  key: dsn
           resources:
             requests:
               memory: "32Mi"
               cpu: "50m"
             limits:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "512Mi"
+              cpu: "500m"
           readinessProbe:
             httpGet:
               path: /healthz

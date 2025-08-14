@@ -42,7 +42,10 @@ spec:
             - name: SERVER_PORT
               value: "80"
             - name: SERVER_ENCRYPTIONSECRET
-              value: "test123"
+              valueFrom:
+                secretKeyRef:
+                  name: encryption
+                  key: secret
             - name: UNISWAP_ROUTERV2_ETHEREUM
               valueFrom:
                 configMapKeyRef:
@@ -60,14 +63,14 @@ spec:
                   key: region
             - name: BLOCKSTORAGE_ACCESSKEY
               valueFrom:
-                configMapKeyRef:
+                secretKeyRef:
                   name: minio
-                  key: accessKey
+                  key: root-user
             - name: BLOCKSTORAGE_SECRETKEY
               valueFrom:
-                configMapKeyRef:
+                secretKeyRef:
                   name: minio
-                  key: secretKey
+                  key: root-password
             - name: BLOCKSTORAGE_BUCKET
               valueFrom:
                 configMapKeyRef:
@@ -75,7 +78,7 @@ spec:
                   key: bucket
             - name: POSTGRES_DSN
               valueFrom:
-                configMapKeyRef:
+                secretKeyRef:
                   name: postgres
                   key: dsn
             - name: REDIS_HOST
@@ -88,6 +91,11 @@ spec:
                 configMapKeyRef:
                   name: redis
                   key: port
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: redis-password
             - name: DATADOG_HOST
               valueFrom:
                 configMapKeyRef:

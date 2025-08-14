@@ -1,20 +1,20 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: dca
+  name: plugin-dca
   annotations:
     kubernetes.io/ingress.class: traefik
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    cert-manager.io/cluster-issuer: letsencrypt
+    cert-manager.io/cluster-issuer: letsencrypt-prod
     traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
 spec:
   tls:
     - hosts:
-        - dca.example.com
+        - dca.vultisigplugin.app
       secretName: dca-tls
   rules:
-    - host: plugin-dca.vultisigplugin.app
+    - host: dca.vultisigplugin.app
       http:
         paths:
           - path: /

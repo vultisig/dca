@@ -3,24 +3,6 @@ kind: ConfigMap
 metadata:
   name: minio
 data:
-  host: "minio:9000"
+  host: "minio.plugin-dca.svc.cluster.local:9000"
   region: "us-east-1"
-  accessKey: "minioadmin"
-  secretKey: "minioadmin"
-  bucket: "vultisig-dca"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: minio
-  labels:
-    app: minio
-spec:
-  selector:
-    app: minio
-  ports:
-    - name: api
-      port: 9000
-      targetPort: 9000
-      protocol: TCP
-  type: ClusterIP
+  bucket: "vault"

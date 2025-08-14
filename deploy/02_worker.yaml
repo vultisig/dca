@@ -24,19 +24,34 @@ spec:
             - name: HEALTHPORT
               value: "80"
             - name: VAULTSERVICE_RELAY_SERVER
-              value: "https://api.vultisig.com/router"
+              valueFrom:
+                configMapKeyRef:
+                  name: relay
+                  key: url
             - name: VAULTSERVICE_LOCALPARTYPREFIX
               value: "vultisig-dca-0000"
             - name: VAULTSERVICE_ENCRYPTIONSECRET
-              value: "test123"
+              valueFrom:
+                secretKeyRef:
+                  name: encryption
+                  key: secret
             - name: VAULTSERVICE_DOSETUPMSG
               value: "true"
             - name: VERIFIER_URL
-              value: "http://localhost:8080"
+              valueFrom:
+                configMapKeyRef:
+                  name: verifier
+                  key: url
             - name: VERIFIER_TOKEN
-              value: "localhost-apikey-dca"
+              valueFrom:
+                secretKeyRef:
+                  name: verifier
+                  key: token
             - name: VERIFIER_PARTYPREFIX
-              value: "verifier"
+              valueFrom:
+                configMapKeyRef:
+                  name: verifier
+                  key: party-prefix
             - name: RPC_ETHEREUM_URL
               valueFrom:
                 configMapKeyRef:
@@ -74,7 +89,7 @@ spec:
                   key: bucket
             - name: POSTGRES_DSN
               valueFrom:
-                configMapKeyRef:
+                secretKeyRef:
                   name: postgres
                   key: dsn
             - name: REDIS_HOST
@@ -87,6 +102,11 @@ spec:
                 configMapKeyRef:
                   name: redis
                   key: port
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: redis-password
             - name: DATADOG_HOST
               valueFrom:
                 configMapKeyRef:
@@ -100,7 +120,7 @@ spec:
           resources:
             requests:
               memory: "32Mi"
-              cpu: "100m"
+              cpu: "50m"
             limits:
               memory: "512Mi"
               cpu: "500m"
