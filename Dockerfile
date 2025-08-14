@@ -1,5 +1,6 @@
 FROM golang:latest AS builder
 
+ARG SERVICE
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
