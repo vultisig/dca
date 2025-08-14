@@ -22,10 +22,8 @@ var supportedChains = []common.Chain{
 	common.BscChain,
 	common.Base,
 	common.Blast,
-	common.CronosChain,
 	common.Optimism,
 	common.Polygon,
-	common.Zksync,
 }
 
 const (

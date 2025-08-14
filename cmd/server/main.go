@@ -94,16 +94,14 @@ func main() {
 	}
 
 	uniswapRouters := map[common.Chain]ecommon.Address{
-		common.Ethereum:    ecommon.HexToAddress(cfg.Uniswap.RouterV2.Ethereum),
-		common.Arbitrum:    ecommon.HexToAddress(cfg.Uniswap.RouterV2.Arbitrum),
-		common.Avalanche:   ecommon.HexToAddress(cfg.Uniswap.RouterV2.Avalanche),
-		common.BscChain:    ecommon.HexToAddress(cfg.Uniswap.RouterV2.BSC),
-		common.Base:        ecommon.HexToAddress(cfg.Uniswap.RouterV2.Base),
-		common.Blast:       ecommon.HexToAddress(cfg.Uniswap.RouterV2.Blast),
-		common.CronosChain: ecommon.HexToAddress(cfg.Uniswap.RouterV2.CronosChain),
-		common.Optimism:    ecommon.HexToAddress(cfg.Uniswap.RouterV2.Optimism),
-		common.Polygon:     ecommon.HexToAddress(cfg.Uniswap.RouterV2.Polygon),
-		common.Zksync:      ecommon.HexToAddress(cfg.Uniswap.RouterV2.Zksync),
+		common.Ethereum:  ecommon.HexToAddress(cfg.Uniswap.RouterV2.Ethereum),
+		common.Arbitrum:  ecommon.HexToAddress(cfg.Uniswap.RouterV2.Arbitrum),
+		common.Avalanche: ecommon.HexToAddress(cfg.Uniswap.RouterV2.Avalanche),
+		common.BscChain:  ecommon.HexToAddress(cfg.Uniswap.RouterV2.BSC),
+		common.Base:      ecommon.HexToAddress(cfg.Uniswap.RouterV2.Base),
+		common.Blast:     ecommon.HexToAddress(cfg.Uniswap.RouterV2.Blast),
+		common.Optimism:  ecommon.HexToAddress(cfg.Uniswap.RouterV2.Optimism),
+		common.Polygon:   ecommon.HexToAddress(cfg.Uniswap.RouterV2.Polygon),
 	}
 
 	srv := server.NewServer(
@@ -142,16 +140,14 @@ type uniswapConfig struct {
 }
 
 type router struct {
-	Ethereum    string
-	Arbitrum    string
-	Avalanche   string
-	BSC         string
-	Base        string
-	Blast       string
-	CronosChain string
-	Optimism    string
-	Polygon     string
-	Zksync      string
+	Ethereum  string
+	Arbitrum  string
+	Avalanche string
+	BSC       string
+	Base      string
+	Blast     string
+	Optimism  string
+	Polygon   string
 }
 
 func newConfig() (config, error) {

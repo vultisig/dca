@@ -163,10 +163,8 @@ func main() {
 		{common.BscChain, cfg.Rpc.BSC.URL, cfg.Uniswap.RouterV2.BSC},
 		{common.Base, cfg.Rpc.Base.URL, cfg.Uniswap.RouterV2.Base},
 		{common.Blast, cfg.Rpc.Blast.URL, cfg.Uniswap.RouterV2.Blast},
-		{common.CronosChain, cfg.Rpc.CronosChain.URL, cfg.Uniswap.RouterV2.CronosChain},
 		{common.Optimism, cfg.Rpc.Optimism.URL, cfg.Uniswap.RouterV2.Optimism},
 		{common.Polygon, cfg.Rpc.Polygon.URL, cfg.Uniswap.RouterV2.Polygon},
-		{common.Zksync, cfg.Rpc.Zksync.URL, cfg.Uniswap.RouterV2.Zksync},
 	}
 
 	for _, c := range networkConfigs {
@@ -227,29 +225,25 @@ type uniswapConfig struct {
 }
 
 type router struct {
-	Ethereum    string
-	Arbitrum    string
-	Avalanche   string
-	BSC         string
-	Base        string
-	Blast       string
-	CronosChain string
-	Optimism    string
-	Polygon     string
-	Zksync      string
+	Ethereum  string
+	Arbitrum  string
+	Avalanche string
+	BSC       string
+	Base      string
+	Blast     string
+	Optimism  string
+	Polygon   string
 }
 
 type rpc struct {
-	Ethereum    rpcItem
-	Arbitrum    rpcItem
-	Avalanche   rpcItem
-	BSC         rpcItem
-	Base        rpcItem
-	Blast       rpcItem
-	CronosChain rpcItem
-	Optimism    rpcItem
-	Polygon     rpcItem
-	Zksync      rpcItem
+	Ethereum  rpcItem
+	Arbitrum  rpcItem
+	Avalanche rpcItem
+	BSC       rpcItem
+	Base      rpcItem
+	Blast     rpcItem
+	Optimism  rpcItem
+	Polygon   rpcItem
 }
 
 type rpcItem struct {

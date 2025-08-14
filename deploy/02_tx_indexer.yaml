@@ -56,11 +56,6 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: blast
-            - name: BASE_RPC_CRONOSCHAIN_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: rpc
-                  key: cronoschain
             - name: BASE_RPC_OPTIMISM_URL
               valueFrom:
                 configMapKeyRef:
@@ -71,11 +66,6 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: polygon
-            - name: BASE_RPC_ZKSYNC_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: rpc
-                  key: zksync
             - name: BASE_RPC_BITCOIN_URL
               valueFrom:
                 configMapKeyRef:

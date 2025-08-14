@@ -10,10 +10,8 @@
       <env name="BASE_RPC_BSC_URL" value="https://bsc-rpc.publicnode.com" />
       <env name="BASE_RPC_BASE_URL" value="https://base-rpc.publicnode.com" />
       <env name="BASE_RPC_BLAST_URL" value="https://blast-rpc.publicnode.com" />
-      <env name="BASE_RPC_CRONOSCHAIN_URL" value="https://cronos-rpc.publicnode.com" />
       <env name="BASE_RPC_OPTIMISM_URL" value="https://optimism-rpc.publicnode.com" />
       <env name="BASE_RPC_POLYGON_URL" value="https://polygon-bor-rpc.publicnode.com" />
-      <env name="BASE_RPC_ZKSYNC_URL" value="https://zksync-era-rpc.publicnode.com" />
       <env name="BASE_RPC_BITCOIN_URL" value="https://bitcoin-rpc.publicnode.com" />
       <env name="BASE_INTERVAL" value="30s" />
       <env name="BASE_ITERATIONTIMEOUT" value="30s" />

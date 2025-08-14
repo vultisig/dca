@@ -85,11 +85,6 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: blast
-            - name: RPC_CRONOSCHAIN_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: rpc
-                  key: cronoschain
             - name: RPC_OPTIMISM_URL
               valueFrom:
                 configMapKeyRef:
@@ -100,11 +95,6 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: polygon
-            - name: RPC_ZKSYNC_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: rpc
-                  key: zksync
             - name: UNISWAP_ROUTERV2_ETHEREUM
               valueFrom:
                 configMapKeyRef:
@@ -135,11 +125,6 @@ spec:
                 configMapKeyRef:
                   name: uniswap
                   key: router-v2-blast
-            - name: UNISWAP_ROUTERV2_CRONOSCHAIN
-              valueFrom:
-                configMapKeyRef:
-                  name: uniswap
-                  key: router-v2-cronoschain
             - name: UNISWAP_ROUTERV2_OPTIMISM
               valueFrom:
                 configMapKeyRef:
@@ -150,11 +135,6 @@ spec:
                 configMapKeyRef:
                   name: uniswap
                   key: router-v2-polygon
-            - name: UNISWAP_ROUTERV2_ZKSYNC
-              valueFrom:
-                configMapKeyRef:
-                  name: uniswap
-                  key: router-v2-zksync
             - name: BLOCKSTORAGE_HOST
               valueFrom:
                 configMapKeyRef:
