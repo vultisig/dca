@@ -86,10 +86,15 @@ func main() {
 		logger.Fatalf("failed to initialize Postgres pool: %v", err)
 	}
 
+	supportedChains, err := tx_indexer.Chains()
+	if err != nil {
+		logger.Fatalf("failed to get supported chains: %v", err)
+	}
+
 	txIndexerService := tx_indexer.NewService(
 		logger,
 		txStorage,
-		tx_indexer.Chains(),
+		supportedChains,
 	)
 
 	vaultService, err := vault.NewManagementService(
@@ -145,25 +150,46 @@ func main() {
 		},
 	)
 
-	ethNetwork, err := evm.NewNetwork(
-		ctx,
-		common.Ethereum,
-		cfg.Rpc.Ethereum.URL,
-		[]evm.ProviderConstructor{
-			uniswap.ConstructorV2(ecommon.HexToAddress(cfg.Uniswap.RouterV2.Ethereum)),
-		},
-		signer,
-		txIndexerService,
-	)
-	if err != nil {
-		logger.Fatalf("failed to initialize Ethereum network: %v", err)
+	networks := make(map[common.Chain]*evm.Network)
+
+	networkConfigs := []struct {
+		chain      common.Chain
+		rpcURL     string
+		routerAddr string
+	}{
+		{common.Ethereum, cfg.Rpc.Ethereum.URL, cfg.Uniswap.RouterV2.Ethereum},
+		{common.Arbitrum, cfg.Rpc.Arbitrum.URL, cfg.Uniswap.RouterV2.Arbitrum},
+		{common.Avalanche, cfg.Rpc.Avalanche.URL, cfg.Uniswap.RouterV2.Avalanche},
+		{common.BscChain, cfg.Rpc.BSC.URL, cfg.Uniswap.RouterV2.BSC},
+		{common.Base, cfg.Rpc.Base.URL, cfg.Uniswap.RouterV2.Base},
+		{common.Blast, cfg.Rpc.Blast.URL, cfg.Uniswap.RouterV2.Blast},
+		{common.CronosChain, cfg.Rpc.CronosChain.URL, cfg.Uniswap.RouterV2.CronosChain},
+		{common.Optimism, cfg.Rpc.Optimism.URL, cfg.Uniswap.RouterV2.Optimism},
+		{common.Polygon, cfg.Rpc.Polygon.URL, cfg.Uniswap.RouterV2.Polygon},
+		{common.Zksync, cfg.Rpc.Zksync.URL, cfg.Uniswap.RouterV2.Zksync},
+	}
+
+	for _, c := range networkConfigs {
+		network, er := evm.NewNetwork(
+			ctx,
+			c.chain,
+			c.rpcURL,
+			[]evm.ProviderConstructor{
+				uniswap.ConstructorV2(ecommon.HexToAddress(c.routerAddr)),
+			},
+			signer,
+			txIndexerService,
+		)
+		if er != nil {
+			logger.Fatalf("failed to initialize %s network: %v", c.chain.String(), er)
+		}
+		networks[c.chain] = network
+		logger.Infof("initialized %s network with RPC: %s", c.chain.String(), c.rpcURL)
 	}
 
 	dcaConsumer := dca.NewConsumer(
 		policyService,
-		evm.NewManager(map[common.Chain]*evm.Network{
-			common.Ethereum: ethNetwork,
-		}),
+		evm.NewManager(networks),
 	)
 
 	healthServer := health.New(cfg.HealthPort)
@@ -201,11 +227,29 @@ type uniswapConfig struct {
 }
 
 type router struct {
-	Ethereum string
+	Ethereum    string
+	Arbitrum    string
+	Avalanche   string
+	BSC         string
+	Base        string
+	Blast       string
+	CronosChain string
+	Optimism    string
+	Polygon     string
+	Zksync      string
 }
 
 type rpc struct {
-	Ethereum rpcItem
+	Ethereum    rpcItem
+	Arbitrum    rpcItem
+	Avalanche   rpcItem
+	BSC         rpcItem
+	Base        rpcItem
+	Blast       rpcItem
+	CronosChain rpcItem
+	Optimism    rpcItem
+	Polygon     rpcItem
+	Zksync      rpcItem
 }
 
 type rpcItem struct {

@@ -15,6 +15,19 @@ import (
 	"github.com/vultisig/verifier/types"
 )
 
+var supportedChains = []common.Chain{
+	common.Ethereum,
+	common.Arbitrum,
+	common.Avalanche,
+	common.BscChain,
+	common.Base,
+	common.Blast,
+	common.CronosChain,
+	common.Optimism,
+	common.Polygon,
+	common.Zksync,
+}
+
 const (
 	fromChain  = "fromChain"
 	fromAsset  = "fromAsset"
@@ -85,9 +98,20 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("only same chain swaps supported, got %s->%s", cfg[fromChain], cfg[toChain])
 	}
 
-	ethRouterV2, ok := s.uniswapRouterV2[common.Ethereum]
+	fromChainStr := cfg[fromChain].(string)
+	fromChainTyped, err := common.FromString(fromChainStr)
+	if err != nil {
+		return nil, fmt.Errorf("unsupported chain: %s", fromChainStr)
+	}
+	fromChainLowercase := strings.ToLower(fromChainTyped.String())
+
+	if !fromChainTyped.IsEvm() {
+		return nil, fmt.Errorf("chain %s is not an EVM chain", fromChainStr)
+	}
+
+	routerV2, ok := s.uniswapRouterV2[fromChainTyped]
 	if !ok {
-		return nil, fmt.Errorf("ethereum router v2 address not found")
+		return nil, fmt.Errorf("%s router v2 address not found", fromChainStr)
 	}
 
 	fromAssetAddr := ecommon.HexToAddress(cfg[fromAsset].(string))
@@ -98,25 +122,25 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	var rules []*rtypes.Rule
 	if isFromNative {
 		rules = append(rules, createUniswapRule(
-			"ethereum.uniswapV2_router.swapExactETHForTokens",
+			fromChainLowercase+".uniswapV2_router.swapExactETHForTokens",
 			cfg,
-			ethRouterV2.Hex(),
+			routerV2.Hex(),
 			false,
 		))
 	} else if isToNative {
 		rules = append(rules, createUniswapRule(
-			"ethereum.uniswapV2_router.swapExactTokensForETH",
+			fromChainLowercase+".uniswapV2_router.swapExactTokensForETH",
 			cfg,
-			ethRouterV2.Hex(),
+			routerV2.Hex(),
 			true,
-		), createApproveRule(ethRouterV2.Hex(), cfg[fromAsset].(string)))
+		), createApproveRule(routerV2.Hex(), cfg[fromAsset].(string), fromChainLowercase))
 	} else {
 		rules = append(rules, createUniswapRule(
-			"ethereum.uniswapV2_router.swapExactTokensForTokens",
+			fromChainLowercase+".uniswapV2_router.swapExactTokensForTokens",
 			cfg,
-			ethRouterV2.Hex(),
+			routerV2.Hex(),
 			true,
-		), createApproveRule(ethRouterV2.Hex(), cfg[fromAsset].(string)))
+		), createApproveRule(routerV2.Hex(), cfg[fromAsset].(string), fromChainLowercase))
 	}
 
 	var rateLimitWindow uint32
@@ -147,14 +171,19 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 }
 
 func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
+	var evmChains []string
+	for _, chain := range supportedChains {
+		if chain.IsEvm() {
+			evmChains = append(evmChains, chain.String())
+		}
+	}
+
 	cfg, err := plugin.RecipeConfiguration(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			fromChain: map[string]any{
 				"type": "string",
-				"enum": []any{
-					common.Ethereum.String(),
-				},
+				"enum": evmChains,
 			},
 			fromAsset: map[string]any{
 				"type": "string",
@@ -164,9 +193,7 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			},
 			toChain: map[string]any{
 				"type": "string",
-				"enum": []any{
-					common.Ethereum.String(),
-				},
+				"enum": evmChains,
 			},
 			toAsset: map[string]any{
 				"type": "string",
@@ -205,148 +232,164 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	}
 
 	return &rtypes.RecipeSchema{
-		Version:       1, // Schema version
-		PluginId:      string(types.PluginVultisigDCA_0000),
-		PluginName:    "DCA",
-		PluginVersion: 1,
-		SupportedResources: []*rtypes.ResourcePattern{
-			{
-				ResourcePath: &rtypes.ResourcePath{
-					ChainId:    "ethereum",
-					ProtocolId: "uniswapV2_router",
-					FunctionId: "swapExactTokensForTokens",
-					Full:       "ethereum.uniswapV2_router.swapExactTokensForTokens",
-				},
-				Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
-					{
-						ParameterName:  "amountIn",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Required:       true,
-					},
-					{
-						ParameterName:  "amountOutMin",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-						Required:       true,
-					},
-					{
-						ParameterName:  "path",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Required:       true,
-					},
-					{
-						ParameterName:  "to",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Required:       true,
-					},
-					{
-						ParameterName:  "deadline",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-						Required:       true,
-					},
-				},
-				Required: true,
-			},
-			{
-				ResourcePath: &rtypes.ResourcePath{
-					ChainId:    "ethereum",
-					ProtocolId: "uniswapV2_router",
-					FunctionId: "swapExactETHForTokens",
-					Full:       "ethereum.uniswapV2_router.swapExactETHForTokens",
-				},
-				Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
-					{
-						ParameterName:  "amountOutMin",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-						Required:       true,
-					},
-					{
-						ParameterName:  "path",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Required:       true,
-					},
-					{
-						ParameterName:  "to",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Required:       true,
-					},
-					{
-						ParameterName:  "deadline",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-						Required:       true,
-					},
-				},
-				Required: true,
-			},
-			{
-				ResourcePath: &rtypes.ResourcePath{
-					ChainId:    "ethereum",
-					ProtocolId: "uniswapV2_router",
-					FunctionId: "swapExactTokensForETH",
-					Full:       "ethereum.uniswapV2_router.swapExactTokensForETH",
-				},
-				Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
-					{
-						ParameterName:  "amountIn",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Required:       true,
-					},
-					{
-						ParameterName:  "amountOutMin",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-						Required:       true,
-					},
-					{
-						ParameterName:  "path",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Required:       true,
-					},
-					{
-						ParameterName:  "to",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Required:       true,
-					},
-					{
-						ParameterName:  "deadline",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-						Required:       true,
-					},
-				},
-				Required: true,
-			},
-			{
-				ResourcePath: &rtypes.ResourcePath{
-					ChainId:    "ethereum",
-					ProtocolId: "erc20",
-					FunctionId: "approve",
-					Full:       "ethereum.erc20.approve",
-				},
-				Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-				ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
-					{
-						ParameterName:  "spender",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Required:       true,
-					},
-					{
-						ParameterName:  "amount",
-						SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-						Required:       true,
-					},
-				},
-				Required: true,
-			},
-		},
-		Configuration: cfg,
+		Version:            1, // Schema version
+		PluginId:           string(types.PluginVultisigDCA_0000),
+		PluginName:         "DCA",
+		PluginVersion:      1,
+		SupportedResources: s.buildSupportedResources(),
+		Configuration:      cfg,
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
-			SupportedChains: []string{
-				common.Ethereum.String(),
-			},
+			SupportedChains: func() []string {
+				var chains []string
+				for _, c := range supportedChains {
+					chains = append(chains, c.String())
+				}
+				return chains
+			}(),
 		},
 	}, nil
+}
+
+func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
+	var resources []*rtypes.ResourcePattern
+	for _, chain := range supportedChains {
+		chainNameLower := strings.ToLower(chain.String())
+
+		resources = append(resources, &rtypes.ResourcePattern{
+			ResourcePath: &rtypes.ResourcePath{
+				ChainId:    chainNameLower,
+				ProtocolId: "uniswapV2_router",
+				FunctionId: "swapExactTokensForTokens",
+				Full:       chainNameLower + ".uniswapV2_router.swapExactTokensForTokens",
+			},
+			Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+				{
+					ParameterName:  "amountIn",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "amountOutMin",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       true,
+				},
+				{
+					ParameterName:  "path",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "to",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "deadline",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       true,
+				},
+			},
+			Required: true,
+		})
+
+		resources = append(resources, &rtypes.ResourcePattern{
+			ResourcePath: &rtypes.ResourcePath{
+				ChainId:    chainNameLower,
+				ProtocolId: "uniswapV2_router",
+				FunctionId: "swapExactETHForTokens",
+				Full:       chainNameLower + ".uniswapV2_router.swapExactETHForTokens",
+			},
+			Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+				{
+					ParameterName:  "amountOutMin",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       true,
+				},
+				{
+					ParameterName:  "path",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "to",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "deadline",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       true,
+				},
+			},
+			Required: true,
+		})
+
+		resources = append(resources, &rtypes.ResourcePattern{
+			ResourcePath: &rtypes.ResourcePath{
+				ChainId:    chainNameLower,
+				ProtocolId: "uniswapV2_router",
+				FunctionId: "swapExactTokensForETH",
+				Full:       chainNameLower + ".uniswapV2_router.swapExactTokensForETH",
+			},
+			Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+				{
+					ParameterName:  "amountIn",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "amountOutMin",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       true,
+				},
+				{
+					ParameterName:  "path",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "to",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "deadline",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       true,
+				},
+			},
+			Required: true,
+		})
+
+		resources = append(resources, &rtypes.ResourcePattern{
+			ResourcePath: &rtypes.ResourcePath{
+				ChainId:    chainNameLower,
+				ProtocolId: "erc20",
+				FunctionId: "approve",
+				Full:       chainNameLower + ".erc20.approve",
+			},
+			Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+				{
+					ParameterName:  "spender",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "amount",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       true,
+				},
+			},
+			Required: true,
+		})
+	}
+
+	return resources
 }
 
 func (s *Spec) ValidatePluginPolicy(pol types.PluginPolicy) error {
@@ -416,9 +459,9 @@ func createUniswapRule(resource string, cfg map[string]any, routerAddress string
 	}
 }
 
-func createApproveRule(spenderAddress, tokenAddress string) *rtypes.Rule {
+func createApproveRule(spenderAddress, tokenAddress, chainName string) *rtypes.Rule {
 	return &rtypes.Rule{
-		Resource: "ethereum.erc20.approve",
+		Resource: chainName + ".erc20.approve",
 		Effect:   rtypes.Effect_EFFECT_ALLOW,
 		ParameterConstraints: []*rtypes.ParameterConstraint{{
 			ParameterName: "spender",

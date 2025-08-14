@@ -422,6 +422,8 @@ github.com/vultisig/recipes v0.0.0-20250813025500-6e37f7098adf h1:su+OD9ljUYM7/L
 github.com/vultisig/recipes v0.0.0-20250813025500-6e37f7098adf/go.mod h1:Ot3lrUnnSw67Hep+MelclVPgNLDxJP01Ezixw/1RYRE=
 github.com/vultisig/verifier v0.0.0-20250812135346-fb2f7e7f01e9 h1:mili6I8RvE3VzpGqO3dc95uh1GVrgflV0yDOS/LYKYg=
 github.com/vultisig/verifier v0.0.0-20250812135346-fb2f7e7f01e9/go.mod h1:mPPBi5y9pCE/FUS8ibMTsEx3uR5rvia7bt7GEl6Kvv0=
+github.com/vultisig/verifier v0.0.0-20250814195408-d4ef4151d052 h1:Iz630u1NoF9d2MfFGBOopgCOgkQ3VG2ty8qqdqcmMAE=
+github.com/vultisig/verifier v0.0.0-20250814195408-d4ef4151d052/go.mod h1:mPPBi5y9pCE/FUS8ibMTsEx3uR5rvia7bt7GEl6Kvv0=
 github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b h1:Ed2DOWo8fA0KG6e36rzUmGpxcOQjmWTbxWyvUbI5by8=
 github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 h1:gEOO8jv9F4OT7lGCjxCBTO/36wtF6j2nSip77qHd4x4=

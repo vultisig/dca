@@ -4,3 +4,12 @@ metadata:
   name: uniswap
 data:
   router-v2-ethereum: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+  router-v2-arbitrum: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+  router-v2-avalanche: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+  router-v2-bsc: "0x10ED43C718714eb63d5aA57B78B54704E256024E"
+  router-v2-base: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+  router-v2-blast: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+  router-v2-cronoschain: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+  router-v2-optimism: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+  router-v2-polygon: "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff"
+  router-v2-zksync: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"

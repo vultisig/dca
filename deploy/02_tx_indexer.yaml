@@ -31,6 +31,51 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: ethereum
+            - name: BASE_RPC_ARBITRUM_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: arbitrum
+            - name: BASE_RPC_AVALANCHE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: avalanche
+            - name: BASE_RPC_BSC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: bsc
+            - name: BASE_RPC_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: base
+            - name: BASE_RPC_BLAST_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: blast
+            - name: BASE_RPC_CRONOSCHAIN_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: cronoschain
+            - name: BASE_RPC_OPTIMISM_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: optimism
+            - name: BASE_RPC_POLYGON_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: polygon
+            - name: BASE_RPC_ZKSYNC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: zksync
             - name: BASE_RPC_BITCOIN_URL
               valueFrom:
                 configMapKeyRef:

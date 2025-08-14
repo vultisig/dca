@@ -54,6 +54,51 @@ spec:
                 configMapKeyRef:
                   name: uniswap
                   key: router-v2-ethereum
+            - name: UNISWAP_ROUTERV2_ARBITRUM
+              valueFrom:
+                configMapKeyRef:
+                  name: uniswap
+                  key: router-v2-arbitrum
+            - name: UNISWAP_ROUTERV2_AVALANCHE
+              valueFrom:
+                configMapKeyRef:
+                  name: uniswap
+                  key: router-v2-avalanche
+            - name: UNISWAP_ROUTERV2_BSC
+              valueFrom:
+                configMapKeyRef:
+                  name: uniswap
+                  key: router-v2-bsc
+            - name: UNISWAP_ROUTERV2_BASE
+              valueFrom:
+                configMapKeyRef:
+                  name: uniswap
+                  key: router-v2-base
+            - name: UNISWAP_ROUTERV2_BLAST
+              valueFrom:
+                configMapKeyRef:
+                  name: uniswap
+                  key: router-v2-blast
+            - name: UNISWAP_ROUTERV2_CRONOSCHAIN
+              valueFrom:
+                configMapKeyRef:
+                  name: uniswap
+                  key: router-v2-cronoschain
+            - name: UNISWAP_ROUTERV2_OPTIMISM
+              valueFrom:
+                configMapKeyRef:
+                  name: uniswap
+                  key: router-v2-optimism
+            - name: UNISWAP_ROUTERV2_POLYGON
+              valueFrom:
+                configMapKeyRef:
+                  name: uniswap
+                  key: router-v2-polygon
+            - name: UNISWAP_ROUTERV2_ZKSYNC
+              valueFrom:
+                configMapKeyRef:
+                  name: uniswap
+                  key: router-v2-zksync
             - name: BLOCKSTORAGE_HOST
               valueFrom:
                 configMapKeyRef:

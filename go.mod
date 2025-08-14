@@ -13,7 +13,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
 	github.com/vultisig/recipes v0.0.0-20250813025500-6e37f7098adf
-	github.com/vultisig/verifier v0.0.0-20250812135346-fb2f7e7f01e9
+	github.com/vultisig/verifier v0.0.0-20250814195408-d4ef4151d052
 	github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b
 	golang.org/x/sync v0.14.0
 )
