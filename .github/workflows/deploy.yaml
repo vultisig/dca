@@ -7,6 +7,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  K8S_HOST: https://95.179.182.114:6443
   NS: plugin-dca
 
 jobs:
@@ -84,10 +85,12 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
 
-      - name: Configure kubectl
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+      - name: Set the Kubernetes context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: service-account
+          k8s-url: ${{ env.K8S_HOST }}
+          k8s-secret: ${{ secrets.K8S_TOKEN }}
 
       - name: Deploy to Kubernetes
         run: |

@@ -6,6 +6,8 @@ metadata:
     app: scheduler
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: scheduler
@@ -14,6 +16,8 @@ spec:
       labels:
         app: scheduler
     spec:
+      imagePullSecrets:
+        - name: ghcr
       containers:
         - name: scheduler
           image: busybox
