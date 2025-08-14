@@ -61,7 +61,7 @@ All services use environment-based configuration. Key configuration areas:
 1. **Policy Creation** - User configures DCA parameters (frequency, assets, amounts)
 2. **Recipe Validation** - System validates configuration against JSON schema
 3. **Rule Generation** - Creates Uniswap V2 operation rules with parameter constraints
-4. **Scheduling** - Scheduler queues transactions based on frequency settings
+4. **Scheduling** - Scheduler queues transactions based on frequency settings, respecting endDate constraints
 5. **Execution** - Worker processes queued tasks, handling approvals and swaps
 6. **Key Signing** - Integrates with Vultisig's distributed key signing system
 
@@ -205,6 +205,7 @@ This design allows for easy addition of new EVM chains by simply adding their co
 - **Removed unsupported chains** (CronosChain, Zksync) that lack official Uniswap V2 deployments
 - **Dynamic spec generation** for automatic policy rule creation across all chains
 - **Unified configuration patterns** for consistent multi-chain management
+- **Enhanced scheduler with endDate support** - automatically stops scheduling when policies expire
 
 ### Infrastructure Updates
 

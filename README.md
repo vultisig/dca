@@ -68,7 +68,7 @@ Blockchain transaction indexer for monitoring and verification.
 1. **Policy Creation** - User configures DCA parameters through the API
 2. **Recipe Validation** - System validates configuration against JSON schema
 3. **Rule Generation** - Creates Uniswap V2 operation rules with parameter constraints
-4. **Scheduling** - Scheduler queues transactions based on frequency settings
+4. **Scheduling** - Scheduler queues transactions based on frequency settings, respecting endDate constraints
 5. **Execution** - Worker processes tasks, handling approvals and swaps
 6. **Key Signing** - Integrates with Vultisig's distributed key signing system
 
@@ -212,7 +212,7 @@ POST /api/policy
 - **fromAmount**: Amount in wei (string)
 - **frequency**: `minutely`, `hourly`, `daily`, `weekly`, `bi-weekly`, `monthly`
 - **toAddress**: Recipient address
-- **endDate**: ISO 8601 timestamp
+- **endDate**: ISO 8601 timestamp (optional) - scheduler stops scheduling new runs after this date
 
 ## Dependencies
 
