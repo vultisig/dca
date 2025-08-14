@@ -23,8 +23,6 @@
       <env name="UNISWAP_ROUTERV2_BLAST" value="0xBB66Eb1c5e875933D44DAe661dbD80e5D9B03035" />
       <env name="UNISWAP_ROUTERV2_OPTIMISM" value="0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2" />
       <env name="UNISWAP_ROUTERV2_POLYGON" value="0xedf6066a2b290C185783862C7F4776A2C8077AD1" />
-      <env name="DATADOG_HOST" value="localhost" />
-      <env name="DATADOG_PORT" value="8125" />
     </envs>
     <kind value="FILE" />
     <package value="github.com/vultisig/dca/cmd/server" />
