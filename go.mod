@@ -10,10 +10,12 @@ require (
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/kaptinlin/jsonschema v0.4.6
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/labstack/echo/v4 v4.13.3
 	github.com/sirupsen/logrus v1.9.3
+	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
 	github.com/vultisig/recipes v0.0.0-20250813025500-6e37f7098adf
-	github.com/vultisig/verifier v0.0.0-20250811183319-e6cef9d1b324
+	github.com/vultisig/verifier v0.0.0-20250812135346-fb2f7e7f01e9
+	github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b
+	golang.org/x/sync v0.14.0
 )
 
 require (
@@ -68,6 +70,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kaptinlin/go-i18n v0.1.4 // indirect
+	github.com/labstack/echo/v4 v4.13.3 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -101,13 +104,10 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778 // indirect
 	github.com/vultisig/go-wrappers v0.0.0-20250403041248-86911e8aa33f // indirect
-	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 // indirect
-	github.com/vultisig/vultiserver v0.0.0-20250715212748-4b23f9849e4b // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
-	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
