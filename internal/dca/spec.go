@@ -8,6 +8,7 @@ import (
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/kaptinlin/jsonschema"
 	"github.com/vultisig/recipes/common"
+	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
@@ -89,163 +90,34 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("ethereum router v2 address not found")
 	}
 
-	rules := []*rtypes.Rule{{
-		Resource: "ethereum.uniswapV2_router.swapExactTokensForTokens",
-		Effect:   rtypes.Effect_EFFECT_ALLOW,
-		ParameterConstraints: []*rtypes.ParameterConstraint{{
-			ParameterName: "amountIn",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: cfg[fromAmount].(string),
-				},
-			},
-		}, {
-			ParameterName: "amountOutMin",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-			},
-		}, {
-			ParameterName: "path",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: strings.Join([]string{
-						cfg[fromAsset].(string),
-						cfg[toAsset].(string),
-					}, ","),
-				},
-			},
-		}, {
-			ParameterName: "to",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: cfg[toAddress].(string),
-				},
-			},
-		}, {
-			ParameterName: "deadline",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-			},
-		}},
-		Target: &rtypes.Target{
-			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-			Target: &rtypes.Target_Address{
-				Address: ethRouterV2.Hex(),
-			},
-		},
-	}, {
-		Resource: "ethereum.uniswapV2_router.swapExactETHForTokens",
-		Effect:   rtypes.Effect_EFFECT_ALLOW,
-		ParameterConstraints: []*rtypes.ParameterConstraint{{
-			ParameterName: "amountOutMin",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-			},
-		}, {
-			ParameterName: "path",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: strings.Join([]string{
-						cfg[fromAsset].(string),
-						cfg[toAsset].(string),
-					}, ","),
-				},
-			},
-		}, {
-			ParameterName: "to",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: cfg[toAddress].(string),
-				},
-			},
-		}, {
-			ParameterName: "deadline",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-			},
-		}},
-		Target: &rtypes.Target{
-			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-			Target: &rtypes.Target_Address{
-				Address: ethRouterV2.Hex(),
-			},
-		},
-	}, {
-		Resource: "ethereum.uniswapV2_router.swapExactTokensForETH",
-		Effect:   rtypes.Effect_EFFECT_ALLOW,
-		ParameterConstraints: []*rtypes.ParameterConstraint{{
-			ParameterName: "amountIn",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: cfg[fromAmount].(string),
-				},
-			},
-		}, {
-			ParameterName: "amountOutMin",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-			},
-		}, {
-			ParameterName: "path",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: strings.Join([]string{
-						cfg[fromAsset].(string),
-						cfg[toAsset].(string),
-					}, ","),
-				},
-			},
-		}, {
-			ParameterName: "to",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: cfg[toAddress].(string),
-				},
-			},
-		}, {
-			ParameterName: "deadline",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-			},
-		}},
-		Target: &rtypes.Target{
-			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-			Target: &rtypes.Target_Address{
-				Address: ethRouterV2.Hex(),
-			},
-		},
-	}, {
-		Resource: "ethereum.erc20.approve",
-		Effect:   rtypes.Effect_EFFECT_ALLOW,
-		ParameterConstraints: []*rtypes.ParameterConstraint{{
-			ParameterName: "spender",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: ethRouterV2.Hex(),
-				},
-			},
-		}, {
-			ParameterName: "amount",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-			},
-		}},
-		Target: &rtypes.Target{
-			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-			Target: &rtypes.Target_Address{
-				Address: cfg[fromAsset].(string),
-			},
-		},
-	}}
+	fromAssetAddr := ecommon.HexToAddress(cfg[fromAsset].(string))
+	toAssetAddr := ecommon.HexToAddress(cfg[toAsset].(string))
+	isFromNative := fromAssetAddr == evm.ZeroAddress
+	isToNative := toAssetAddr == evm.ZeroAddress
+
+	var rules []*rtypes.Rule
+	if isFromNative {
+		rules = append(rules, createUniswapRule(
+			"ethereum.uniswapV2_router.swapExactETHForTokens",
+			cfg,
+			ethRouterV2.Hex(),
+			false,
+		))
+	} else if isToNative {
+		rules = append(rules, createUniswapRule(
+			"ethereum.uniswapV2_router.swapExactTokensForETH",
+			cfg,
+			ethRouterV2.Hex(),
+			true,
+		), createApproveRule(ethRouterV2.Hex(), cfg[fromAsset].(string)))
+	} else {
+		rules = append(rules, createUniswapRule(
+			"ethereum.uniswapV2_router.swapExactTokensForTokens",
+			cfg,
+			ethRouterV2.Hex(),
+			true,
+		), createApproveRule(ethRouterV2.Hex(), cfg[fromAsset].(string)))
+	}
 
 	var rateLimitWindow uint32
 	freq := cfg[frequency].(string)
@@ -269,7 +141,7 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 
 	return &rtypes.PolicySuggest{
 		RateLimitWindow: conv.Ptr(rateLimitWindow),
-		MaxTxsPerWindow: conv.Ptr(uint32(2)),
+		MaxTxsPerWindow: conv.Ptr(uint32(len(rules))),
 		Rules:           rules,
 	}, nil
 }
@@ -483,4 +355,90 @@ func (s *Spec) ValidatePluginPolicy(pol types.PluginPolicy) error {
 		return fmt.Errorf("failed to get recipe spec: %w", err)
 	}
 	return plugin.ValidatePluginPolicy(pol, spec)
+}
+
+func createUniswapRule(resource string, cfg map[string]any, routerAddress string, includeAmountIn bool) *rtypes.Rule {
+	var constraints []*rtypes.ParameterConstraint
+
+	if includeAmountIn {
+		constraints = append(constraints, &rtypes.ParameterConstraint{
+			ParameterName: "amountIn",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: cfg[fromAmount].(string),
+				},
+			},
+		})
+	}
+
+	constraints = append(constraints, &rtypes.ParameterConstraint{
+		ParameterName: "amountOutMin",
+		Constraint: &rtypes.Constraint{
+			Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+		},
+	}, &rtypes.ParameterConstraint{
+		ParameterName: "path",
+		Constraint: &rtypes.Constraint{
+			Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+			Value: &rtypes.Constraint_FixedValue{
+				FixedValue: strings.Join([]string{
+					cfg[fromAsset].(string),
+					cfg[toAsset].(string),
+				}, ","),
+			},
+		},
+	}, &rtypes.ParameterConstraint{
+		ParameterName: "to",
+		Constraint: &rtypes.Constraint{
+			Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+			Value: &rtypes.Constraint_FixedValue{
+				FixedValue: cfg[toAddress].(string),
+			},
+		},
+	}, &rtypes.ParameterConstraint{
+		ParameterName: "deadline",
+		Constraint: &rtypes.Constraint{
+			Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+		},
+	})
+
+	return &rtypes.Rule{
+		Resource:             resource,
+		Effect:               rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: constraints,
+		Target: &rtypes.Target{
+			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: &rtypes.Target_Address{
+				Address: routerAddress,
+			},
+		},
+	}
+}
+
+func createApproveRule(spenderAddress, tokenAddress string) *rtypes.Rule {
+	return &rtypes.Rule{
+		Resource: "ethereum.erc20.approve",
+		Effect:   rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: []*rtypes.ParameterConstraint{{
+			ParameterName: "spender",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: spenderAddress,
+				},
+			},
+		}, {
+			ParameterName: "amount",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+			},
+		}},
+		Target: &rtypes.Target{
+			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: &rtypes.Target_Address{
+				Address: tokenAddress,
+			},
+		},
+	}
 }

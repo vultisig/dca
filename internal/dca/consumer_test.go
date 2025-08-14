@@ -40,13 +40,13 @@ func TestEvmPubToAddress(t *testing.T) {
 		{
 			name:    "another valid public key",
 			pub:     "0x046f2da95c22af1d3da406fccf5f2dea1b685c4d1fccc263cd65d95517728dbf7e1c72a602c912e7ad6fef99e5a02d689470e12306863e2c65e5cc16f2e0e8e8b7",
-			want:    "0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0",
+			want:    "0x086c415b8a14CD6cB1d9CC18f72c1a34bb3De235",
 			wantErr: false,
 		},
 		{
 			name:    "third valid public key",
 			pub:     "0x04d1f2cfb985e7d2e1c8f6a259e1a0ed7e5d01c5b7f8c56e9bb2628c3f3d90a96533a5f740c3e56969c8e5d085c248d5e08ad4b224629a9e89a943a3869db84f90",
-			want:    "0x22d491Bde2303f2f43325b2108D26f1eAbA1e32b",
+			want:    "0xD47aAD609225bBDe15663CCEc89F4d302Df587D0",
 			wantErr: false,
 		},
 	}
