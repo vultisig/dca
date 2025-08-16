@@ -8,6 +8,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   K8S_HOST: https://95.179.182.114:6443
+  K8S_SECRET_NAME: github-actions-token
   NS: plugin-dca
 
 jobs:
@@ -90,6 +91,7 @@ jobs:
         with:
           method: service-account
           k8s-url: ${{ env.K8S_HOST }}
+          k8s-secret: ${{ env.K8S_SECRET_NAME }}
           token: ${{ secrets.K8S_TOKEN }}
 
       - name: Deploy to Kubernetes
