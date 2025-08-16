@@ -18,5 +18,4 @@ FROM --platform=linux/amd64 alpine:latest
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
-
 COPY --from=builder /app/main .
