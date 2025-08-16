@@ -90,7 +90,7 @@ jobs:
         with:
           method: service-account
           k8s-url: ${{ env.K8S_HOST }}
-          k8s-secret: ${{ secrets.K8S_TOKEN }}
+          token: ${{ secrets.K8S_TOKEN }}
 
       - name: Deploy to Kubernetes
         run: |
