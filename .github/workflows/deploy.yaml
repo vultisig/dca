@@ -7,8 +7,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  K8S_HOST: https://95.179.182.114:6443
-  K8S_SECRET_NAME: github-actions-token
   NS: plugin-dca
 
 jobs:
@@ -21,6 +19,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Set the Kubernetes context
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -82,17 +88,6 @@ jobs:
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/scheduler:${{ github.ref_name }}|g" deploy/02_scheduler.yaml
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${{ github.ref_name }}|g" deploy/02_worker.yaml
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tx-indexer:${{ github.ref_name }}|g" deploy/02_tx_indexer.yaml
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-
-      - name: Set the Kubernetes context
-        uses: azure/k8s-set-context@v4
-        with:
-          method: service-account
-          k8s-url: ${{ env.K8S_HOST }}
-          k8s-secret: ${{ env.K8S_SECRET_NAME }}
-          token: ${{ secrets.K8S_TOKEN }}
 
       - name: Deploy to Kubernetes
         run: |
