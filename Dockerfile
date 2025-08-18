@@ -19,3 +19,7 @@ RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 COPY --from=builder /app/main .
+COPY --from=builder /usr/local/lib/libgodkls.so /usr/local/lib/
+COPY --from=builder /usr/local/lib/libgoschnorr.so /usr/local/lib/
+
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
