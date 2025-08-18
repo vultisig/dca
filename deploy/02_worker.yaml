@@ -147,12 +147,12 @@ spec:
                   key: region
             - name: BLOCKSTORAGE_ACCESSKEY
               valueFrom:
-                configMapKeyRef:
+                secretKeyRef:
                   name: minio
                   key: accessKey
             - name: BLOCKSTORAGE_SECRETKEY
               valueFrom:
-                configMapKeyRef:
+                secretKeyRef:
                   name: minio
                   key: secretKey
             - name: BLOCKSTORAGE_BUCKET

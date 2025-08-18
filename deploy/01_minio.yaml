@@ -3,6 +3,6 @@ kind: ConfigMap
 metadata:
   name: minio
 data:
-  host: "minio.plugin-dca.svc.cluster.local:9000"
+  host: "minio"
   region: "us-east-1"
   bucket: "vault"
