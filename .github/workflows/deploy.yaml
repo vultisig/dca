@@ -46,8 +46,6 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/server:${{ github.ref_name }}
           build-args: |
             SERVICE=server
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build and push scheduler image
         uses: docker/build-push-action@v5
@@ -57,8 +55,6 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/scheduler:${{ github.ref_name }}
           build-args: |
             SERVICE=scheduler
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build and push worker image
         uses: docker/build-push-action@v5
@@ -68,8 +64,6 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${{ github.ref_name }}
           build-args: |
             SERVICE=worker
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build and push tx-indexer image
         uses: docker/build-push-action@v5
@@ -79,8 +73,6 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tx-indexer:${{ github.ref_name }}
           build-args: |
             SERVICE=tx_indexer
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Update deployment images
         run: |
