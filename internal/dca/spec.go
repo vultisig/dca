@@ -169,7 +169,7 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 }
 
 func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
-	var evmChains []string
+	var evmChains []any
 	for _, chain := range supportedChains {
 		if chain.IsEvm() {
 			evmChains = append(evmChains, chain.String())
