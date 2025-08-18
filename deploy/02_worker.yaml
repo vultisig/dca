@@ -149,12 +149,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: minio
-                  key: accessKey
+                  key: root-user
             - name: BLOCKSTORAGE_SECRETKEY
               valueFrom:
                 secretKeyRef:
                   name: minio
-                  key: secretKey
+                  key: root-password
             - name: BLOCKSTORAGE_BUCKET
               valueFrom:
                 configMapKeyRef:
