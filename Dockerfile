@@ -11,4 +11,5 @@ COPY . .
 ENV CGO_ENABLED=1
 ENV CC=clang
 ENV CGO_LDFLAGS=-fuse-ld=lld
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 RUN go build -o main cmd/${SERVICE}/main.go
