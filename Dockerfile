@@ -12,12 +12,3 @@ ENV CGO_ENABLED=1
 ENV CC=clang
 ENV CGO_LDFLAGS=-fuse-ld=lld
 RUN go build -o main cmd/${SERVICE}/main.go
-
-FROM --platform=linux/amd64 alpine:latest
-
-RUN apk add --no-cache libc6-compat
-
-WORKDIR /app
-COPY --from=builder /app/main .
-COPY --from=builder /usr/local/lib/libgodkls.so /usr/local/lib/
-COPY --from=builder /usr/local/lib/libgoschnorr.so /usr/local/lib/
