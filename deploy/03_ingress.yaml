@@ -4,14 +4,7 @@ metadata:
   name: plugin-dca
   annotations:
     kubernetes.io/ingress.class: traefik
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
-    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
-  tls:
-    - hosts:
-        - dca.vultisigplugin.app
-      secretName: dca-tls
   rules:
     - host: dca.vultisigplugin.app
       http:
