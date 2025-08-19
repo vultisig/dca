@@ -13,7 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/graceful"
-	"github.com/vultisig/recipes/common"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/policy"
@@ -23,6 +22,7 @@ import (
 	"github.com/vultisig/verifier/plugin/server"
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/verifier/vault_config"
+	"github.com/vultisig/vultisig-go/common"
 )
 
 func main() {

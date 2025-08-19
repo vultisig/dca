@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	ecommon "github.com/ethereum/go-ethereum/common"
-	"github.com/vultisig/recipes/common"
+	"github.com/vultisig/vultisig-go/common"
 )
 
 type Params struct {

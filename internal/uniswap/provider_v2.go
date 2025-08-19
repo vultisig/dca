@@ -10,9 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	evm_swap "github.com/vultisig/dca/internal/evm"
-	rcommon "github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/recipes/sdk/evm/codegen/uniswapv2_router"
+	rcommon "github.com/vultisig/vultisig-go/common"
 )
 
 type ProviderV2 struct {

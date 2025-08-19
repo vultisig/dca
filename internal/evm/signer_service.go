@@ -9,14 +9,13 @@ import (
 	ecommon "github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	rcommon "github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
-	"github.com/vultisig/verifier/common"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/types"
+	rcommon "github.com/vultisig/vultisig-go/common"
 )
 
 type signerService struct {
@@ -94,7 +93,7 @@ func (s *signerService) buildKeysignRequest(
 	txToTrack, err := s.txIndexer.CreateTx(ctx, storage.CreateTxDto{
 		PluginID:      policy.PluginID,
 		PolicyID:      policy.ID,
-		ChainID:       common.Chain(s.chain),
+		ChainID:       s.chain,
 		TokenID:       "",
 		FromPublicKey: policy.PublicKey,
 		ToPublicKey:   "",
@@ -113,7 +112,7 @@ func (s *signerService) buildKeysignRequest(
 				{
 					TxIndexerID:  txToTrack.ID.String(),
 					Message:      base64.StdEncoding.EncodeToString(txHashToSign.Bytes()),
-					Chain:        common.Chain(s.chain),
+					Chain:        s.chain,
 					Hash:         base64.StdEncoding.EncodeToString(msgHash[:]),
 					HashFunction: types.HashFunction_SHA256,
 				},

@@ -7,12 +7,12 @@ import (
 
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/kaptinlin/jsonschema"
-	"github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
 	"github.com/vultisig/verifier/types"
+	"github.com/vultisig/vultisig-go/common"
 )
 
 var supportedChains = []common.Chain{
@@ -87,7 +87,11 @@ func (s *Spec) validateConfiguration(cfg map[string]any) error {
 
 	res := schema.Validate(cfgBytes)
 	if !res.IsValid() {
-		return fmt.Errorf("configuration validation error: %s", res.Error())
+		var errStrs []string
+		for _, e := range res.Errors {
+			errStrs = append(errStrs, e.Error())
+		}
+		return fmt.Errorf("configuration validation error: %s", strings.Join(errStrs, ", "))
 	}
 
 	return nil
@@ -236,7 +240,7 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	}
 
 	return &rtypes.RecipeSchema{
-		Version:            1, // Schema version
+		Version:            1,
 		PluginId:           string(types.PluginVultisigDCA_0000),
 		PluginName:         "DCA",
 		PluginVersion:      1,

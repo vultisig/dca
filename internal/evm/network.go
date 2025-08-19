@@ -6,11 +6,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/vultisig/dca/internal/status"
-	rcommon "github.com/vultisig/recipes/common"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	txrpc "github.com/vultisig/verifier/plugin/tx_indexer/pkg/rpc"
+	rcommon "github.com/vultisig/vultisig-go/common"
 )
 
 type ProviderConstructor func(rcommon.Chain, *ethclient.Client, *evm.SDK) Provider

@@ -13,11 +13,11 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/hibiken/asynq"
 	"github.com/vultisig/dca/internal/evm"
-	"github.com/vultisig/recipes/common"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/policy"
 	"github.com/vultisig/verifier/plugin/scheduler"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/rpc"
+	"github.com/vultisig/vultisig-go/common"
 )
 
 type Consumer struct {

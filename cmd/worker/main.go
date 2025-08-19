@@ -16,7 +16,6 @@ import (
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/uniswap"
-	"github.com/vultisig/recipes/common"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -29,6 +28,7 @@ import (
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/verifier/vault_config"
 	"github.com/vultisig/vultiserver/relay"
+	"github.com/vultisig/vultisig-go/common"
 )
 
 func main() {

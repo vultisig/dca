@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/vultisig/dca/internal/status"
-	"github.com/vultisig/recipes/common"
+	"github.com/vultisig/vultisig-go/common"
 )
 
 type Network struct {
