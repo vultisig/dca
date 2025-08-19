@@ -80,8 +80,14 @@ func (s *Spec) validateConfiguration(cfg map[string]any) error {
 		return fmt.Errorf("failed to compile JSON schema: %w", err)
 	}
 
-	if err := schema.Validate(cfg); err != nil {
-		return fmt.Errorf("configuration validation error: %w", err)
+	cfgBytes, err := json.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	res := schema.Validate(cfgBytes)
+	if !res.IsValid() {
+		return fmt.Errorf("configuration validation error: %s", res.Error())
 	}
 
 	return nil
@@ -187,7 +193,7 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 				"type": "string",
 			},
 			fromAmount: map[string]any{
-				"type": "number",
+				"type": "string",
 			},
 			toChain: map[string]any{
 				"type": "string",
