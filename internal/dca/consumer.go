@@ -10,35 +10,45 @@ import (
 	"time"
 
 	ecommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/hibiken/asynq"
+	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/evm"
+	"github.com/vultisig/mobile-tss-lib/tss"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/policy"
 	"github.com/vultisig/verifier/plugin/scheduler"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/rpc"
+	"github.com/vultisig/verifier/types"
+	"github.com/vultisig/verifier/vault"
+	"github.com/vultisig/vultisig-go/address"
 	"github.com/vultisig/vultisig-go/common"
 )
 
 type Consumer struct {
-	policy policy.Service
-	evm    *evm.Manager
+	logger      *logrus.Logger
+	policy      policy.Service
+	evm         *evm.Manager
+	vault       vault.Storage
+	vaultSecret string
 }
 
 func NewConsumer(
+	logger *logrus.Logger,
 	policy policy.Service,
 	evm *evm.Manager,
+	vault vault.Storage,
+	vaultSecret string,
 ) *Consumer {
 	return &Consumer{
-		policy: policy,
-		evm:    evm,
+		logger:      logger.WithField("pkg", "dca.Consumer").Logger,
+		policy:      policy,
+		evm:         evm,
+		vault:       vault,
+		vaultSecret: vaultSecret,
 	}
 }
 
-func (c *Consumer) Handle(ctx context.Context, t *asynq.Task) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
+func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	var trigger scheduler.Scheduler
 	if err := json.Unmarshal(t.Payload(), &trigger); err != nil {
 		return fmt.Errorf("failed to unmarshal trigger payload: %w", err)
@@ -79,7 +89,7 @@ func (c *Consumer) Handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("failed to get fromChain: %w", err)
 	}
 	fromAssetTyped := ecommon.HexToAddress(fromAssetStr)
-	fromAddressTyped, err := evmPubToAddress(pol.PublicKey)
+	fromAddressTyped, err := c.evmPubToAddress(fromChainTyped, pol.PublicKey)
 	if err != nil {
 		return fmt.Errorf("failed to parse policy PublicKey: %w", err)
 	}
@@ -107,6 +117,17 @@ func (c *Consumer) Handle(ctx context.Context, t *asynq.Task) error {
 
 	router := ecommon.HexToAddress(approveRule.GetTarget().GetAddress())
 
+	l := c.logger.WithFields(logrus.Fields{
+		"policyID":   trigger.PolicyID.String(),
+		"router":     router.String(),
+		"fromChain":  fromChainTyped.String(),
+		"fromAsset":  fromAssetTyped.String(),
+		"fromAmount": fromAmountTyped.String(),
+		"toChain":    toChainTyped.String(),
+		"toAsset":    toAssetTyped.String(),
+		"toAddress":  toAddressTyped.String(),
+	})
+
 	shouldApprove, approveTx, err := network.Approve.CheckAllowance(
 		ctx,
 		fromAssetTyped,
@@ -118,6 +139,7 @@ func (c *Consumer) Handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("failed to check allowance & build approve: %w", err)
 	}
 	if shouldApprove {
+		l.Info("approve needed, wait mined")
 		hash, er := network.Signer.SignAndBroadcast(ctx, *pol, approveTx)
 		if er != nil {
 			return fmt.Errorf("failed to sign & broadcast approve: %w", er)
@@ -158,13 +180,50 @@ func (c *Consumer) Handle(ctx context.Context, t *asynq.Task) error {
 	if err != nil {
 		return fmt.Errorf("failed to build swap tx: %w", err)
 	}
+	l.Info("swap route found")
 
 	_, err = network.Signer.SignAndBroadcast(ctx, *pol, swapTx)
 	if err != nil {
 		return fmt.Errorf("failed to sign & broadcast swap: %w", err)
 	}
 
+	l.Info("tx signed & broadcasted")
 	return nil
+}
+
+func (c *Consumer) Handle(ctx context.Context, t *asynq.Task) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	err := c.handle(ctx, t)
+	if err != nil {
+		c.logger.WithError(err).Error("failed to handle trigger")
+		return asynq.SkipRetry
+	}
+	return nil
+}
+
+func (c *Consumer) evmPubToAddress(chain common.Chain, pub string) (ecommon.Address, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(pub, string(types.PluginVultisigDCA_0000)))
+	if err != nil {
+		return ecommon.Address{}, fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return ecommon.Address{}, fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(pub, vlt.GetHexChainCode(), chain.GetDerivePath(), false)
+	if err != nil {
+		return ecommon.Address{}, fmt.Errorf("failed to get derived pubkey: %w", err)
+	}
+
+	addr, err := address.GetEVMAddress(childPub)
+	if err != nil {
+		return ecommon.Address{}, fmt.Errorf("failed to get address: %w", err)
+	}
+	return ecommon.HexToAddress(addr), nil
 }
 
 func getChainFromCfg(cfg map[string]interface{}, field string) (common.Chain, error) {
@@ -187,25 +246,4 @@ func findApproveRule(chain common.Chain, rules []*rtypes.Rule) (*rtypes.Rule, er
 		}
 	}
 	return nil, fmt.Errorf("approve rule not found")
-}
-
-func evmPubToAddress(pub string) (ecommon.Address, error) {
-	pubBytes := ecommon.FromHex(pub)
-	if len(pubBytes) == 0 {
-		return ecommon.Address{}, fmt.Errorf("invalid hex string")
-	}
-
-	if len(pubBytes) == 65 && pubBytes[0] == 0x04 {
-		pubBytes = pubBytes[1:]
-	}
-
-	if len(pubBytes) != 64 {
-		return ecommon.Address{}, fmt.Errorf(
-			"invalid public key length: expected 64 bytes, got %d",
-			len(pubBytes),
-		)
-	}
-
-	hash := crypto.Keccak256(pubBytes)
-	return ecommon.BytesToAddress(hash[12:]), nil
 }

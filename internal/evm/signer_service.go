@@ -120,7 +120,7 @@ func (s *signerService) buildKeysignRequest(
 			PolicyID: policy.ID,
 			PluginID: policy.PluginID.String(),
 		},
-		Transaction: txHex,
+		Transaction: base64.StdEncoding.EncodeToString(unsignedTx),
 	}, nil
 }
 

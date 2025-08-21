@@ -186,8 +186,11 @@ func main() {
 	}
 
 	dcaConsumer := dca.NewConsumer(
+		logger,
 		policyService,
 		evm.NewManager(networks),
+		vaultStorage,
+		cfg.VaultService.EncryptionSecret,
 	)
 
 	healthServer := health.New(cfg.HealthPort)
