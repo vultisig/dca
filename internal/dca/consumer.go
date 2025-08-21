@@ -110,16 +110,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("failed to get network: %w", err)
 	}
 
-	approveRule, err := findApproveRule(fromChainTyped, recipe.GetRules())
+	spender, err := findApproveSpender(fromChainTyped, recipe.GetRules())
 	if err != nil {
 		return fmt.Errorf("failed to find approve rule: %w", err)
 	}
 
-	router := ecommon.HexToAddress(approveRule.GetTarget().GetAddress())
-
 	l := c.logger.WithFields(logrus.Fields{
 		"policyID":   trigger.PolicyID.String(),
-		"router":     router.String(),
+		"spender":    spender.String(),
 		"fromChain":  fromChainTyped.String(),
 		"fromAsset":  fromAssetTyped.String(),
 		"fromAmount": fromAmountTyped.String(),
@@ -132,7 +130,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		ctx,
 		fromAssetTyped,
 		fromAddressTyped,
-		router,
+		spender,
 		new(big.Int).SetUint64(math.MaxUint64),
 	)
 	if err != nil {
@@ -239,11 +237,15 @@ func getChainFromCfg(cfg map[string]interface{}, field string) (common.Chain, er
 	return chainTyped, nil
 }
 
-func findApproveRule(chain common.Chain, rules []*rtypes.Rule) (*rtypes.Rule, error) {
+func findApproveSpender(chain common.Chain, rules []*rtypes.Rule) (ecommon.Address, error) {
 	for _, rule := range rules {
 		if rule.GetResource() == fmt.Sprintf("%s.erc20.approve", strings.ToLower(chain.String())) {
-			return rule, nil
+			for _, constraint := range rule.GetParameterConstraints() {
+				if strings.EqualFold(constraint.GetParameterName(), "spender") {
+					return ecommon.HexToAddress(constraint.GetConstraint().GetFixedValue()), nil
+				}
+			}
 		}
 	}
-	return nil, fmt.Errorf("approve rule not found")
+	return ecommon.Address{}, fmt.Errorf("approve rule not found")
 }

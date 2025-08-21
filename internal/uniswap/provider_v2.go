@@ -62,7 +62,7 @@ func (p *ProviderV2) MakeTx(
 	router := uniswapv2_router.NewUniswapv2Router()
 
 	path := []common.Address{from.AssetID, to.AssetID}
-	deadline := big.NewInt(time.Now().Add(txDeadline).Unix())
+	deadline := big.NewInt(time.Now().Unix() + 60)
 
 	amountsOut, err := evm.CallReadonly(
 		ctx,
