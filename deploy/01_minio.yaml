@@ -3,6 +3,6 @@ kind: ConfigMap
 metadata:
   name: minio
 data:
-  host: "minio"
+  host: "http://minio:9000"
   region: "us-east-1"
   bucket: "vault"
