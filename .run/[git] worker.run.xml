@@ -7,7 +7,7 @@
       <env name="VAULTSERVICE_LOCALPARTYPREFIX" value="vultisig-dca-0000" />
       <env name="VAULTSERVICE_ENCRYPTIONSECRET" value="test123" />
       <env name="VAULTSERVICE_DOSETUPMSG" value="true" />
-      <env name="BLOCKSTORAGE_HOST" value="localhost:9100" />
+      <env name="BLOCKSTORAGE_HOST" value="http://localhost:9100" />
       <env name="BLOCKSTORAGE_REGION" value="us-east-1" />
       <env name="BLOCKSTORAGE_ACCESSKEY" value="minioadmin" />
       <env name="BLOCKSTORAGE_SECRETKEY" value="minioadmin" />

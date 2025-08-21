@@ -6,7 +6,7 @@
       <env name="SERVER_HOST" value="0.0.0.0" />
       <env name="SERVER_PORT" value="8082" />
       <env name="SERVER_ENCRYPTIONSECRET" value="test123" />
-      <env name="BLOCKSTORAGE_HOST" value="localhost:9100" />
+      <env name="BLOCKSTORAGE_HOST" value="http://localhost:9100" />
       <env name="BLOCKSTORAGE_REGION" value="us-east-1" />
       <env name="BLOCKSTORAGE_ACCESSKEY" value="minioadmin" />
       <env name="BLOCKSTORAGE_SECRETKEY" value="minioadmin" />
