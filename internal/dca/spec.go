@@ -27,13 +27,13 @@ var supportedChains = []common.Chain{
 }
 
 const (
-	fromChain  = "from_chain"
-	fromAsset  = "from_asset"
-	fromAmount = "from_amount"
+	fromChain  = "fromChain"
+	fromAsset  = "fromAsset"
+	fromAmount = "fromAmount"
 
-	toChain   = "to_chain"
-	toAsset   = "to_asset"
-	toAddress = "to_address"
+	toChain   = "toChain"
+	toAsset   = "toAsset"
+	toAddress = "toAddress"
 )
 
 const (
