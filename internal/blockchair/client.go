@@ -24,7 +24,7 @@ func NewClient(url string) *Client {
 type Utxo struct {
 	BlockId         int    `json:"block_id"`
 	TransactionHash string `json:"transaction_hash"`
-	Index           int    `json:"index"`
+	Index           uint32 `json:"index"`
 	Value           uint64 `json:"value"`
 }
 

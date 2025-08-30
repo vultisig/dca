@@ -40,6 +40,16 @@ func (n *Network) Swap(ctx context.Context, from From, to To) (*chainhash.Hash, 
 		return nil, fmt.Errorf("find best amount out: %w", err)
 	}
 
+	return n.buildTx
+}
+
+func (n *Network) buildTx(
+	ctx context.Context,
+	from From,
+	to To,
+	maxInputs int,
+	outputs []wire.TxOut,
+) (*chainhash.Hash, error) {
 	utxos, err := n.utxo.PickUnspent(ctx, from.Address.EncodeAddress(), from.Amount, maxInputs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pick unspent utxo: %w", err)
@@ -51,6 +61,16 @@ func (n *Network) Swap(ctx context.Context, from From, to To) (*chainhash.Hash, 
 	}
 
 	eg := &errgroup.Group{}
+	var satsPerByte uint64
+	eg.Go(func() error {
+		s, er := n.fee.SatsPerByte(ctx)
+		if er != nil {
+			return fmt.Errorf("failed to get sats per byte: %w", er)
+		}
+		satsPerByte = s
+		return nil
+	})
+
 	utxosFull := make([]utxoMeta, len(utxos))
 	for _i, _utxo := range utxos {
 		i := _i
@@ -78,4 +98,38 @@ func (n *Network) Swap(ctx context.Context, from From, to To) (*chainhash.Hash, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get utxos: %w", err)
 	}
+
+	tx := &wire.MsgTx{
+		Version: 1,
+	}
+
+	for _, u := range utxosFull {
+		txHash := &chainhash.Hash{}
+		er := chainhash.Decode(txHash, u.utxo.TransactionHash)
+		if er != nil {
+			return nil, fmt.Errorf("failed to decode transaction hash: %w", er)
+		}
+
+		txIn := &wire.TxIn{
+			PreviousOutPoint: wire.OutPoint{
+				Hash:  *txHash,
+				Index: u.utxo.Index,
+			},
+			Sequence: wire.MaxTxInSequenceNum,
+		}
+		if u.tx.MsgTx().HasWitness() {
+			txIn.Witness = u.tx.MsgTx().TxIn[u.utxo.Index].Witness
+		} else {
+			txIn.SignatureScript = u.tx.MsgTx().TxIn[u.utxo.Index].SignatureScript
+		}
+
+		tx.AddTxIn(txIn)
+	}
+
+	// Add outputs
+	for _, output := range outputs {
+		tx.TxOut = append(tx.TxOut, &output)
+	}
+
+	return nil, status.ErrNotImplemented
 }
