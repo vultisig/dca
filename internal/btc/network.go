@@ -12,6 +12,7 @@ import (
 	"github.com/vultisig/dca/internal/blockchair"
 	"github.com/vultisig/dca/internal/status"
 	"github.com/vultisig/vultisig-go/common"
+	"golang.org/x/sync/errgroup"
 )
 
 type Network struct {
@@ -44,5 +45,37 @@ func (n *Network) Swap(ctx context.Context, from From, to To) (*chainhash.Hash, 
 		return nil, fmt.Errorf("failed to pick unspent utxo: %w", err)
 	}
 
-	var tx wire.MsgTx
+	type utxoMeta struct {
+		utxo blockchair.Utxo
+		tx   *btcutil.Tx
+	}
+
+	eg := &errgroup.Group{}
+	utxosFull := make([]utxoMeta, len(utxos))
+	for _i, _utxo := range utxos {
+		i := _i
+		utxo := _utxo
+		eg.Go(func() error {
+			hash := &chainhash.Hash{}
+			er := chainhash.Decode(hash, utxo.TransactionHash)
+			if er != nil {
+				return fmt.Errorf("failed to decode hash: %w", err)
+			}
+
+			tx, er := n.rpc.GetRawTransaction(hash)
+			if er != nil {
+				return fmt.Errorf("failed to get utxo tx: %w", err)
+			}
+
+			utxosFull[i] = utxoMeta{
+				utxo: utxo,
+				tx:   tx,
+			}
+			return nil
+		})
+	}
+	err = eg.Wait()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get utxos: %w", err)
+	}
 }
