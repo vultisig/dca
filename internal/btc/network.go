@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/wire"
@@ -39,8 +40,26 @@ func (n *Network) Swap(ctx context.Context, from From, to To) (*chainhash.Hash, 
 		return nil, fmt.Errorf("find best amount out: %w", err)
 	}
 
-	_, _ = n.buildTx(ctx, from, outputs, changeOutputIndex)
+	msgTx, err := n.buildTx(ctx, from, outputs, changeOutputIndex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build tx: %w", err)
+	}
+
+	tx, err := toPsbt(msgTx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert tx to psbt: %w", err)
+	}
+
+	err = n.sendWithSdk(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send tx: %w", err)
+	}
 	return nil, nil
+}
+
+func (n *Network) sendWithSdk(ctx context.Context, tx *psbt.Packet) error {
+	// todo implement
+	return nil
 }
 
 func (n *Network) buildTx(
@@ -125,8 +144,12 @@ func (n *Network) buildTx(
 	}
 }
 
-func toPsbt(tx *wire.MsgTx) (*wire.MsgTx, error) {
-	return nil, errors.New("not implemented")
+func toPsbt(tx *wire.MsgTx) (*psbt.Packet, error) {
+	packet, err := psbt.NewFromUnsignedTx(tx.Copy())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PSBT: %w", err)
+	}
+	return packet, nil
 }
 
 func calcSizeBytes(tx *wire.MsgTx) int {
