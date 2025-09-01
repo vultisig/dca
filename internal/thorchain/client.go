@@ -2,6 +2,7 @@ package thorchain
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -19,17 +20,17 @@ func NewClient(baseURL string) *Client {
 }
 
 type quoteSwapRequest struct {
-	FromAsset             string `url:"from_asset"`
-	ToAsset               string `url:"to_asset"`
-	Amount                string `url:"amount"`
-	Destination           string `url:"destination,omitempty"`
-	RefundAddress         string `url:"refund_address,omitempty"`
-	StreamingInterval     string `url:"streaming_interval,omitempty"`
-	StreamingQuantity     string `url:"streaming_quantity,omitempty"`
-	ToleranceBps          string `url:"tolerance_bps,omitempty"`
-	LiquidityToleranceBps string `url:"liquidity_tolerance_bps,omitempty"`
-	AffiliateBps          string `url:"affiliate_bps,omitempty"`
-	Affiliate             string `url:"affiliate,omitempty"`
+	FromAsset             string `json:"from_asset"`
+	ToAsset               string `json:"to_asset"`
+	Amount                string `json:"amount"`
+	Destination           string `json:"destination,omitempty"`
+	RefundAddress         string `json:"refund_address,omitempty"`
+	StreamingInterval     string `json:"streaming_interval,omitempty"`
+	StreamingQuantity     string `json:"streaming_quantity,omitempty"`
+	ToleranceBps          string `json:"tolerance_bps,omitempty"`
+	LiquidityToleranceBps string `json:"liquidity_tolerance_bps,omitempty"`
+	AffiliateBps          string `json:"affiliate_bps,omitempty"`
+	Affiliate             string `json:"affiliate,omitempty"`
 }
 
 type quoteSwapResponse struct {
@@ -65,7 +66,7 @@ type quoteFees struct {
 }
 
 type inboundAddressesRequest struct {
-	Height string `url:"height,omitempty"`
+	Height string `json:"height,omitempty"`
 }
 
 type inboundAddressesResponse []inboundAddress
@@ -90,35 +91,9 @@ func (c *Client) getQuote(
 	ctx context.Context,
 	req quoteSwapRequest,
 ) (quoteSwapResponse, error) {
-	params := map[string]string{
-		"from_asset": req.FromAsset,
-		"to_asset":   req.ToAsset,
-		"amount":     req.Amount,
-	}
-
-	if req.Destination != "" {
-		params["destination"] = req.Destination
-	}
-	if req.RefundAddress != "" {
-		params["refund_address"] = req.RefundAddress
-	}
-	if req.StreamingInterval != "" {
-		params["streaming_interval"] = req.StreamingInterval
-	}
-	if req.StreamingQuantity != "" {
-		params["streaming_quantity"] = req.StreamingQuantity
-	}
-	if req.ToleranceBps != "" {
-		params["tolerance_bps"] = req.ToleranceBps
-	}
-	if req.LiquidityToleranceBps != "" {
-		params["liquidity_tolerance_bps"] = req.LiquidityToleranceBps
-	}
-	if req.AffiliateBps != "" {
-		params["affiliate_bps"] = req.AffiliateBps
-	}
-	if req.Affiliate != "" {
-		params["affiliate"] = req.Affiliate
+	params, err := structToParams(req)
+	if err != nil {
+		return quoteSwapResponse{}, fmt.Errorf("failed to convert request to params: %w", err)
 	}
 
 	resp, err := libhttp.Call[quoteSwapResponse](
@@ -140,10 +115,9 @@ func (c *Client) getInboundAddresses(
 	ctx context.Context,
 	req inboundAddressesRequest,
 ) (inboundAddressesResponse, error) {
-	params := map[string]string{}
-
-	if req.Height != "" {
-		params["height"] = req.Height
+	params, err := structToParams(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert request to params: %w", err)
 	}
 
 	resp, err := libhttp.Call[inboundAddressesResponse](
@@ -159,4 +133,27 @@ func (c *Client) getInboundAddresses(
 	}
 
 	return resp, nil
+}
+
+func structToParams(v interface{}) (map[string]string, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal struct: %w", err)
+	}
+
+	var jsonMap map[string]interface{}
+	if err := json.Unmarshal(data, &jsonMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal to map: %w", err)
+	}
+
+	params := make(map[string]string)
+	for key, value := range jsonMap {
+		if value != nil {
+			if strValue, ok := value.(string); ok && strValue != "" {
+				params[key] = strValue
+			}
+		}
+	}
+
+	return params, nil
 }

@@ -7,8 +7,8 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/ethereum/go-ethereum/params"
 	btc_swap "github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/vultisig-go/common"
 )
@@ -24,17 +24,21 @@ func NewProvider(client *Client) *Provider {
 }
 
 func (p *Provider) validateBtc(from btc_swap.From, to btc_swap.To) error {
+	if to.Chain == common.Bitcoin {
+		return fmt.Errorf("can't swap btc to btc")
+	}
+
 	_, err := toThor(to.Chain)
 	if err != nil {
 		return fmt.Errorf("unsupported 'to' chain: %w", err)
 	}
 
 	switch from.Address.(type) {
-	case btcutil.AddressWitnessScriptHash,
-		btcutil.AddressWitnessPubKeyHash,
-		btcutil.AddressPubKeyHash,
-		btcutil.AddressScriptHash,
-		btcutil.AddressTaproot:
+	case *btcutil.AddressWitnessScriptHash,
+		*btcutil.AddressWitnessPubKeyHash,
+		*btcutil.AddressPubKeyHash,
+		*btcutil.AddressScriptHash,
+		*btcutil.AddressTaproot:
 	default:
 		return fmt.Errorf("unsupported 'from' address type")
 	}
@@ -60,10 +64,89 @@ func (p *Provider) SatsPerByte(ctx context.Context) (uint64, error) {
 	return 0, fmt.Errorf("no gas info found")
 }
 
+func (p *Provider) ChangeOutputIndex() int {
+	return 1
+}
+
 func (p *Provider) MakeOutputs(
 	ctx context.Context,
 	from btc_swap.From,
 	to btc_swap.To,
 ) (uint64, []*wire.TxOut, error) {
-	p.validateBtc(from, to)
+	if err := p.validateBtc(from, to); err != nil {
+		return 0, nil, err
+	}
+
+	toAsset, err := toThor(to.Chain)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to convert to thor network: %w", err)
+	}
+
+	quote, err := p.client.getQuote(ctx, quoteSwapRequest{
+		FromAsset:         string(btc) + "." + string(btc),
+		ToAsset:           string(toAsset) + "." + string(toAsset),
+		Amount:            fmt.Sprintf("%d", from.Amount),
+		Destination:       to.Address,
+		StreamingInterval: defaultStreamingInterval,
+		StreamingQuantity: defaultStreamingQuantity,
+		ToleranceBps:      defaultToleranceBps,
+	})
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to get quote: %w", err)
+	}
+
+	inboundAddr, err := btcutil.DecodeAddress(quote.InboundAddress, &chaincfg.MainNetParams)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to decode inbound address: %w", err)
+	}
+
+	inboundScript, err := payToAddrScript(inboundAddr)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to create inbound script: %w", err)
+	}
+
+	changeScript, err := payToAddrScript(from.Address)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to create change script: %w", err)
+	}
+
+	memoScript, err := createMemoScript(quote.Memo)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to create memo script: %w", err)
+	}
+
+	expectedOut, err := strconv.ParseUint(quote.ExpectedAmountOut, 10, 64)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to parse expected amount out: %w", err)
+	}
+
+	dustThreshold, err := strconv.ParseUint(quote.DustThreshold, 10, 64)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to parse dust threshold: %w", err)
+	}
+
+	if from.Amount < dustThreshold {
+		return 0, nil, fmt.Errorf("amount %d below dust threshold %d", from.Amount, dustThreshold)
+	}
+
+	outputs := []*wire.TxOut{{
+		Value:    int64(from.Amount),
+		PkScript: inboundScript,
+	}, {
+		Value:    0,
+		PkScript: changeScript,
+	}, {
+		Value:    0,
+		PkScript: memoScript,
+	}}
+
+	return expectedOut, outputs, nil
+}
+
+func payToAddrScript(addr btcutil.Address) ([]byte, error) {
+	return txscript.PayToAddrScript(addr)
+}
+
+func createMemoScript(memo string) ([]byte, error) {
+	return txscript.NullDataScript([]byte(memo))
 }

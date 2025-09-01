@@ -6,6 +6,12 @@ import (
 	"github.com/vultisig/vultisig-go/common"
 )
 
+const (
+	defaultStreamingInterval = "3"
+	defaultStreamingQuantity = "0"
+	defaultToleranceBps      = "300"
+)
+
 func toThor(c common.Chain) (thorNetwork, error) {
 	switch c {
 	case common.Bitcoin:
