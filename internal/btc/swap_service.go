@@ -22,16 +22,16 @@ func (s *SwapService) FindBestAmountOut(
 	ctx context.Context,
 	from From,
 	to To,
-) (int, uint64, []wire.TxOut, error) {
+) (int, uint64, []*wire.TxOut, error) {
 	if len(s.providers) == 0 {
 		return 0, 0, nil, fmt.Errorf("no providers available")
 	}
 
 	type providerResult struct {
-		maxInputs int
-		amountOut uint64
-		outputs   []wire.TxOut
-		err       error
+		changeOutputIndex int
+		amountOut         uint64
+		outputs           []*wire.TxOut
+		err               error
 	}
 	results := make([]providerResult, len(s.providers))
 
@@ -43,10 +43,10 @@ func (s *SwapService) FindBestAmountOut(
 			amountOut, outputs, err := provider.MakeOutputs(ctx, from, to)
 
 			results[i] = providerResult{
-				maxInputs: provider.MaxInputs(),
-				amountOut: amountOut,
-				outputs:   outputs,
-				err:       err,
+				changeOutputIndex: provider.ChangeOutputIndex(),
+				amountOut:         amountOut,
+				outputs:           outputs,
+				err:               err,
 			}
 			return nil
 		})
@@ -56,8 +56,8 @@ func (s *SwapService) FindBestAmountOut(
 		return 0, 0, nil, fmt.Errorf("errgroup failed: %w", err)
 	}
 
-	var maxInputs int
-	var bestTx []wire.TxOut
+	var changeOutputIndex int
+	var bestTx []*wire.TxOut
 	var bestAmountOut uint64
 	var lastErr error
 
@@ -68,7 +68,7 @@ func (s *SwapService) FindBestAmountOut(
 		}
 
 		if result.amountOut > bestAmountOut {
-			maxInputs = result.maxInputs
+			changeOutputIndex = result.changeOutputIndex
 			bestAmountOut = result.amountOut
 			bestTx = result.outputs
 		}
@@ -81,5 +81,5 @@ func (s *SwapService) FindBestAmountOut(
 		return 0, 0, nil, fmt.Errorf("no valid transactions found")
 	}
 
-	return maxInputs, bestAmountOut, bestTx, nil
+	return changeOutputIndex, bestAmountOut, bestTx, nil
 }

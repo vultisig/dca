@@ -19,6 +19,6 @@ type To struct {
 }
 
 type swapProvider interface {
-	MaxInputs() int
-	MakeOutputs(ctx context.Context, from From, to To) (toAmount uint64, outputs []wire.TxOut, err error)
+	ChangeOutputIndex() int
+	MakeOutputs(ctx context.Context, from From, to To) (toAmount uint64, outputs []*wire.TxOut, err error)
 }

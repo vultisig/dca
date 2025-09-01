@@ -1,12 +1,9 @@
 package blockchair
 
 import (
-	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 
 	"github.com/vultisig/verifier/plugin/libhttp"
 )
@@ -77,89 +74,6 @@ func (c *Client) GetUnspent(ctx context.Context, address string) <-chan UnspentR
 	}()
 
 	return ch
-}
-
-func (c *Client) pickUntil(
-	ct context.Context,
-	address string,
-	minValueTotal uint64,
-	maxUtxosCount int,
-) (bool, []Utxo, error) {
-	ctx, cancel := context.WithCancel(ct)
-	defer cancel()
-
-	var valueTotal uint64
-	var utxos []Utxo
-	ch := c.GetUnspent(ctx, address)
-	for unspent := range ch {
-		if unspent.Err != nil {
-			return false, nil, fmt.Errorf("failed to get unspent: %w", unspent.Err)
-		}
-
-		for _, utxo := range unspent.Utxos {
-			if valueTotal >= minValueTotal && len(utxos) <= maxUtxosCount {
-				cancel()
-				_ = <-ch // release blocking ch writer of the next batch, if any
-				return true, utxos, nil
-			}
-
-			utxos = append(utxos, utxo)
-			valueTotal += utxo.Value
-		}
-	}
-
-	return false, nil, nil
-}
-
-var ErrUnsufficientBalance = errors.New("unsufficient balance")
-
-func (c *Client) PickUnspent(
-	ctx context.Context,
-	address string,
-	minValueTotal uint64,
-	maxUtxosCount int,
-) ([]Utxo, error) {
-	// fast path
-	ok, pickUtxos, err := c.pickUntil(ctx, address, minValueTotal, maxUtxosCount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to pick utxos: %w", err)
-	}
-	if ok {
-		return pickUtxos, nil
-	}
-
-	// slow path: get all unspent on address, sort desc by value, and take maxUtxosCount of minValueTotal
-	ch := c.GetUnspent(ctx, address)
-	var allUtxos []Utxo
-	for unspent := range ch {
-		if unspent.Err != nil {
-			return nil, fmt.Errorf("failed to get unspent: %w", unspent.Err)
-		}
-		allUtxos = append(allUtxos, unspent.Utxos...)
-	}
-
-	slices.SortStableFunc(allUtxos, func(a, b Utxo) int {
-		return cmp.Compare(a.Value, b.Value)
-	})
-
-	var valueTotal uint64
-	var utxos []Utxo
-	for _, utxo := range allUtxos {
-		if valueTotal >= minValueTotal && len(utxos) <= maxUtxosCount {
-			return utxos, nil
-		}
-
-		utxos = append(utxos, utxo)
-		valueTotal += utxo.Value
-	}
-
-	return nil, fmt.Errorf(
-		"failed to pick utxos address=%s,minValueTotal=%d,maxUtxosCount=%d: %w",
-		address,
-		minValueTotal,
-		maxUtxosCount,
-		ErrUnsufficientBalance,
-	)
 }
 
 type addrInfoResponse struct {

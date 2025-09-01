@@ -1,18 +1,17 @@
 package btc
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/vultisig/dca/internal/blockchair"
-	"github.com/vultisig/dca/internal/status"
 	"github.com/vultisig/vultisig-go/common"
-	"golang.org/x/sync/errgroup"
 )
 
 type Network struct {
@@ -35,101 +34,102 @@ func (n *Network) Swap(ctx context.Context, from From, to To) (*chainhash.Hash, 
 		return nil, errors.New("can't swap btc to btc")
 	}
 
-	maxInputs, _, outputs, err := n.swap.FindBestAmountOut(ctx, from, to)
+	changeOutputIndex, _, outputs, err := n.swap.FindBestAmountOut(ctx, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("find best amount out: %w", err)
 	}
 
-	return n.buildTx
+	_, _ = n.buildTx(ctx, from, outputs, changeOutputIndex)
+	return nil, nil
 }
 
 func (n *Network) buildTx(
 	ctx context.Context,
 	from From,
-	to To,
-	maxInputs int,
-	outputs []wire.TxOut,
-) (*chainhash.Hash, error) {
-	utxos, err := n.utxo.PickUnspent(ctx, from.Address.EncodeAddress(), from.Amount, maxInputs)
+	outputs []*wire.TxOut,
+	changeOutputIndex int,
+) (*wire.MsgTx, error) {
+	satsPerByte, err := n.fee.SatsPerByte(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to pick unspent utxo: %w", err)
+		return nil, fmt.Errorf("failed to get sats per byte: %w", err)
 	}
 
-	type utxoMeta struct {
-		utxo blockchair.Utxo
-		tx   *btcutil.Tx
+	utxoCtx, utxoCtxCancel := context.WithCancel(ctx)
+	defer utxoCtxCancel()
+	utxoCh := n.utxo.GetUnspent(utxoCtx, from.Address.String())
+
+	tx := &wire.MsgTx{}
+	for _, o := range outputs {
+		tx.AddTxOut(o)
 	}
 
-	eg := &errgroup.Group{}
-	var satsPerByte uint64
-	eg.Go(func() error {
-		s, er := n.fee.SatsPerByte(ctx)
-		if er != nil {
-			return fmt.Errorf("failed to get sats per byte: %w", er)
-		}
-		satsPerByte = s
-		return nil
-	})
-
-	utxosFull := make([]utxoMeta, len(utxos))
-	for _i, _utxo := range utxos {
-		i := _i
-		utxo := _utxo
-		eg.Go(func() error {
-			hash := &chainhash.Hash{}
-			er := chainhash.Decode(hash, utxo.TransactionHash)
-			if er != nil {
-				return fmt.Errorf("failed to decode hash: %w", err)
+	var totalInputsValue uint64
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case utxoBatch, ok := <-utxoCh:
+			if !ok {
+				return nil, errors.New(
+					"utxo channel closed (cannot pick enough utxos to cover desired fromAmount)",
+				)
+			}
+			if utxoBatch.Err != nil {
+				return nil, fmt.Errorf("failed to get utxos: %w", utxoBatch.Err)
 			}
 
-			tx, er := n.rpc.GetRawTransaction(hash)
-			if er != nil {
-				return fmt.Errorf("failed to get utxo tx: %w", err)
+			slices.SortFunc(utxoBatch.Utxos, func(a, b blockchair.Utxo) int {
+				return cmp.Compare(b.Value, a.Value)
+			})
+
+			for _, u := range utxoBatch.Utxos {
+				txHash := &chainhash.Hash{}
+				er := chainhash.Decode(txHash, u.TransactionHash)
+				if er != nil {
+					return nil, fmt.Errorf("failed to decode transaction hash: %w", er)
+				}
+
+				prev, er := n.rpc.GetRawTransaction(txHash)
+				if er != nil {
+					return nil, fmt.Errorf("failed to get utxo tx: %w", er)
+				}
+
+				txIn := &wire.TxIn{
+					PreviousOutPoint: wire.OutPoint{
+						Hash:  *txHash,
+						Index: u.Index,
+					},
+					Sequence:        wire.MaxTxInSequenceNum,
+					Witness:         nil,
+					SignatureScript: nil,
+				}
+				if prev.MsgTx().HasWitness() {
+					txIn.Witness = prev.MsgTx().TxIn[u.Index].Witness
+				} else {
+					txIn.SignatureScript = prev.MsgTx().TxIn[u.Index].SignatureScript
+				}
+
+				tx.AddTxIn(txIn)
+				totalInputsValue += u.Value
+
+				fee := uint64(calcSizeBytes(tx)) * satsPerByte
+				if totalInputsValue > from.Amount+fee {
+					tx.TxOut[changeOutputIndex].Value = int64(totalInputsValue - from.Amount - fee)
+
+					utxoCtxCancel()
+					_ = <-utxoCh
+					return tx, nil
+				}
 			}
-
-			utxosFull[i] = utxoMeta{
-				utxo: utxo,
-				tx:   tx,
-			}
-			return nil
-		})
-	}
-	err = eg.Wait()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get utxos: %w", err)
-	}
-
-	tx := &wire.MsgTx{
-		Version: 1,
-	}
-
-	for _, u := range utxosFull {
-		txHash := &chainhash.Hash{}
-		er := chainhash.Decode(txHash, u.utxo.TransactionHash)
-		if er != nil {
-			return nil, fmt.Errorf("failed to decode transaction hash: %w", er)
 		}
-
-		txIn := &wire.TxIn{
-			PreviousOutPoint: wire.OutPoint{
-				Hash:  *txHash,
-				Index: u.utxo.Index,
-			},
-			Sequence: wire.MaxTxInSequenceNum,
-		}
-		if u.tx.MsgTx().HasWitness() {
-			txIn.Witness = u.tx.MsgTx().TxIn[u.utxo.Index].Witness
-		} else {
-			txIn.SignatureScript = u.tx.MsgTx().TxIn[u.utxo.Index].SignatureScript
-		}
-
-		tx.AddTxIn(txIn)
 	}
+}
 
-	// Add outputs
-	for _, output := range outputs {
-		tx.TxOut = append(tx.TxOut, &output)
-	}
+func toPsbt(tx *wire.MsgTx) (*wire.MsgTx, error) {
+	return nil, errors.New("not implemented")
+}
 
-	return nil, status.ErrNotImplemented
+func calcSizeBytes(tx *wire.MsgTx) int {
+	// todo : add size of signatures
+	return tx.SerializeSize()
 }
