@@ -19,7 +19,7 @@ type To struct {
 	Address string
 }
 
-type swapProvider interface {
+type SwapProvider interface {
 	ChangeOutputIndex() int
 	MakeOutputs(ctx context.Context, from From, to To) (toAmount uint64, outputs []*wire.TxOut, err error)
 }

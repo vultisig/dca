@@ -7,15 +7,20 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/btcsuite/btcd/rpcclient"
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/dca/internal/blockchair"
+	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
+	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/uniswap"
+	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -27,8 +32,8 @@ import (
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/verifier/vault_config"
-	"github.com/vultisig/vultiserver/relay"
 	"github.com/vultisig/vultisig-go/common"
+	"github.com/vultisig/vultisig-go/relay"
 )
 
 func main() {
@@ -182,13 +187,30 @@ func main() {
 			logger.Fatalf("failed to initialize %s network: %v", c.chain.String(), er)
 		}
 		networks[c.chain] = network
-		logger.Infof("initialized %s network with RPC: %s", c.chain.String(), c.rpcURL)
 	}
+
+	btcRpcClient, err := rpcclient.New(&rpcclient.ConnConfig{
+		Host:         cfg.Rpc.BTC.URL,
+		HTTPPostMode: true,
+		DisableTLS:   true,
+	}, nil)
+	if err != nil {
+		logger.Fatalf("failed to initialize BTC RPC client: %v", err)
+	}
+
+	thorchainProvider := thorchain.NewProvider(thorchain.NewClient(cfg.BTC.ThorChainURL))
 
 	dcaConsumer := dca.NewConsumer(
 		logger,
 		policyService,
 		evm.NewManager(networks),
+		btc.NewNetwork(
+			btcRpcClient,
+			thorchainProvider,
+			btc.NewSwapService([]btc.SwapProvider{thorchainProvider}),
+			btc.NewSignerService(btcsdk.NewSDK(btcRpcClient), signer, txIndexerService),
+			blockchair.NewClient(cfg.BTC.BlockchairURL),
+		),
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
@@ -219,6 +241,7 @@ type config struct {
 	Verifier     plugin_config.Verifier
 	Rpc          rpc
 	Uniswap      uniswapConfig
+	BTC          btcConfig
 	DataDog      dataDog
 	HealthPort   int
 }
@@ -247,10 +270,16 @@ type rpc struct {
 	Blast     rpcItem
 	Optimism  rpcItem
 	Polygon   rpcItem
+	BTC       rpcItem
 }
 
 type rpcItem struct {
 	URL string
+}
+
+type btcConfig struct {
+	ThorChainURL  string
+	BlockchairURL string
 }
 
 type dataDog struct {

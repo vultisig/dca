@@ -9,10 +9,10 @@ import (
 )
 
 type SwapService struct {
-	providers []swapProvider
+	providers []SwapProvider
 }
 
-func NewSwapService(providers []swapProvider) *SwapService {
+func NewSwapService(providers []SwapProvider) *SwapService {
 	return &SwapService{
 		providers: providers,
 	}

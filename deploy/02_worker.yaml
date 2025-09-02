@@ -95,6 +95,21 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: polygon
+            - name: RPC_BTC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: bitcoin
+            - name: BTC_THORCHAINURL
+              valueFrom:
+                configMapKeyRef:
+                  name: thorchain
+                  key: url
+            - name: BTC_BLOCKCHAIRURL
+              valueFrom:
+                configMapKeyRef:
+                  name: blockchair
+                  key: url
             - name: UNISWAP_ROUTERV2_ETHEREUM
               valueFrom:
                 configMapKeyRef:
