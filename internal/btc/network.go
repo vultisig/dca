@@ -1,6 +1,7 @@
 package btc
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -12,57 +13,77 @@ import (
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/vultisig/dca/internal/blockchair"
+	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/common"
 )
 
 type Network struct {
-	rpc  *rpcclient.Client
-	utxo *blockchair.Client
-	fee  feeProvider
-	swap *SwapService
+	rpc    *rpcclient.Client
+	utxo   *blockchair.Client
+	fee    feeProvider
+	swap   *SwapService
+	signer *SignerService
 }
 
-func NewNetwork(rpc *rpcclient.Client, fee feeProvider, swap *SwapService) *Network {
+func NewNetwork(
+	rpc *rpcclient.Client,
+	fee feeProvider,
+	swap *SwapService,
+	signer *SignerService,
+	utxo *blockchair.Client,
+) *Network {
 	return &Network{
-		rpc:  rpc,
-		fee:  fee,
-		swap: swap,
+		rpc:    rpc,
+		utxo:   utxo,
+		fee:    fee,
+		swap:   swap,
+		signer: signer,
 	}
 }
 
-func (n *Network) Swap(ctx context.Context, from From, to To) (*chainhash.Hash, error) {
+func (n *Network) Swap(ctx context.Context, policy vtypes.PluginPolicy, from From, to To) (string, error) {
 	if to.Chain == common.Bitcoin {
-		return nil, errors.New("can't swap btc to btc")
+		return "", errors.New("can't swap btc to btc")
 	}
 
 	changeOutputIndex, _, outputs, err := n.swap.FindBestAmountOut(ctx, from, to)
 	if err != nil {
-		return nil, fmt.Errorf("find best amount out: %w", err)
+		return "", fmt.Errorf("find best amount out: %w", err)
 	}
 
-	msgTx, err := n.buildTx(ctx, from, outputs, changeOutputIndex)
+	msgTx, err := n.buildMsgTx(ctx, from, outputs, changeOutputIndex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build tx: %w", err)
+		return "", fmt.Errorf("failed to build tx: %w", err)
 	}
 
-	tx, err := toPsbt(msgTx)
+	psbtTx, err := toPsbt(msgTx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert tx to psbt: %w", err)
+		return "", fmt.Errorf("failed to convert tx to psbt: %w", err)
 	}
 
-	err = n.sendWithSdk(ctx, tx)
+	txHash, err := n.sendWithSdk(ctx, policy, psbtTx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send tx: %w", err)
+		return "", fmt.Errorf("failed to send tx: %w", err)
 	}
-	return nil, nil
+	return txHash, nil
 }
 
-func (n *Network) sendWithSdk(ctx context.Context, tx *psbt.Packet) error {
-	// todo implement
-	return nil
+func (n *Network) sendWithSdk(ctx context.Context, policy vtypes.PluginPolicy, tx *psbt.Packet) (string, error) {
+	var buf bytes.Buffer
+	err := tx.Serialize(&buf)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize psbt: %w", err)
+	}
+
+	txHash, err := n.signer.SignAndBroadcast(ctx, policy, buf.Bytes())
+	if err != nil {
+		return "", fmt.Errorf("failed to sign and broadcast: %w", err)
+	}
+
+	return txHash, nil
 }
 
-func (n *Network) buildTx(
+func (n *Network) buildMsgTx(
 	ctx context.Context,
 	from From,
 	outputs []*wire.TxOut,
@@ -77,7 +98,7 @@ func (n *Network) buildTx(
 	defer utxoCtxCancel()
 	utxoCh := n.utxo.GetUnspent(utxoCtx, from.Address.String())
 
-	tx := &wire.MsgTx{}
+	tx := wire.NewMsgTx(wire.TxVersion)
 	for _, o := range outputs {
 		tx.AddTxOut(o)
 	}
@@ -153,6 +174,54 @@ func toPsbt(tx *wire.MsgTx) (*psbt.Packet, error) {
 }
 
 func calcSizeBytes(tx *wire.MsgTx) int {
-	// todo : add size of signatures
-	return tx.SerializeSize()
+	// Base transaction size without signatures
+	baseSize := tx.SerializeSize()
+
+	// Add estimated signature sizes for each input
+	sigSize := 0
+	for _, txIn := range tx.TxIn {
+		if txIn.Witness != nil && len(txIn.Witness) > 0 {
+			// Witness transaction (P2WPKH, P2WSH, P2TR, etc.)
+			// P2WPKH: ~108 bytes witness (signature ~72 + pubkey ~33 + length bytes)
+			// P2WSH: varies, but assume ~200 bytes for multi-sig
+			// P2TR: ~65 bytes (schnorr signature ~64 + length byte)
+			if len(txIn.Witness) == 2 {
+				// P2WPKH: signature + pubkey
+				sigSize += 108
+			} else if len(txIn.Witness) == 1 {
+				// P2TR: single schnorr signature
+				sigSize += 65
+			} else {
+				// P2WSH or complex witness script, estimate conservatively
+				sigSize += 200
+			}
+		} else {
+			// Legacy transaction (P2PKH, P2SH)
+			// P2PKH: ~107 bytes (signature ~72 + pubkey ~33 + opcodes ~2)
+			// P2SH: varies, but assume ~150 bytes for multi-sig
+			if txIn.SignatureScript != nil && len(txIn.SignatureScript) > 0 {
+				// Use existing script size as base, but estimate if empty
+				sigSize += len(txIn.SignatureScript)
+			} else {
+				// Estimate P2PKH signature size
+				sigSize += 107
+			}
+		}
+	}
+
+	// For witness transactions, add a witness flag overhead (2 bytes)
+	hasWitness := false
+	for _, txIn := range tx.TxIn {
+		if txIn.Witness != nil && len(txIn.Witness) > 0 {
+			hasWitness = true
+			break
+		}
+	}
+
+	if hasWitness {
+		// Witness transactions have additional overhead
+		return baseSize + sigSize + 2
+	}
+
+	return baseSize + sigSize
 }

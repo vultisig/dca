@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	btc_swap "github.com/vultisig/dca/internal/btc"
+	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/vultisig-go/common"
 )
 
@@ -68,23 +70,83 @@ func (p *Provider) ChangeOutputIndex() int {
 	return 1
 }
 
+func (p *Provider) makeThorAsset(ctx context.Context, chain common.Chain, asset string) (string, error) {
+	thorNet, err := toThor(chain)
+	if err != nil {
+		return "", fmt.Errorf("unsupported chain: %w", err)
+	}
+
+	// Check if asset is zero address (native token)
+	if asset == evm.ZeroAddress.Hex() {
+		// Native token format: Network.TokenSymbol (e.g., AVAX.AVAX)
+		nativeSymbol, er := chain.NativeSymbol()
+		if er != nil {
+			return "", fmt.Errorf("failed to get native symbol for chain %s: %w", chain, er)
+		}
+		return string(thorNet) + "." + nativeSymbol, nil
+	}
+
+	// For tokens, find the full asset string from THORChain pools
+	// Format: Network.TokenSymbol-Asset (e.g., AVAX.SOL-0XFE6B19286885A4F7F55ADAD09C3CD1F906D2478F)
+	pools, err := p.client.getPools(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get pools: %w", err)
+	}
+
+	networkPrefix := string(thorNet) + "."
+	targetAsset := strings.ToUpper(asset)
+
+	for _, pp := range pools {
+		// Check if pool belongs to our network
+		if !strings.HasPrefix(pp.Asset, networkPrefix) {
+			continue
+		}
+
+		// Split the asset into parts: Network.TokenSymbol-Asset
+		parts := strings.Split(pp.Asset, ".")
+		if len(parts) != 2 {
+			continue
+		}
+
+		// Check if the second part contains a dash (indicating token with address)
+		tokenPart := parts[1]
+		if !strings.Contains(tokenPart, "-") {
+			continue
+		}
+
+		// Split token part: TokenSymbol-Address
+		tokenParts := strings.Split(tokenPart, "-")
+		if len(tokenParts) != 2 {
+			continue
+		}
+
+		// Check if the address matches (case-insensitive)
+		poolAddress := tokenParts[1]
+		if strings.EqualFold(poolAddress, targetAsset) {
+			return pp.Asset, nil
+		}
+	}
+
+	return "", fmt.Errorf("asset not found in THORChain pools for chain %s and asset %s", thorNet, asset)
+}
+
 func (p *Provider) MakeOutputs(
 	ctx context.Context,
 	from btc_swap.From,
 	to btc_swap.To,
 ) (uint64, []*wire.TxOut, error) {
 	if err := p.validateBtc(from, to); err != nil {
-		return 0, nil, err
+		return 0, nil, fmt.Errorf("invalid swap: %w", err)
 	}
 
-	toAsset, err := toThor(to.Chain)
+	toAsset, err := p.makeThorAsset(ctx, to.Chain, to.Asset)
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to convert to thor network: %w", err)
+		return 0, nil, fmt.Errorf("failed to convert thor asset: %w", err)
 	}
 
 	quote, err := p.client.getQuote(ctx, quoteSwapRequest{
 		FromAsset:         string(btc) + "." + string(btc),
-		ToAsset:           string(toAsset) + "." + string(toAsset),
+		ToAsset:           toAsset,
 		Amount:            fmt.Sprintf("%d", from.Amount),
 		Destination:       to.Address,
 		StreamingInterval: defaultStreamingInterval,

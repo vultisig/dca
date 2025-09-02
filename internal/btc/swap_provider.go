@@ -15,6 +15,7 @@ type From struct {
 
 type To struct {
 	Chain   common.Chain
+	Asset   string
 	Address string
 }
 

@@ -87,6 +87,30 @@ type inboundAddress struct {
 	DustThreshold        string      `json:"dust_threshold"`
 }
 
+type poolsResponse []pool
+
+type pool struct {
+	Asset               string `json:"asset"`
+	ShortCode           string `json:"short_code"`
+	Status              string `json:"status"`
+	Decimals            int    `json:"decimals"`
+	PendingInboundAsset string `json:"pending_inbound_asset"`
+	PendingInboundRune  string `json:"pending_inbound_rune"`
+	BalanceAsset        string `json:"balance_asset"`
+	BalanceRune         string `json:"balance_rune"`
+	PoolUnits           string `json:"pool_units"`
+	LPUnits             string `json:"lp_units"`
+	SynthUnits          string `json:"synth_units"`
+	SynthSupply         string `json:"synth_supply"`
+	SaversDepth         string `json:"savers_depth"`
+	SaversUnits         string `json:"savers_units"`
+	SaversFillBps       string `json:"savers_fill_bps"`
+	LoanCollateral      string `json:"loan_collateral"`
+	LoanCr              string `json:"loan_cr"`
+	DerivedDepthBps     string `json:"derived_depth_bps"`
+	VirtualDepthBps     string `json:"virtual_depth_bps"`
+}
+
 func (c *Client) getQuote(
 	ctx context.Context,
 	req quoteSwapRequest,
@@ -130,6 +154,22 @@ func (c *Client) getInboundAddresses(
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get inbound addresses: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (c *Client) getPools(ctx context.Context) (poolsResponse, error) {
+	resp, err := libhttp.Call[poolsResponse](
+		ctx,
+		http.MethodGet,
+		c.baseURL+"/thorchain/pools",
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pools: %w", err)
 	}
 
 	return resp, nil

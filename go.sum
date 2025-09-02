@@ -76,6 +76,7 @@ github.com/btcsuite/btcd/btcec/v2 v2.1.3/go.mod h1:ctjw4H1kknNJmRN4iP1R7bTQ+v3GJ
 github.com/btcsuite/btcd/btcec/v2 v2.3.2/go.mod h1:zYzJ8etWJQIv1Ogk7OzpWjowwOdXY1W/17j2MW85J04=
 github.com/btcsuite/btcd/btcec/v2 v2.3.3 h1:6+iXlDKE8RMtKsvK0gshlXIuPbyWM/h84Ensb7o3sC0=
 github.com/btcsuite/btcd/btcec/v2 v2.3.3/go.mod h1:zYzJ8etWJQIv1Ogk7OzpWjowwOdXY1W/17j2MW85J04=
+github.com/btcsuite/btcd/btcec/v2 v2.3.5/go.mod h1:m22FrOAiuxl/tht9wIqAoGHcbnCCaPWyauO8y2LGGtQ=
 github.com/btcsuite/btcd/btcutil v1.0.0/go.mod h1:Uoxwv0pqYWhD//tfTiipkxNfdhG9UrLwaeswfjfdF0A=
 github.com/btcsuite/btcd/btcutil v1.1.0/go.mod h1:5OapHB7A2hBBWLm48mmw4MOHNJCcUBTwmWH/0Jn8VHE=
 github.com/btcsuite/btcd/btcutil v1.1.5/go.mod h1:PSZZ4UitpLBWzxGd5VGOrLnmOjtPP/a6HaFo12zMs00=
@@ -759,6 +760,10 @@ github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4n
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
 github.com/vultisig/recipes v0.0.0-20250818151719-db3f03c3254c h1:oebbFeSAG8zGjCfhj5D4rhK0LtjlpTRhwQSYa4oVSCU=
 github.com/vultisig/recipes v0.0.0-20250818151719-db3f03c3254c/go.mod h1:f2XBQu8WO5jwTeWCGiuogg6y9y2dBdjLRqHR7z1f5es=
+github.com/vultisig/recipes v0.0.0-20250902122453-e43a5b25460a h1:EGTTlbQvG3nNNHqtrTe47Pf/RjRZDdosXBxK7F3IVLo=
+github.com/vultisig/recipes v0.0.0-20250902122453-e43a5b25460a/go.mod h1:O41PYSJfA7oRGVo01kxv31lYj0nR70GUtmYJrXHRYNY=
+github.com/vultisig/recipes v0.0.0-20250902195946-a21a4e113e5b h1:NzYHOlA5eb8vV8OdZrftyXnRJZ1HDzu/6uH6ddueaIo=
+github.com/vultisig/recipes v0.0.0-20250902195946-a21a4e113e5b/go.mod h1:O41PYSJfA7oRGVo01kxv31lYj0nR70GUtmYJrXHRYNY=
 github.com/vultisig/verifier v0.0.0-20250829095146-92fe75e10dc3 h1:8L5yj1kERVst3IzHqO7WMfLGLNV+yLbLBSUAt3FXTrQ=
 github.com/vultisig/verifier v0.0.0-20250829095146-92fe75e10dc3/go.mod h1:AoPBPq+duOgkqjQSU8gzKqtARD71n16dbcpz4OQ6eAs=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 h1:7WDQ92FAdu08Byjgm3RNS8Sok49sK521PzPcbRpbzCE=
