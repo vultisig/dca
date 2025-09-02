@@ -96,7 +96,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	if fromChainTyped == common.Bitcoin {
-		er := c.handleBTCSwap(ctx, pol, cfg, fromAmountStr, toAssetStr, toAddressStr)
+		er := c.handleBtcSwap(ctx, pol, cfg, fromAmountStr, toAssetStr, toAddressStr)
 		if er != nil {
 			return fmt.Errorf("failed to handle BTC swap: %w", er)
 		}
@@ -185,7 +185,7 @@ func (c *Consumer) btcPubToAddress(pub string) (btcutil.Address, error) {
 	return btcAddr, nil
 }
 
-func (c *Consumer) handleBTCSwap(
+func (c *Consumer) handleBtcSwap(
 	ctx context.Context,
 	pol *types.PluginPolicy,
 	cfg map[string]any,
