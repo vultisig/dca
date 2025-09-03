@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/btcsuite/btcd/rpcclient"
 	ecommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
@@ -21,6 +22,7 @@ import (
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/uniswap"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
+	evmsdk "github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -173,12 +175,28 @@ func main() {
 	}
 
 	for _, c := range networkConfigs {
+		evmID, er := c.chain.EvmID()
+		if er != nil {
+			logger.Fatalf("failed to initialize evm sdk: %s %v", c.chain.String(), er)
+		}
+
+		evmRpc, er := ethclient.DialContext(ctx, c.rpcURL)
+		if er != nil {
+			logger.Fatalf("failed to create rpc client: %s %v", c.chain.String(), er)
+		}
+
 		network, er := evm.NewNetwork(
 			ctx,
 			c.chain,
 			c.rpcURL,
-			[]evm.ProviderConstructor{
-				uniswap.ConstructorV2(ecommon.HexToAddress(c.routerAddr)),
+			[]evm.Provider{
+				uniswap.NewProviderV2(
+					c.chain,
+					evmRpc,
+					evmsdk.NewSDK(evmID, evmRpc, evmRpc.Client()),
+					ecommon.HexToAddress(c.routerAddr),
+				),
+				thorchain.NewEvmProvider(),
 			},
 			signer,
 			txIndexerService,
@@ -198,7 +216,7 @@ func main() {
 		logger.Fatalf("failed to initialize BTC RPC client: %v", err)
 	}
 
-	thorchainProvider := thorchain.NewProvider(thorchain.NewClient(cfg.BTC.ThorChainURL))
+	thorchainBtcProvider := thorchain.NewBtcProvider(thorchain.NewClient(cfg.BTC.ThorChainURL))
 
 	dcaConsumer := dca.NewConsumer(
 		logger,
@@ -206,8 +224,8 @@ func main() {
 		evm.NewManager(networks),
 		btc.NewNetwork(
 			btcRpcClient,
-			thorchainProvider,
-			btc.NewSwapService([]btc.SwapProvider{thorchainProvider}),
+			thorchainBtcProvider,
+			btc.NewSwapService([]btc.SwapProvider{thorchainBtcProvider}),
 			btc.NewSignerService(btcsdk.NewSDK(btcRpcClient), signer, txIndexerService),
 			blockchair.NewClient(cfg.BTC.BlockchairURL),
 		),

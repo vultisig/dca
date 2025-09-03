@@ -13,9 +13,10 @@ type From struct {
 	Amount  uint64
 }
 
+// To destination could be not BTC chain
 type To struct {
 	Chain   common.Chain
-	Asset   string
+	AssetID string
 	Address string
 }
 

@@ -8,17 +8,24 @@ import (
 	"github.com/vultisig/vultisig-go/common"
 )
 
-type Params struct {
+type From struct {
 	Chain   common.Chain
 	AssetID ecommon.Address
 	Address ecommon.Address
+	Amount  *big.Int
+}
+
+// To destination could be not EVM chain
+type To struct {
+	Chain   common.Chain
+	AssetID string
+	Address string
 }
 
 type Provider interface {
 	MakeTx(
 		ctx context.Context,
-		from Params,
-		to Params,
-		fromAmount *big.Int,
+		from From,
+		to To,
 	) (toAmount *big.Int, tx []byte, err error)
 }

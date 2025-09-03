@@ -22,14 +22,6 @@ type ProviderV2 struct {
 	router common.Address
 }
 
-func ConstructorV2(
-	router common.Address,
-) evm_swap.ProviderConstructor {
-	return func(chain rcommon.Chain, client *ethclient.Client, sdk *evm.SDK) evm_swap.Provider {
-		return NewProviderV2(chain, client, sdk, router)
-	}
-}
-
 func NewProviderV2(chain rcommon.Chain, rpc *ethclient.Client, evmSDK *evm.SDK, router common.Address) *ProviderV2 {
 	return &ProviderV2{
 		chain:  chain,
@@ -39,7 +31,7 @@ func NewProviderV2(chain rcommon.Chain, rpc *ethclient.Client, evmSDK *evm.SDK, 
 	}
 }
 
-func (p *ProviderV2) validatePath(from evm_swap.Params, to evm_swap.Params) error {
+func (p *ProviderV2) validatePath(from evm_swap.From, to evm_swap.To) error {
 	if from.Chain != p.chain {
 		return fmt.Errorf("unsupported from.Chain: %s", from.Chain)
 	}
@@ -51,9 +43,8 @@ func (p *ProviderV2) validatePath(from evm_swap.Params, to evm_swap.Params) erro
 
 func (p *ProviderV2) MakeTx(
 	ctx context.Context,
-	from evm_swap.Params,
-	to evm_swap.Params,
-	amount *big.Int,
+	from evm_swap.From,
+	to evm_swap.To,
 ) (*big.Int, []byte, error) {
 	if err := p.validatePath(from, to); err != nil {
 		return nil, nil, fmt.Errorf("invalid path: %w", err)
@@ -61,7 +52,7 @@ func (p *ProviderV2) MakeTx(
 
 	router := uniswapv2_router.NewUniswapv2Router()
 
-	path := []common.Address{from.AssetID, to.AssetID}
+	path := []common.Address{from.AssetID, common.HexToAddress(to.AssetID)}
 	deadline := big.NewInt(time.Now().Unix() + 60)
 
 	amountsOut, err := evm.CallReadonly(
@@ -69,7 +60,7 @@ func (p *ProviderV2) MakeTx(
 		p.rpc,
 		router,
 		p.router,
-		router.PackGetAmountsOut(amount, path),
+		router.PackGetAmountsOut(from.Amount, path),
 		router.UnpackGetAmountsOut,
 		nil,
 	)
@@ -86,14 +77,15 @@ func (p *ProviderV2) MakeTx(
 	var data []byte
 	var value *big.Int
 
+	toAddress := common.HexToAddress(to.Address)
 	if bytes.Equal(from.AssetID.Bytes(), evm.ZeroAddress.Bytes()) {
-		data = router.PackSwapExactETHForTokens(amountOutMin, path, to.Address, deadline)
-		value = amount
-	} else if bytes.Equal(to.AssetID.Bytes(), evm.ZeroAddress.Bytes()) {
-		data = router.PackSwapExactTokensForETH(amount, amountOutMin, path, to.Address, deadline)
+		data = router.PackSwapExactETHForTokens(amountOutMin, path, toAddress, deadline)
+		value = from.Amount
+	} else if bytes.Equal(common.HexToAddress(to.AssetID).Bytes(), evm.ZeroAddress.Bytes()) {
+		data = router.PackSwapExactTokensForETH(from.Amount, amountOutMin, path, toAddress, deadline)
 		value = big.NewInt(0)
 	} else {
-		data = router.PackSwapExactTokensForTokens(amount, amountOutMin, path, to.Address, deadline)
+		data = router.PackSwapExactTokensForTokens(from.Amount, amountOutMin, path, toAddress, deadline)
 		value = big.NewInt(0)
 	}
 

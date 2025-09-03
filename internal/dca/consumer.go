@@ -217,7 +217,7 @@ func (c *Consumer) handleBtcSwap(
 
 	to := btc.To{
 		Chain:   toChainTyped,
-		Asset:   toAsset,
+		AssetID: toAsset,
 		Address: toAddress,
 	}
 
@@ -262,8 +262,6 @@ func (c *Consumer) handleEvmSwap(
 	if err != nil {
 		return fmt.Errorf("failed to get toChain: %w", err)
 	}
-	toAssetTyped := ecommon.HexToAddress(toAsset)
-	toAddressTyped := ecommon.HexToAddress(toAddress)
 
 	network, err := c.evm.Get(fromChain)
 	if err != nil {
@@ -282,8 +280,8 @@ func (c *Consumer) handleEvmSwap(
 		"fromAsset":  fromAssetTyped.String(),
 		"fromAmount": fromAmountTyped.String(),
 		"toChain":    toChainTyped.String(),
-		"toAsset":    toAssetTyped.String(),
-		"toAddress":  toAddressTyped.String(),
+		"toAsset":    toAsset,
+		"toAddress":  toAddress,
 	})
 
 	shouldApprove, approveTx, err := network.Approve.CheckAllowance(
@@ -323,17 +321,17 @@ func (c *Consumer) handleEvmSwap(
 
 	swapTx, err := network.Swap.FindBestAmountOut(
 		ctx,
-		evm.Params{
+		evm.From{
+			Amount:  fromAmountTyped,
 			Chain:   fromChain,
 			AssetID: fromAssetTyped,
 			Address: fromAddressTyped,
 		},
-		evm.Params{
+		evm.To{
 			Chain:   toChainTyped,
-			AssetID: toAssetTyped,
-			Address: toAddressTyped,
+			AssetID: toAsset,
+			Address: toAddress,
 		},
-		fromAmountTyped,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to build swap tx: %w", err)

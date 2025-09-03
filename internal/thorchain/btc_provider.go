@@ -11,21 +11,20 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	btc_swap "github.com/vultisig/dca/internal/btc"
-	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/vultisig-go/common"
 )
 
-type Provider struct {
+type BtcProvider struct {
 	client *Client
 }
 
-func NewProvider(client *Client) *Provider {
-	return &Provider{
+func NewBtcProvider(client *Client) *BtcProvider {
+	return &BtcProvider{
 		client: client,
 	}
 }
 
-func (p *Provider) validateBtc(from btc_swap.From, to btc_swap.To) error {
+func (p *BtcProvider) validateBtc(from btc_swap.From, to btc_swap.To) error {
 	if to.Chain == common.Bitcoin {
 		return fmt.Errorf("can't swap btc to btc")
 	}
@@ -48,7 +47,7 @@ func (p *Provider) validateBtc(from btc_swap.From, to btc_swap.To) error {
 	return nil
 }
 
-func (p *Provider) SatsPerByte(ctx context.Context) (uint64, error) {
+func (p *BtcProvider) SatsPerByte(ctx context.Context) (uint64, error) {
 	info, err := p.client.getInboundAddresses(ctx, inboundAddressesRequest{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get inbound addresses: %w", err)
@@ -66,18 +65,18 @@ func (p *Provider) SatsPerByte(ctx context.Context) (uint64, error) {
 	return 0, fmt.Errorf("no gas info found")
 }
 
-func (p *Provider) ChangeOutputIndex() int {
+func (p *BtcProvider) ChangeOutputIndex() int {
 	return 1
 }
 
-func (p *Provider) makeThorAsset(ctx context.Context, chain common.Chain, asset string) (string, error) {
+func (p *BtcProvider) makeThorAsset(ctx context.Context, chain common.Chain, asset string) (string, error) {
 	thorNet, err := toThor(chain)
 	if err != nil {
 		return "", fmt.Errorf("unsupported chain: %w", err)
 	}
 
-	// Check if asset is zero address (native token)
-	if asset == evm.ZeroAddress.Hex() {
+	// Check if asset is native token
+	if asset == "" {
 		// Native token format: Network.TokenSymbol (e.g., AVAX.AVAX)
 		nativeSymbol, er := chain.NativeSymbol()
 		if er != nil {
@@ -130,7 +129,7 @@ func (p *Provider) makeThorAsset(ctx context.Context, chain common.Chain, asset 
 	return "", fmt.Errorf("asset not found in THORChain pools for chain %s and asset %s", thorNet, asset)
 }
 
-func (p *Provider) MakeOutputs(
+func (p *BtcProvider) MakeOutputs(
 	ctx context.Context,
 	from btc_swap.From,
 	to btc_swap.To,
@@ -139,7 +138,7 @@ func (p *Provider) MakeOutputs(
 		return 0, nil, fmt.Errorf("invalid swap: %w", err)
 	}
 
-	toAsset, err := p.makeThorAsset(ctx, to.Chain, to.Asset)
+	toAsset, err := p.makeThorAsset(ctx, to.Chain, to.AssetID)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to convert thor asset: %w", err)
 	}

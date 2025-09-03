@@ -7,7 +7,6 @@ import (
 
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/kaptinlin/jsonschema"
-	"github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
@@ -122,10 +121,8 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("%s router v2 address not found", fromChainStr)
 	}
 
-	fromAssetAddr := ecommon.HexToAddress(cfg[fromAsset].(string))
-	toAssetAddr := ecommon.HexToAddress(cfg[toAsset].(string))
-	isFromNative := fromAssetAddr == evm.ZeroAddress
-	isToNative := toAssetAddr == evm.ZeroAddress
+	isFromNative := cfg[fromAsset].(string) == ""
+	isToNative := cfg[toAsset].(string) == ""
 
 	var rules []*rtypes.Rule
 	if isFromNative {

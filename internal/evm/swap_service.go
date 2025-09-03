@@ -20,9 +20,8 @@ func newSwapService(providers []Provider) *swapService {
 
 func (s *swapService) FindBestAmountOut(
 	ctx context.Context,
-	from Params,
-	to Params,
-	fromAmount *big.Int,
+	from From,
+	to To,
 ) ([]byte, error) {
 	if len(s.providers) == 0 {
 		return nil, fmt.Errorf("no providers available")
@@ -40,7 +39,7 @@ func (s *swapService) FindBestAmountOut(
 	for _i, _provider := range s.providers {
 		i, provider := _i, _provider
 		g.Go(func() error {
-			amountOut, tx, err := provider.MakeTx(ctx, from, to, fromAmount)
+			amountOut, tx, err := provider.MakeTx(ctx, from, to)
 
 			results[i] = providerResult{
 				amountOut: amountOut,
