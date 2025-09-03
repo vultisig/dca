@@ -14,17 +14,17 @@ import (
 	"github.com/vultisig/vultisig-go/common"
 )
 
-type BtcProvider struct {
+type ProviderBtc struct {
 	client *Client
 }
 
-func NewBtcProvider(client *Client) *BtcProvider {
-	return &BtcProvider{
+func NewProviderBtc(client *Client) *ProviderBtc {
+	return &ProviderBtc{
 		client: client,
 	}
 }
 
-func (p *BtcProvider) validateBtc(from btc_swap.From, to btc_swap.To) error {
+func (p *ProviderBtc) validateBtc(from btc_swap.From, to btc_swap.To) error {
 	if to.Chain == common.Bitcoin {
 		return fmt.Errorf("can't swap btc to btc")
 	}
@@ -47,7 +47,7 @@ func (p *BtcProvider) validateBtc(from btc_swap.From, to btc_swap.To) error {
 	return nil
 }
 
-func (p *BtcProvider) SatsPerByte(ctx context.Context) (uint64, error) {
+func (p *ProviderBtc) SatsPerByte(ctx context.Context) (uint64, error) {
 	info, err := p.client.getInboundAddresses(ctx, inboundAddressesRequest{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get inbound addresses: %w", err)
@@ -65,11 +65,11 @@ func (p *BtcProvider) SatsPerByte(ctx context.Context) (uint64, error) {
 	return 0, fmt.Errorf("no gas info found")
 }
 
-func (p *BtcProvider) ChangeOutputIndex() int {
+func (p *ProviderBtc) ChangeOutputIndex() int {
 	return 1
 }
 
-func (p *BtcProvider) makeThorAsset(ctx context.Context, chain common.Chain, asset string) (string, error) {
+func (p *ProviderBtc) makeThorAsset(ctx context.Context, chain common.Chain, asset string) (string, error) {
 	thorNet, err := toThor(chain)
 	if err != nil {
 		return "", fmt.Errorf("unsupported chain: %w", err)
@@ -129,7 +129,7 @@ func (p *BtcProvider) makeThorAsset(ctx context.Context, chain common.Chain, ass
 	return "", fmt.Errorf("asset not found in THORChain pools for chain %s and asset %s", thorNet, asset)
 }
 
-func (p *BtcProvider) MakeOutputs(
+func (p *ProviderBtc) MakeOutputs(
 	ctx context.Context,
 	from btc_swap.From,
 	to btc_swap.To,

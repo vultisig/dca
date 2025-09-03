@@ -9,7 +9,7 @@ import (
 
 type EvmProvider struct{}
 
-func NewEvmProvider() *EvmProvider {
+func NewProviderEvm() *EvmProvider {
 	return &EvmProvider{}
 }
 

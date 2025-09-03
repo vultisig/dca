@@ -196,7 +196,7 @@ func main() {
 					evmsdk.NewSDK(evmID, evmRpc, evmRpc.Client()),
 					ecommon.HexToAddress(c.routerAddr),
 				),
-				thorchain.NewEvmProvider(),
+				thorchain.NewProviderEvm(),
 			},
 			signer,
 			txIndexerService,
@@ -216,7 +216,7 @@ func main() {
 		logger.Fatalf("failed to initialize BTC RPC client: %v", err)
 	}
 
-	thorchainBtcProvider := thorchain.NewBtcProvider(thorchain.NewClient(cfg.BTC.ThorChainURL))
+	thorchainBtc := thorchain.NewProviderBtc(thorchain.NewClient(cfg.BTC.ThorChainURL))
 
 	dcaConsumer := dca.NewConsumer(
 		logger,
@@ -224,8 +224,8 @@ func main() {
 		evm.NewManager(networks),
 		btc.NewNetwork(
 			btcRpcClient,
-			thorchainBtcProvider,
-			btc.NewSwapService([]btc.SwapProvider{thorchainBtcProvider}),
+			thorchainBtc,
+			btc.NewSwapService([]btc.SwapProvider{thorchainBtc}),
 			btc.NewSignerService(btcsdk.NewSDK(btcRpcClient), signer, txIndexerService),
 			blockchair.NewClient(cfg.BTC.BlockchairURL),
 		),
