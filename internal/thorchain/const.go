@@ -12,7 +12,7 @@ const (
 	defaultToleranceBps      = "300"
 )
 
-func toThor(c common.Chain) (thorNetwork, error) {
+func parseThorNetwork(c common.Chain) (thorNetwork, error) {
 	switch c {
 	case common.Bitcoin:
 		return btc, nil
@@ -38,11 +38,3 @@ const (
 	base thorNetwork = "BASE"
 	avax thorNetwork = "AVAX"
 )
-
-var networks = []thorNetwork{
-	btc,
-	eth,
-	bsc,
-	base,
-	avax,
-}

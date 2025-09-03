@@ -159,6 +159,8 @@ func main() {
 
 	networks := make(map[common.Chain]*evm.Network)
 
+	thorchainClient := thorchain.NewClient(cfg.ThorChain.URL)
+
 	networkConfigs := []struct {
 		chain      common.Chain
 		rpcURL     string
@@ -185,18 +187,18 @@ func main() {
 			logger.Fatalf("failed to create rpc client: %s %v", c.chain.String(), er)
 		}
 
+		evmSdk := evmsdk.NewSDK(evmID, evmRpc, evmRpc.Client())
 		network, er := evm.NewNetwork(
 			ctx,
 			c.chain,
 			c.rpcURL,
 			[]evm.Provider{
 				uniswap.NewProviderV2(
-					c.chain,
 					evmRpc,
-					evmsdk.NewSDK(evmID, evmRpc, evmRpc.Client()),
+					evmSdk,
 					ecommon.HexToAddress(c.routerAddr),
 				),
-				thorchain.NewProviderEvm(),
+				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
 			},
 			signer,
 			txIndexerService,
@@ -216,7 +218,7 @@ func main() {
 		logger.Fatalf("failed to initialize BTC RPC client: %v", err)
 	}
 
-	thorchainBtc := thorchain.NewProviderBtc(thorchain.NewClient(cfg.BTC.ThorChainURL))
+	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
 
 	dcaConsumer := dca.NewConsumer(
 		logger,
@@ -259,6 +261,7 @@ type config struct {
 	Verifier     plugin_config.Verifier
 	Rpc          rpc
 	Uniswap      uniswapConfig
+	ThorChain    thorChainConfig
 	BTC          btcConfig
 	DataDog      dataDog
 	HealthPort   int
@@ -266,6 +269,10 @@ type config struct {
 
 type uniswapConfig struct {
 	RouterV2 router
+}
+
+type thorChainConfig struct {
+	URL string
 }
 
 type router struct {
@@ -296,7 +303,6 @@ type rpcItem struct {
 }
 
 type btcConfig struct {
-	ThorChainURL  string
 	BlockchairURL string
 }
 

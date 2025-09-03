@@ -28,7 +28,7 @@
       <env name="RPC_OPTIMISM_URL" value="https://optimism-rpc.publicnode.com" />
       <env name="RPC_POLYGON_URL" value="https://polygon-bor-rpc.publicnode.com" />
       <env name="RPC_BTC_URL" value="https://bitcoin-rpc.publicnode.com" />
-      <env name="BTC_THORCHAINURL" value="https://thornode.ninerealms.com" />
+      <env name="THORCHAIN_URL" value="https://thornode.ninerealms.com" />
       <env name="BTC_BLOCKCHAIRURL" value="https://api.vultisig.com/blockchair" />
       <env name="UNISWAP_ROUTERV2_ETHEREUM" value="0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D" />
       <env name="UNISWAP_ROUTERV2_ARBITRUM" value="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24" />

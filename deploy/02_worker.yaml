@@ -100,7 +100,7 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: bitcoin
-            - name: BTC_THORCHAINURL
+            - name: THORCHAIN_URL
               valueFrom:
                 configMapKeyRef:
                   name: thorchain

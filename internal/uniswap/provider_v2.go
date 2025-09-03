@@ -12,19 +12,16 @@ import (
 	evm_swap "github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/recipes/sdk/evm/codegen/uniswapv2_router"
-	rcommon "github.com/vultisig/vultisig-go/common"
 )
 
 type ProviderV2 struct {
-	chain  rcommon.Chain
 	rpc    *ethclient.Client
 	sdk    *evm.SDK
 	router common.Address
 }
 
-func NewProviderV2(chain rcommon.Chain, rpc *ethclient.Client, evmSDK *evm.SDK, router common.Address) *ProviderV2 {
+func NewProviderV2(rpc *ethclient.Client, evmSDK *evm.SDK, router common.Address) *ProviderV2 {
 	return &ProviderV2{
-		chain:  chain,
 		rpc:    rpc,
 		sdk:    evmSDK,
 		router: router,
@@ -32,11 +29,8 @@ func NewProviderV2(chain rcommon.Chain, rpc *ethclient.Client, evmSDK *evm.SDK, 
 }
 
 func (p *ProviderV2) validatePath(from evm_swap.From, to evm_swap.To) error {
-	if from.Chain != p.chain {
-		return fmt.Errorf("unsupported from.Chain: %s", from.Chain)
-	}
-	if to.Chain != p.chain {
-		return fmt.Errorf("unsupported to.Chain: %s", to.Chain)
+	if from.Chain != to.Chain {
+		return fmt.Errorf("only same chain swaps supported: %s %s", from.Chain.String(), to.Chain.String())
 	}
 	return nil
 }

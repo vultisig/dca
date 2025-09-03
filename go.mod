@@ -16,9 +16,8 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20250902210802-50f60bf6ea4b
+	github.com/vultisig/recipes v0.0.0-20250903193025-f020f939dc82
 	github.com/vultisig/verifier v0.0.0-20250829095146-92fe75e10dc3
-	github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110
 	github.com/vultisig/vultisig-go v0.0.0-20250826134334-ddbbadd76c86
 	golang.org/x/sync v0.14.0
 	google.golang.org/protobuf v1.36.6
@@ -177,6 +176,7 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778 // indirect
 	github.com/vultisig/go-wrappers v0.0.0-20250716071337-34a5c0f4d6e0 // indirect
+	github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 // indirect
 	go.etcd.io/bbolt v1.3.8 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
