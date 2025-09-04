@@ -27,13 +27,13 @@ var supportedChains = []common.Chain{
 }
 
 const (
-	fromChain  = "from_chain"
-	fromAsset  = "from_asset"
-	fromAmount = "from_amount"
+	fromChain  = "fromChain"
+	fromAsset  = "fromAsset"
+	fromAmount = "fromAmount"
 
-	toChain   = "to_chain"
-	toAsset   = "to_asset"
-	toAddress = "to_address"
+	toChain   = "toChain"
+	toAsset   = "toAsset"
+	toAddress = "toAddress"
 )
 
 const (
@@ -100,10 +100,6 @@ func (s *Spec) validateConfiguration(cfg map[string]any) error {
 func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	if err := s.validateConfiguration(cfg); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
-	}
-
-	if cfg[fromChain] != cfg[toChain] {
-		return nil, fmt.Errorf("only same chain swaps supported, got %s->%s", cfg[fromChain], cfg[toChain])
 	}
 
 	fromChainStr := cfg[fromChain].(string)
