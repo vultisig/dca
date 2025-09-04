@@ -27,8 +27,8 @@ import (
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/verifier/vault_config"
-	"github.com/vultisig/vultiserver/relay"
 	"github.com/vultisig/vultisig-go/common"
+	"github.com/vultisig/vultisig-go/relay"
 )
 
 func main() {
