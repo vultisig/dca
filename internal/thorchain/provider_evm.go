@@ -66,30 +66,28 @@ func (p *EvmProvider) getTokenDecimals(ctx context.Context, tokenAddress common.
 	return decimals, nil
 }
 
-// convertToThorDecimals converts amount to THORChain's 8 decimals and returns both
-// the normalized amount and the exact amount that should be used in the transaction
+// convertDecimals converts amount from originalDecimals to desiredDecimals and returns both
+// the converted amount and the exact amount that should be used in the transaction
 // to match what was quoted for
-func convertToThorDecimals(amount *big.Int, originalDecimals uint8) (*big.Int, *big.Int) {
-	const thorChainDecimals = 8
-
-	if originalDecimals == thorChainDecimals {
+func convertDecimals(amount *big.Int, originalDecimals, desiredDecimals uint8) (*big.Int, *big.Int) {
+	if originalDecimals == desiredDecimals {
 		return new(big.Int).Set(amount), new(big.Int).Set(amount)
 	}
 
-	var thorAmount *big.Int
+	var convertedAmount *big.Int
 	var exactAmount *big.Int
 
-	if originalDecimals > thorChainDecimals {
-		divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(originalDecimals-thorChainDecimals)), nil)
-		thorAmount = new(big.Int).Div(amount, divisor)
-		exactAmount = new(big.Int).Mul(thorAmount, divisor)
+	if originalDecimals > desiredDecimals {
+		divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(originalDecimals-desiredDecimals)), nil)
+		convertedAmount = new(big.Int).Div(amount, divisor)
+		exactAmount = new(big.Int).Mul(convertedAmount, divisor)
 	} else {
-		multiplier := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(thorChainDecimals-originalDecimals)), nil)
-		thorAmount = new(big.Int).Mul(amount, multiplier)
+		multiplier := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(desiredDecimals-originalDecimals)), nil)
+		convertedAmount = new(big.Int).Mul(amount, multiplier)
 		exactAmount = new(big.Int).Set(amount)
 	}
 
-	return thorAmount, exactAmount
+	return convertedAmount, exactAmount
 }
 
 func (p *EvmProvider) MakeTx(
@@ -125,7 +123,7 @@ func (p *EvmProvider) MakeTx(
 		return nil, nil, fmt.Errorf("failed to get token decimals: %w", err)
 	}
 
-	thorAmount, exactAmount := convertToThorDecimals(from.Amount, tokenDecimals)
+	thorAmount, exactAmount := convertDecimals(from.Amount, tokenDecimals, 8)
 
 	toAsset, err := makeThorAsset(ctx, p.client, to.Chain, to.AssetID)
 	if err != nil {
@@ -209,5 +207,13 @@ func (p *EvmProvider) MakeTx(
 		return nil, nil, fmt.Errorf("failed to parse expected amount out: %w", err)
 	}
 
-	return expectedOut, unsignedTx, nil
+	targetTokenAddr := common.HexToAddress(to.AssetID)
+	targetDecimals, err := p.getTokenDecimals(ctx, targetTokenAddr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get target token decimals: %w", err)
+	}
+
+	realExpectedOut, _ := convertDecimals(expectedOut, 8, targetDecimals)
+
+	return realExpectedOut, unsignedTx, nil
 }

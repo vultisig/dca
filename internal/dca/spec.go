@@ -15,6 +15,7 @@ import (
 )
 
 var supportedChains = []common.Chain{
+	common.Bitcoin,
 	common.Ethereum,
 	common.Arbitrum,
 	common.Avalanche,
@@ -176,11 +177,9 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 }
 
 func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
-	var evmChains []any
+	var chains []any
 	for _, chain := range supportedChains {
-		if chain.IsEvm() {
-			evmChains = append(evmChains, chain.String())
-		}
+		chains = append(chains, chain.String())
 	}
 
 	cfg, err := plugin.RecipeConfiguration(map[string]any{
@@ -188,7 +187,7 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		"properties": map[string]any{
 			fromChain: map[string]any{
 				"type": "string",
-				"enum": evmChains,
+				"enum": chains,
 			},
 			fromAsset: map[string]any{
 				"type": "string",
@@ -198,7 +197,7 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			},
 			toChain: map[string]any{
 				"type": "string",
-				"enum": evmChains,
+				"enum": chains,
 			},
 			toAsset: map[string]any{
 				"type": "string",
@@ -225,10 +224,8 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		"required": []any{
 			frequency,
 			fromChain,
-			fromAsset,
 			fromAmount,
 			toChain,
-			toAsset,
 			toAddress,
 		},
 	})
@@ -246,11 +243,11 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
 			SupportedChains: func() []string {
-				var chains []string
+				var cc []string
 				for _, c := range supportedChains {
-					chains = append(chains, c.String())
+					cc = append(cc, c.String())
 				}
-				return chains
+				return cc
 			}(),
 		},
 	}, nil
