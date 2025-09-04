@@ -145,11 +145,6 @@ func (p *EvmProvider) MakeTx(
 		return nil, nil, fmt.Errorf("failed to get quote: %w", err)
 	}
 
-	expectedOut, err := strconv.ParseUint(quote.ExpectedAmountOut, 10, 64)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse expected amount out: %w", err)
-	}
-
 	dustThreshold, err := strconv.ParseUint(quote.DustThreshold, 10, 64)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse dust threshold: %w", err)
@@ -209,5 +204,10 @@ func (p *EvmProvider) MakeTx(
 		return nil, nil, fmt.Errorf("failed to build tx: %w", err)
 	}
 
-	return big.NewInt(int64(expectedOut)), unsignedTx, nil
+	expectedOut, ok := new(big.Int).SetString(quote.ExpectedAmountOut, 10)
+	if !ok {
+		return nil, nil, fmt.Errorf("failed to parse expected amount out: %w", err)
+	}
+
+	return expectedOut, unsignedTx, nil
 }
