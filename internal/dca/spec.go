@@ -24,6 +24,7 @@ var supportedChains = []common.Chain{
 	common.Blast,
 	common.Optimism,
 	common.Polygon,
+	common.Bitcoin,
 }
 
 const (
@@ -38,6 +39,11 @@ const (
 
 const (
 	endDate = "endDate"
+)
+
+// TODO use magic constants
+const (
+	thorchainBtcRouter = "bc1qd6c3e2kzqy3xkxpjcv4z5h4rq8jk4mh3jvtest"
 )
 
 const (
@@ -102,15 +108,76 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	if cfg[fromChain] != cfg[toChain] {
-		return nil, fmt.Errorf("only same chain swaps supported, got %s->%s", cfg[fromChain], cfg[toChain])
-	}
-
 	fromChainStr := cfg[fromChain].(string)
 	fromChainTyped, err := common.FromString(fromChainStr)
 	if err != nil {
 		return nil, fmt.Errorf("unsupported chain: %s", fromChainStr)
 	}
+
+	var rules []*rtypes.Rule
+
+	// Handle Bitcoin
+	if fromChainTyped == common.Bitcoin {
+		rules, err = s.suggestBitcoinRule(cfg, fromChainTyped)
+	} else {
+		// Handle EVM same-chain swaps
+		rules, err = s.suggestEvmRule(cfg, fromChainTyped)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	var rateLimitWindow uint32
+	freq := cfg[frequency].(string)
+
+	switch freq {
+	case minutely:
+		rateLimitWindow = 60
+	case hourly:
+		rateLimitWindow = 3600
+	case daily:
+		rateLimitWindow = 86400
+	case weekly:
+		rateLimitWindow = 604800
+	case biWeekly:
+		rateLimitWindow = 1209600
+	case monthly:
+		rateLimitWindow = 2592000
+	default:
+		return nil, fmt.Errorf("unknown frequency: %s", freq)
+	}
+
+	return &rtypes.PolicySuggest{
+		RateLimitWindow: conv.Ptr(rateLimitWindow),
+		MaxTxsPerWindow: conv.Ptr(uint32(len(rules))),
+		Rules:           rules,
+	}, nil
+}
+
+func (s *Spec) suggestBitcoinRule(cfg map[string]any, fromChain common.Chain) ([]*rtypes.Rule, error) {
+	// Parse to chain for THORChain memo
+	toChainStr := cfg[toChain].(string)
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return nil, fmt.Errorf("unsupported to chain: %s", toChainStr)
+	}
+
+	// Create Bitcoin transaction rule with 3 outputs
+	rules := []*rtypes.Rule{
+		s.createBitcoinThorchainRule(cfg, fromChain, toChainTyped),
+	}
+
+	return rules, nil
+}
+
+func (s *Spec) suggestEvmRule(cfg map[string]any, fromChainTyped common.Chain) ([]*rtypes.Rule, error) {
+	// Handle EVM same-chain swaps
+	if cfg[fromChain] != cfg[toChain] {
+		return nil, fmt.Errorf("only same chain swaps supported, got %s->%s", cfg[fromChain], cfg[toChain])
+	}
+
+	fromChainStr := cfg[fromChain].(string)
 	fromChainLowercase := strings.ToLower(fromChainTyped.String())
 
 	if !fromChainTyped.IsEvm() {
@@ -151,36 +218,14 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		), createApproveRule(routerV2.Hex(), cfg[fromAsset].(string), fromChainLowercase))
 	}
 
-	var rateLimitWindow uint32
-	freq := cfg[frequency].(string)
-
-	switch freq {
-	case minutely:
-		rateLimitWindow = 60
-	case hourly:
-		rateLimitWindow = 3600
-	case daily:
-		rateLimitWindow = 86400
-	case weekly:
-		rateLimitWindow = 604800
-	case biWeekly:
-		rateLimitWindow = 1209600
-	case monthly:
-		rateLimitWindow = 2592000
-	default:
-		return nil, fmt.Errorf("unknown frequency: %s", freq)
-	}
-
-	return &rtypes.PolicySuggest{
-		RateLimitWindow: conv.Ptr(rateLimitWindow),
-		MaxTxsPerWindow: conv.Ptr(uint32(len(rules))),
-		Rules:           rules,
-	}, nil
+	return rules, nil
 }
 
 func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
+	var allChains []any
 	var evmChains []any
 	for _, chain := range supportedChains {
+		allChains = append(allChains, chain.String())
 		if chain.IsEvm() {
 			evmChains = append(evmChains, chain.String())
 		}
@@ -191,7 +236,7 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		"properties": map[string]any{
 			fromChain: map[string]any{
 				"type": "string",
-				"enum": evmChains,
+				"enum": allChains,
 			},
 			fromAsset: map[string]any{
 				"type": "string",
@@ -201,7 +246,7 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			},
 			toChain: map[string]any{
 				"type": "string",
-				"enum": evmChains,
+				"enum": allChains,
 			},
 			toAsset: map[string]any{
 				"type": "string",
@@ -397,6 +442,45 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 		})
 	}
 
+	// Add Bitcoin transaction support for THORChain bridging
+	resources = append(resources, &rtypes.ResourcePattern{
+		ResourcePath: &rtypes.ResourcePath{
+			ChainId:    "bitcoin",
+			ProtocolId: "transaction",
+			FunctionId: "",
+			Full:       "bitcoin.transaction",
+		},
+		Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+		ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+			{
+				ParameterName:  "output_address_0",
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Required:       true,
+			},
+			{
+				ParameterName:  "output_value_0",
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Required:       true,
+			},
+			{
+				ParameterName:  "output_address_1",
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Required:       true,
+			},
+			{
+				ParameterName:  "output_value_1",
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+				Required:       true,
+			},
+			{
+				ParameterName:  "output_data_2",
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Required:       true,
+			},
+		},
+		Required: true,
+	})
+
 	return resources
 }
 
@@ -406,6 +490,92 @@ func (s *Spec) ValidatePluginPolicy(pol types.PluginPolicy) error {
 		return fmt.Errorf("failed to get recipe spec: %w", err)
 	}
 	return plugin.ValidatePluginPolicy(pol, spec)
+}
+
+func (s *Spec) createBitcoinThorchainRule(cfg map[string]any, fromChain, toChain common.Chain) *rtypes.Rule {
+	// Get the destination asset for THORChain memo
+	toAssetStr := cfg[toAsset].(string)
+	toAddressStr := cfg[toAddress].(string)
+
+	// TODO confirm ThorChain memo format
+	// Build THORChain memo format: SWAP:ASSET:DESTADDR
+	// For native tokens (empty toAsset), use chain's native symbol
+	var thorAsset string
+	if toAssetStr == "" {
+		// Native token - use chain.NativeSymbol
+		if nativeSymbol, err := toChain.NativeSymbol(); err == nil {
+			thorAsset = toChain.String() + "." + nativeSymbol
+		} else {
+			// Fallback for chains without native symbol method
+			thorAsset = toChain.String() + "." + toChain.String()
+		}
+	} else {
+		// ERC20 token - use format: CHAIN.SYMBOL-ADDRESS
+		thorAsset = toChain.String() + ".UNKNOWN-" + toAssetStr
+	}
+
+	// Create regex pattern for THORChain memo
+	// Format: SWAP:ASSET:DESTADDR
+	memoPattern := fmt.Sprintf("^SWAP:%s:%s$",
+		strings.ReplaceAll(thorAsset, ".", "\\."),
+		strings.ToLower(toAddressStr))
+
+	// Create Bitcoin transaction rule with 3 outputs
+	return &rtypes.Rule{
+		Resource: "bitcoin.transaction",
+		Effect:   rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: []*rtypes.ParameterConstraint{
+			{
+				ParameterName: "output_address_0",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					// TODO swap to magic constant
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: thorchainBtcRouter,
+					},
+				},
+			},
+			{
+				ParameterName: "output_value_0",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: cfg[fromAmount].(string),
+					},
+				},
+			},
+			{
+				ParameterName: "output_address_1",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: toAddressStr,
+					},
+				},
+			},
+			{
+				ParameterName: "output_value_1",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+				},
+			},
+			{
+				ParameterName: "output_data_2",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: memoPattern,
+					},
+				},
+			},
+		},
+		Target: &rtypes.Target{
+			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: &rtypes.Target_Address{
+				Address: thorchainBtcRouter,
+			},
+		},
+	}
 }
 
 func createUniswapRule(resource string, cfg map[string]any, routerAddress string, includeAmountIn bool) *rtypes.Rule {
