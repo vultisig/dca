@@ -9,7 +9,7 @@ import (
 const (
 	defaultStreamingInterval = "3"
 	defaultStreamingQuantity = "0"
-	defaultToleranceBps      = "300"
+	defaultToleranceBps      = "500"
 )
 
 func parseThorNetwork(c common.Chain) (thorNetwork, error) {

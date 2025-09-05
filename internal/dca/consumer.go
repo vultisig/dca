@@ -72,19 +72,15 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 
 	cfg := recipe.GetConfiguration().AsMap()
 
-	fromAssetStr, ok := cfg[fromAsset].(string)
-	if !ok {
-		return fmt.Errorf("failed to get fromAsset: %w", err)
-	}
 	fromAmountStr, ok := cfg[fromAmount].(string)
 	if !ok {
 		return fmt.Errorf("failed to get fromAmount: %w", err)
 	}
 
-	toAssetStr, ok := cfg[toAsset].(string)
-	if !ok {
-		return fmt.Errorf("failed to get toAsset: %w", err)
-	}
+	// optional fields
+	fromAssetStr, _ := cfg[fromAsset].(string)
+	toAssetStr, _ := cfg[toAsset].(string)
+
 	toAddressStr, ok := cfg[toAddress].(string)
 	if !ok {
 		return fmt.Errorf("failed to get toAddress: %w", err)

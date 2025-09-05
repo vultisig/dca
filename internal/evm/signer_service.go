@@ -76,7 +76,7 @@ func (s *signerService) buildKeysignRequest(
 	policy types.PluginPolicy,
 	unsignedTx []byte,
 ) (types.PluginKeysignRequest, error) {
-	txHex := ecommon.Bytes2Hex(unsignedTx)
+	txHex := base64.StdEncoding.EncodeToString(unsignedTx)
 
 	txData, err := ethereum.DecodeUnsignedPayload(unsignedTx)
 	if err != nil {

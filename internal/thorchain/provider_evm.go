@@ -16,21 +16,21 @@ import (
 	"github.com/vultisig/recipes/sdk/evm/codegen/thorchain_router"
 )
 
-type EvmProvider struct {
+type ProviderEvm struct {
 	client *Client
 	rpc    *ethclient.Client
 	sdk    *evm.SDK
 }
 
-func NewProviderEvm(client *Client, rpc *ethclient.Client, sdk *evm.SDK) *EvmProvider {
-	return &EvmProvider{
+func NewProviderEvm(client *Client, rpc *ethclient.Client, sdk *evm.SDK) *ProviderEvm {
+	return &ProviderEvm{
 		client: client,
 		rpc:    rpc,
 		sdk:    sdk,
 	}
 }
 
-func (p *EvmProvider) validateEvm(from evm_swap.From, to evm_swap.To) error {
+func (p *ProviderEvm) validateEvm(from evm_swap.From, to evm_swap.To) error {
 	_, err := parseThorNetwork(from.Chain)
 	if err != nil {
 		return fmt.Errorf("unsupported 'from' chain: %w", err)
@@ -44,7 +44,7 @@ func (p *EvmProvider) validateEvm(from evm_swap.From, to evm_swap.To) error {
 	return nil
 }
 
-func (p *EvmProvider) getTokenDecimals(ctx context.Context, tokenAddress common.Address) (uint8, error) {
+func (p *ProviderEvm) getTokenDecimals(ctx context.Context, tokenAddress common.Address) (uint8, error) {
 	if bytes.Equal(tokenAddress.Bytes(), evm.ZeroAddress.Bytes()) {
 		return 18, nil
 	}
@@ -90,7 +90,7 @@ func convertDecimals(amount *big.Int, originalDecimals, desiredDecimals uint8) (
 	return convertedAmount, exactAmount
 }
 
-func (p *EvmProvider) MakeTx(
+func (p *ProviderEvm) MakeTx(
 	ctx context.Context,
 	from evm_swap.From,
 	to evm_swap.To,
@@ -137,7 +137,7 @@ func (p *EvmProvider) MakeTx(
 		Destination:       to.Address,
 		StreamingInterval: defaultStreamingInterval,
 		StreamingQuantity: defaultStreamingQuantity,
-		ToleranceBps:      defaultToleranceBps,
+		//ToleranceBps:      defaultToleranceBps,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get quote: %w", err)
