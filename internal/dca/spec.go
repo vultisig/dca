@@ -41,11 +41,6 @@ const (
 	endDate = "endDate"
 )
 
-// TODO use magic constants
-const (
-	thorchainBtcRouter = "bc1qd6c3e2kzqy3xkxpjcv4z5h4rq8jk4mh3jvtest"
-)
-
 const (
 	frequency = "frequency"
 
@@ -522,10 +517,9 @@ func (s *Spec) createBitcoinThorchainRule(cfg map[string]any, fromChain, toChain
 			{
 				ParameterName: "output_address_0",
 				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					// TODO swap to magic constant
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: thorchainBtcRouter,
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT,
+					Value: &rtypes.Constraint_MagicConstantValue{
+						MagicConstantValue: rtypes.MagicConstant_THORCHAIN_VAULT,
 					},
 				},
 			},
@@ -564,9 +558,9 @@ func (s *Spec) createBitcoinThorchainRule(cfg map[string]any, fromChain, toChain
 			},
 		},
 		Target: &rtypes.Target{
-			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-			Target: &rtypes.Target_Address{
-				Address: thorchainBtcRouter,
+			TargetType: rtypes.TargetType_TARGET_TYPE_MAGIC_CONSTANT,
+			Target: &rtypes.Target_MagicConstant{
+				MagicConstant: rtypes.MagicConstant_THORCHAIN_VAULT,
 			},
 		},
 	}
