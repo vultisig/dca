@@ -3,6 +3,7 @@ package dca
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	ecommon "github.com/ethereum/go-ethereum/common"
@@ -35,6 +36,21 @@ const (
 	toChain   = "toChain"
 	toAsset   = "toAsset"
 	toAddress = "toAddress"
+)
+
+// THORChain memo pattern templates
+const (
+	// Pattern for native BTC only: SWAP:BTC.BTC:address or =:b:address
+	memoPatternNativeBTC = "^(SWAP|=):(BTC\\.BTC|b):%s(:.*)?$"
+	
+	// Pattern for native token on specific EVM chain: SWAP:ETH.ETH:address or =:e:address
+	memoPatternNativeEVM = "^(SWAP|=):(%s\\.%s|[a-z]):%s(:.*)?$"
+	
+	// Pattern for any token on specific EVM chain: SWAP:ETH.USDC-0x123:address or =:e:address
+	memoPatternEvmToken = "^(SWAP|=):(%s\\.[A-Z0-9.-]+|[a-z]):%s(:.*)?$"
+	
+	// Pattern for any asset to specific address: SWAP:ANYTHING:address
+	memoPatternAnyAsset = "^(SWAP|=):[a-zA-Z0-9.-]+:%s(:.*)?$"
 )
 
 const (
@@ -243,7 +259,7 @@ func (s *Spec) suggestEvmThorchainRule(cfg map[string]any, fromChain, toChain co
 
 	if isFromNative {
 		// Native token (ETH) -> THORChain
-		rules = append(rules, s.createThorchainDepositRule(
+		rules = append(rules, s.createEvmThorchainDepositRule(
 			fromChainLowercase+".thorchain_router.depositWithExpiry",
 			cfg,
 			true,
@@ -254,7 +270,7 @@ func (s *Spec) suggestEvmThorchainRule(cfg map[string]any, fromChain, toChain co
 			// Need approval for ERC20 token first
 			createApproveRule("", cfg[fromAsset].(string), fromChainLowercase), // empty spender = THORChain vault
 			// Then depositWithExpiry
-			s.createThorchainDepositRule(
+			s.createEvmThorchainDepositRule(
 				fromChainLowercase+".thorchain_router.depositWithExpiry",
 				cfg,
 				false,
@@ -570,32 +586,17 @@ func (s *Spec) ValidatePluginPolicy(pol types.PluginPolicy) error {
 }
 
 func (s *Spec) createBitcoinThorchainRule(cfg map[string]any, fromChain, toChain common.Chain) *rtypes.Rule {
-	// Get the destination asset for THORChain memo
-	toAssetStr := cfg[toAsset].(string)
 	toAddressStr := cfg[toAddress].(string)
 
-	// TODO confirm ThorChain memo format
-	// Build THORChain memo format: SWAP:ASSET:DESTADDR
-	// For native tokens (empty toAsset), use chain's native symbol
-	var thorAsset string
-	if toAssetStr == "" {
-		// Native token - use chain.NativeSymbol
-		if nativeSymbol, err := toChain.NativeSymbol(); err == nil {
-			thorAsset = toChain.String() + "." + nativeSymbol
-		} else {
-			// Fallback for chains without native symbol method
-			thorAsset = toChain.String() + "." + toChain.String()
-		}
-	} else {
-		// ERC20 token - use format: CHAIN.SYMBOL-ADDRESS
-		thorAsset = toChain.String() + ".UNKNOWN-" + toAssetStr
-	}
+	var memoPattern string
 
-	// Create regex pattern for THORChain memo
-	// Format: SWAP:ASSET:DESTADDR
-	memoPattern := fmt.Sprintf("^SWAP:%s:%s$",
-		strings.ReplaceAll(thorAsset, ".", "\\."),
-		strings.ToLower(toAddressStr))
+	if fromChain.String() == toChain.String() {
+		// BTC->BTC: Enforce native BTC only
+		memoPattern = fmt.Sprintf(memoPatternNativeBTC, regexp.QuoteMeta(toAddressStr))
+	} else {
+		// BTC->Other chain: Allow any asset on target chain to specific address
+		memoPattern = fmt.Sprintf(memoPatternAnyAsset, regexp.QuoteMeta(toAddressStr))
+	}
 
 	// Create Bitcoin transaction rule with 3 outputs
 	return &rtypes.Rule{
@@ -757,7 +758,7 @@ func createApproveRule(spenderAddress, tokenAddress, chainName string) *rtypes.R
 	}
 }
 
-func (s *Spec) createThorchainDepositRule(resource string, cfg map[string]any, isNative bool) *rtypes.Rule {
+func (s *Spec) createEvmThorchainDepositRule(resource string, cfg map[string]any, isNative bool) *rtypes.Rule {
 	var constraints []*rtypes.ParameterConstraint
 
 	// vault parameter - use magic constant for THORChain vault
@@ -811,21 +812,36 @@ func (s *Spec) createThorchainDepositRule(resource string, cfg map[string]any, i
 	toAssetStr := cfg[toAsset].(string)
 	toAddressStr := cfg[toAddress].(string)
 	toChainStr := cfg[toChain].(string)
+	fromChainStr := cfg[fromChain].(string)
 
-	// Build THORChain memo: SWAP:ASSET:DESTADDR
-	var thorAsset string
-	if toAssetStr == "" {
-		// Native token
-		thorAsset = strings.ToUpper(toChainStr) + "." + strings.ToUpper(toChainStr)
+	// Parse to chain for type checking
+	toChainTyped, _ := common.FromString(toChainStr)
+
+	var memoPattern string
+
+	if toChainTyped.IsEvm() {
+		// EVM destination
+		if fromChainStr == toChainStr {
+			// Same EVM chain: Check native vs non-native
+			if toAssetStr == "" {
+				// Native token (ETH.ETH, AVAX.AVAX, etc.)
+				chainUpper := strings.ToUpper(toChainStr)
+				memoPattern = fmt.Sprintf(memoPatternNativeEVM,
+					chainUpper, chainUpper, regexp.QuoteMeta(toAddressStr))
+			} else {
+				// ERC20 token - allow any token on same chain
+				chainUpper := strings.ToUpper(toChainStr)
+				memoPattern = fmt.Sprintf(memoPatternEvmToken,
+					chainUpper, regexp.QuoteMeta(toAddressStr))
+			}
+		} else {
+			// Different EVM chain: Allow any asset on target chain
+			memoPattern = fmt.Sprintf(memoPatternAnyAsset, regexp.QuoteMeta(toAddressStr))
+		}
 	} else {
-		// Token - simplified format for now
-		thorAsset = strings.ToUpper(toChainStr) + ".TOKEN-" + toAssetStr
+		// Non-EVM destination (Bitcoin): Enforce native only
+		memoPattern = fmt.Sprintf(memoPatternNativeBTC, regexp.QuoteMeta(toAddressStr))
 	}
-
-	// TODO check memo building pattern
-	memoPattern := fmt.Sprintf("^SWAP:%s:%s$",
-		strings.ReplaceAll(thorAsset, ".", "\\."),
-		strings.ToLower(toAddressStr))
 
 	constraints = append(constraints, &rtypes.ParameterConstraint{
 		ParameterName: "memo",
