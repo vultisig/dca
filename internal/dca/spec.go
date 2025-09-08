@@ -167,17 +167,32 @@ func (s *Spec) suggestBitcoinRule(cfg map[string]any, fromChain common.Chain) ([
 }
 
 func (s *Spec) suggestEvmRule(cfg map[string]any, fromChainTyped common.Chain) ([]*rtypes.Rule, error) {
-	// Handle EVM same-chain swaps
-	if cfg[fromChain] != cfg[toChain] {
-		return nil, fmt.Errorf("only same chain swaps supported, got %s->%s", cfg[fromChain], cfg[toChain])
-	}
-
 	fromChainStr := cfg[fromChain].(string)
-	fromChainLowercase := strings.ToLower(fromChainTyped.String())
+	toChainStr := cfg[toChain].(string)
 
 	if !fromChainTyped.IsEvm() {
 		return nil, fmt.Errorf("chain %s is not an EVM chain", fromChainStr)
 	}
+
+	// Parse to chain
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return nil, fmt.Errorf("unsupported to chain: %s", toChainStr)
+	}
+
+	// Branch based on same-chain vs cross-chain
+	if fromChainStr == toChainStr {
+		// Same chain: Use Uniswap V2
+		return s.suggestEvmUniswapRule(cfg, fromChainTyped)
+	} else {
+		// Cross chain: Use THORChain router
+		return s.suggestEvmThorchainRule(cfg, fromChainTyped, toChainTyped)
+	}
+}
+
+func (s *Spec) suggestEvmUniswapRule(cfg map[string]any, fromChainTyped common.Chain) ([]*rtypes.Rule, error) {
+	fromChainStr := cfg[fromChain].(string)
+	fromChainLowercase := strings.ToLower(fromChainTyped.String())
 
 	routerV2, ok := s.uniswapRouterV2[fromChainTyped]
 	if !ok {
@@ -211,6 +226,40 @@ func (s *Spec) suggestEvmRule(cfg map[string]any, fromChainTyped common.Chain) (
 			routerV2.Hex(),
 			true,
 		), createApproveRule(routerV2.Hex(), cfg[fromAsset].(string), fromChainLowercase))
+	}
+
+	return rules, nil
+}
+
+func (s *Spec) suggestEvmThorchainRule(cfg map[string]any, fromChain, toChain common.Chain) ([]*rtypes.Rule, error) {
+	fromChainLowercase := strings.ToLower(fromChain.String())
+
+	// Get assets from config
+	fromAssetStr := cfg[fromAsset].(string)
+	fromAssetAddr := ecommon.HexToAddress(fromAssetStr)
+	isFromNative := fromAssetAddr == evm.ZeroAddress
+
+	var rules []*rtypes.Rule
+
+	if isFromNative {
+		// Native token (ETH) -> THORChain
+		rules = append(rules, s.createThorchainDepositRule(
+			fromChainLowercase+".thorchain_router.depositWithExpiry",
+			cfg,
+			true,
+		))
+	} else {
+		// ERC20 token -> THORChain
+		rules = append(rules,
+			// Need approval for ERC20 token first
+			createApproveRule("", cfg[fromAsset].(string), fromChainLowercase), // empty spender = THORChain vault
+			// Then depositWithExpiry
+			s.createThorchainDepositRule(
+				fromChainLowercase+".thorchain_router.depositWithExpiry",
+				cfg,
+				false,
+			),
+		)
 	}
 
 	return rules, nil
@@ -418,11 +467,50 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
 				{
 					ParameterName:  "spender",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED | rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT,
+					Required:       true,
+				},
+				{
+					ParameterName:  "amount",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       true,
+				},
+			},
+			Required: true,
+		})
+
+		// Add THORChain router support for cross-chain swaps
+		resources = append(resources, &rtypes.ResourcePattern{
+			ResourcePath: &rtypes.ResourcePath{
+				ChainId:    chainNameLower,
+				ProtocolId: "thorchain_router",
+				FunctionId: "depositWithExpiry",
+				Full:       chainNameLower + ".thorchain_router.depositWithExpiry",
+			},
+			Target: rtypes.TargetType_TARGET_TYPE_MAGIC_CONSTANT,
+			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+				{
+					ParameterName:  "vault",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT,
+					Required:       true,
+				},
+				{
+					ParameterName:  "asset",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Required:       true,
 				},
 				{
 					ParameterName:  "amount",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "memo",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_REGEXP,
+					Required:       true,
+				},
+				{
+					ParameterName:  "expiry",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
 					Required:       true,
 				},
@@ -443,7 +531,7 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 		ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
 			{
 				ParameterName:  "output_address_0",
-				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT,
 				Required:       true,
 			},
 			{
@@ -463,7 +551,7 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 			},
 			{
 				ParameterName:  "output_data_2",
-				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_REGEXP,
 				Required:       true,
 			},
 		},
@@ -550,9 +638,9 @@ func (s *Spec) createBitcoinThorchainRule(cfg map[string]any, fromChain, toChain
 			{
 				ParameterName: "output_data_2",
 				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: memoPattern,
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_REGEXP,
+					Value: &rtypes.Constraint_RegexpValue{
+						RegexpValue: memoPattern,
 					},
 				},
 			},
@@ -626,27 +714,145 @@ func createUniswapRule(resource string, cfg map[string]any, routerAddress string
 }
 
 func createApproveRule(spenderAddress, tokenAddress, chainName string) *rtypes.Rule {
+	var spenderConstraint *rtypes.Constraint
+
+	// Check if spenderAddress is a magic constant indicator (empty string means use THORChain vault)
+	if spenderAddress == "" {
+		spenderConstraint = &rtypes.Constraint{
+			Type: rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT,
+			Value: &rtypes.Constraint_MagicConstantValue{
+				MagicConstantValue: rtypes.MagicConstant_THORCHAIN_VAULT,
+			},
+		}
+	} else {
+		spenderConstraint = &rtypes.Constraint{
+			Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+			Value: &rtypes.Constraint_FixedValue{
+				FixedValue: spenderAddress,
+			},
+		}
+	}
+
 	return &rtypes.Rule{
 		Resource: chainName + ".erc20.approve",
 		Effect:   rtypes.Effect_EFFECT_ALLOW,
-		ParameterConstraints: []*rtypes.ParameterConstraint{{
-			ParameterName: "spender",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: spenderAddress,
+		ParameterConstraints: []*rtypes.ParameterConstraint{
+			{
+				ParameterName: "spender",
+				Constraint:    spenderConstraint,
+			},
+			{
+				ParameterName: "amount",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
 				},
 			},
-		}, {
-			ParameterName: "amount",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-			},
-		}},
+		},
 		Target: &rtypes.Target{
 			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
 			Target: &rtypes.Target_Address{
 				Address: tokenAddress,
+			},
+		},
+	}
+}
+
+func (s *Spec) createThorchainDepositRule(resource string, cfg map[string]any, isNative bool) *rtypes.Rule {
+	var constraints []*rtypes.ParameterConstraint
+
+	// vault parameter - use magic constant for THORChain vault
+	constraints = append(constraints, &rtypes.ParameterConstraint{
+		ParameterName: "vault",
+		Constraint: &rtypes.Constraint{
+			Type: rtypes.ConstraintType_CONSTRAINT_TYPE_MAGIC_CONSTANT,
+			Value: &rtypes.Constraint_MagicConstantValue{
+				MagicConstantValue: rtypes.MagicConstant_THORCHAIN_VAULT,
+			},
+		},
+	})
+
+	// asset parameter - token address (zero address for native)
+	constraints = append(constraints, &rtypes.ParameterConstraint{
+		ParameterName: "asset",
+		Constraint: &rtypes.Constraint{
+			Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+			Value: &rtypes.Constraint_FixedValue{
+				FixedValue: cfg[fromAsset].(string),
+			},
+		},
+	})
+
+	// amount parameter
+	if isNative {
+		// For native tokens, amount is sent as value, so amount parameter is 0
+		constraints = append(constraints, &rtypes.ParameterConstraint{
+			ParameterName: "amount",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: "0",
+				},
+			},
+		})
+	} else {
+		// For ERC20 tokens, amount parameter is the token amount
+		constraints = append(constraints, &rtypes.ParameterConstraint{
+			ParameterName: "amount",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: cfg[fromAmount].(string),
+				},
+			},
+		})
+	}
+
+	// memo parameter - THORChain swap memo format
+	toAssetStr := cfg[toAsset].(string)
+	toAddressStr := cfg[toAddress].(string)
+	toChainStr := cfg[toChain].(string)
+
+	// Build THORChain memo: SWAP:ASSET:DESTADDR
+	var thorAsset string
+	if toAssetStr == "" {
+		// Native token
+		thorAsset = strings.ToUpper(toChainStr) + "." + strings.ToUpper(toChainStr)
+	} else {
+		// Token - simplified format for now
+		thorAsset = strings.ToUpper(toChainStr) + ".TOKEN-" + toAssetStr
+	}
+
+	// TODO check memo building pattern
+	memoPattern := fmt.Sprintf("^SWAP:%s:%s$",
+		strings.ReplaceAll(thorAsset, ".", "\\."),
+		strings.ToLower(toAddressStr))
+
+	constraints = append(constraints, &rtypes.ParameterConstraint{
+		ParameterName: "memo",
+		Constraint: &rtypes.Constraint{
+			Type: rtypes.ConstraintType_CONSTRAINT_TYPE_REGEXP,
+			Value: &rtypes.Constraint_RegexpValue{
+				RegexpValue: memoPattern,
+			},
+		},
+	})
+
+	// expiry parameter - allow dynamic expiry
+	constraints = append(constraints, &rtypes.ParameterConstraint{
+		ParameterName: "expiry",
+		Constraint: &rtypes.Constraint{
+			Type: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+		},
+	})
+
+	return &rtypes.Rule{
+		Resource:             resource,
+		Effect:               rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: constraints,
+		Target: &rtypes.Target{
+			TargetType: rtypes.TargetType_TARGET_TYPE_MAGIC_CONSTANT,
+			Target: &rtypes.Target_MagicConstant{
+				MagicConstant: rtypes.MagicConstant_THORCHAIN_VAULT,
 			},
 		},
 	}
