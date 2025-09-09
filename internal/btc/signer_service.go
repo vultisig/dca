@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/btcsuite/btcd/btcutil/psbt"
@@ -80,10 +79,9 @@ func (s *SignerService) buildKeysignRequest(
 		return types.PluginKeysignRequest{}, fmt.Errorf("failed to make psbt: %w", err)
 	}
 
-	var txBuf bytes.Buffer
-	err = tx.Serialize(&txBuf)
+	txB64, err := tx.B64Encode()
 	if err != nil {
-		return types.PluginKeysignRequest{}, fmt.Errorf("failed to serialize psbt: %w", err)
+		return types.PluginKeysignRequest{}, fmt.Errorf("failed to encode psbt: %w", err)
 	}
 
 	txToTrack, err := s.txIndexer.CreateTx(ctx, storage.CreateTxDto{
@@ -93,7 +91,7 @@ func (s *SignerService) buildKeysignRequest(
 		TokenID:       "",
 		FromPublicKey: policy.PublicKey,
 		ToPublicKey:   "",
-		ProposedTxHex: hex.EncodeToString(txBuf.Bytes()),
+		ProposedTxHex: txB64,
 	})
 	if err != nil {
 		return types.PluginKeysignRequest{}, fmt.Errorf("failed to create tx: %w", err)
@@ -123,6 +121,6 @@ func (s *SignerService) buildKeysignRequest(
 			PolicyID:  policy.ID,
 			PluginID:  policy.PluginID.String(),
 		},
-		Transaction: base64.StdEncoding.EncodeToString(txBuf.Bytes()),
+		Transaction: txB64,
 	}, nil
 }

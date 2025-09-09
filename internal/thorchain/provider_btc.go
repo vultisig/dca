@@ -89,7 +89,7 @@ func (p *ProviderBtc) MakeOutputs(
 		Destination:       to.Address,
 		StreamingInterval: defaultStreamingInterval,
 		StreamingQuantity: defaultStreamingQuantity,
-		ToleranceBps:      defaultToleranceBps,
+		//ToleranceBps:      defaultToleranceBps,
 	})
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to get quote: %w", err)
@@ -148,5 +148,8 @@ func payToAddrScript(addr btcutil.Address) ([]byte, error) {
 }
 
 func createMemoScript(memo string) ([]byte, error) {
+	// max 80 chars validation inside txscript.NullDataScript,
+	// compound memos >80 chars not supported yet,
+	// it only required for Cosmos long addresses
 	return txscript.NullDataScript([]byte(memo))
 }

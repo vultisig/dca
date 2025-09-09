@@ -292,7 +292,8 @@ func (c *Consumer) handleEvmSwap(
 	}
 	if shouldApprove {
 		l.Info("approve needed, wait mined")
-		hash, er := network.Signer.SignAndBroadcast(ctx, *pol, approveTx)
+
+		hash, er := network.Signer.SignAndBroadcast(ctx, fromChain, *pol, approveTx)
 		if er != nil {
 			return fmt.Errorf("failed to sign & broadcast approve: %w", er)
 		}
@@ -334,7 +335,7 @@ func (c *Consumer) handleEvmSwap(
 	}
 	l.Info("swap route found")
 
-	_, err = network.Signer.SignAndBroadcast(ctx, *pol, swapTx)
+	_, err = network.Signer.SignAndBroadcast(ctx, fromChain, *pol, swapTx)
 	if err != nil {
 		return fmt.Errorf("failed to sign & broadcast swap: %w", err)
 	}

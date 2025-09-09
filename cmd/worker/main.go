@@ -212,7 +212,7 @@ func main() {
 	btcRpcClient, err := rpcclient.New(&rpcclient.ConnConfig{
 		Host:         cfg.Rpc.BTC.URL,
 		HTTPPostMode: true,
-		DisableTLS:   true,
+		Pass:         "pass",
 	}, nil)
 	if err != nil {
 		logger.Fatalf("failed to initialize BTC RPC client: %v", err)

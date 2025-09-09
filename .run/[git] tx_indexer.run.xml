@@ -12,7 +12,7 @@
       <env name="BASE_RPC_BLAST_URL" value="https://blast-rpc.publicnode.com" />
       <env name="BASE_RPC_OPTIMISM_URL" value="https://optimism-rpc.publicnode.com" />
       <env name="BASE_RPC_POLYGON_URL" value="https://polygon-bor-rpc.publicnode.com" />
-      <env name="BASE_RPC_BITCOIN_URL" value="https://bitcoin-rpc.publicnode.com" />
+      <env name="BASE_RPC_BITCOIN_URL" value="bitcoin-rpc.publicnode.com" />
       <env name="BASE_INTERVAL" value="30s" />
       <env name="BASE_ITERATIONTIMEOUT" value="30s" />
       <env name="BASE_MARKLOSTAFTER" value="2h" />

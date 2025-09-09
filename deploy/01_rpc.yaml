@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: rpc
 data:
-  bitcoin: "https://bitcoin-rpc.publicnode.com"
+  bitcoin: "bitcoin-rpc.publicnode.com"
   ethereum: "https://ethereum-rpc.publicnode.com"
   arbitrum: "https://arbitrum-rpc.publicnode.com"
   avalanche: "https://avalanche-c-chain-rpc.publicnode.com"

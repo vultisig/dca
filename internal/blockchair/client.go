@@ -42,7 +42,7 @@ func (c *Client) GetUnspent(ctx context.Context, address string) <-chan UnspentR
 			batch, err := libhttp.Call[addrInfoResponse](
 				ctx,
 				http.MethodGet,
-				c.url+"/blockchair/bitcoin/dashboards/address/"+address,
+				c.url+"/bitcoin/dashboards/address/"+address,
 				nil,
 				nil,
 				map[string]string{

@@ -11,8 +11,10 @@ import (
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/vultisig/dca/internal/blockchair"
+	"github.com/vultisig/recipes/engine"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/common"
 )
@@ -61,6 +63,11 @@ func (n *Network) Swap(ctx context.Context, policy vtypes.PluginPolicy, from Fro
 		return "", fmt.Errorf("failed to convert tx to psbt: %w", err)
 	}
 
+	err = n.populatePsbtMeta(psbtTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to populate psbt metadata: %w", err)
+	}
+
 	txHash, err := n.sendWithSdk(ctx, policy, psbtTx)
 	if err != nil {
 		return "", fmt.Errorf("failed to send tx: %w", err)
@@ -69,18 +76,69 @@ func (n *Network) Swap(ctx context.Context, policy vtypes.PluginPolicy, from Fro
 }
 
 func (n *Network) sendWithSdk(ctx context.Context, policy vtypes.PluginPolicy, tx *psbt.Packet) (string, error) {
-	var buf bytes.Buffer
-	err := tx.Serialize(&buf)
+	var bufPsbt bytes.Buffer
+	err := tx.Serialize(&bufPsbt)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize psbt: %w", err)
 	}
 
-	txHash, err := n.signer.SignAndBroadcast(ctx, policy, buf.Bytes())
+	var bufWireTx bytes.Buffer
+	err = tx.UnsignedTx.Serialize(&bufWireTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize tx.UnsignedTx: %w", err)
+	}
+
+	recipe, err := policy.GetRecipe()
+	if err != nil {
+		return "", fmt.Errorf("failed to unpack recipe: %w", err)
+	}
+
+	_, err = engine.NewEngine().Evaluate(recipe, common.Bitcoin, bufWireTx.Bytes())
+	if err != nil {
+		return "", fmt.Errorf("failed to evaluate tx: %w", err)
+	}
+
+	txHash, err := n.signer.SignAndBroadcast(ctx, policy, bufPsbt.Bytes())
 	if err != nil {
 		return "", fmt.Errorf("failed to sign and broadcast: %w", err)
 	}
 
 	return txHash, nil
+}
+
+func (n *Network) populatePsbtMeta(tx *psbt.Packet) error {
+	for i := range tx.Inputs {
+		prevOutPoint := tx.UnsignedTx.TxIn[i].PreviousOutPoint
+
+		prevTx, err := n.rpc.GetRawTransaction(&prevOutPoint.Hash)
+		if err != nil {
+			return fmt.Errorf("failed to get previous transaction %s: %w", prevOutPoint.Hash.String(), err)
+		}
+
+		if int(prevOutPoint.Index) >= len(prevTx.MsgTx().TxOut) {
+			return fmt.Errorf(
+				"invalid output index %d for transaction %s",
+				prevOutPoint.Index,
+				prevOutPoint.Hash.String(),
+			)
+		}
+
+		prevOutput := prevTx.MsgTx().TxOut[prevOutPoint.Index]
+
+		if isWitnessScript(prevOutput.PkScript) {
+			tx.Inputs[i].WitnessUtxo = prevOutput
+		} else {
+			tx.Inputs[i].NonWitnessUtxo = prevTx.MsgTx()
+		}
+	}
+
+	return nil
+}
+
+func isWitnessScript(script []byte) bool {
+	return txscript.IsPayToWitnessPubKeyHash(script) ||
+		txscript.IsPayToWitnessScriptHash(script) ||
+		txscript.IsPayToTaproot(script)
 }
 
 func (n *Network) buildMsgTx(
@@ -129,11 +187,6 @@ func (n *Network) buildMsgTx(
 					return nil, fmt.Errorf("failed to decode transaction hash: %w", er)
 				}
 
-				prev, er := n.rpc.GetRawTransaction(txHash)
-				if er != nil {
-					return nil, fmt.Errorf("failed to get utxo tx: %w", er)
-				}
-
 				txIn := &wire.TxIn{
 					PreviousOutPoint: wire.OutPoint{
 						Hash:  *txHash,
@@ -142,11 +195,6 @@ func (n *Network) buildMsgTx(
 					Sequence:        wire.MaxTxInSequenceNum,
 					Witness:         nil,
 					SignatureScript: nil,
-				}
-				if prev.MsgTx().HasWitness() {
-					txIn.Witness = prev.MsgTx().TxIn[u.Index].Witness
-				} else {
-					txIn.SignatureScript = prev.MsgTx().TxIn[u.Index].SignatureScript
 				}
 
 				tx.AddTxIn(txIn)

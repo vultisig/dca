@@ -9,6 +9,7 @@ import (
 	ecommon "github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/recipes/engine"
 	"github.com/vultisig/recipes/ethereum"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -41,9 +42,20 @@ func newSignerService(
 
 func (s *signerService) SignAndBroadcast(
 	ctx context.Context,
+	fromChain rcommon.Chain,
 	policy types.PluginPolicy,
 	unsignedTx []byte,
 ) (string, error) {
+	recipe, err := policy.GetRecipe()
+	if err != nil {
+		return "", fmt.Errorf("failed to unpack recipe: %w", err)
+	}
+
+	_, er := engine.NewEngine().Evaluate(recipe, fromChain, unsignedTx)
+	if er != nil {
+		return "", fmt.Errorf("failed to evaluate tx: %w", er)
+	}
+
 	keysignRequest, err := s.buildKeysignRequest(ctx, policy, unsignedTx)
 	if err != nil {
 		return "", fmt.Errorf("failed to build keysign request: %w", err)
