@@ -535,13 +535,13 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 		})
 	}
 
-	// Add Bitcoin transaction support for THORChain bridging
+	// Add Bitcoin BTC transfer support for THORChain bridging
 	resources = append(resources, &rtypes.ResourcePattern{
 		ResourcePath: &rtypes.ResourcePath{
 			ChainId:    "bitcoin",
-			ProtocolId: "transaction",
-			FunctionId: "",
-			Full:       "bitcoin.transaction",
+			ProtocolId: "btc",
+			FunctionId: "transfer",
+			Full:       "bitcoin.btc.transfer",
 		},
 		Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
 		ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
@@ -598,9 +598,9 @@ func (s *Spec) createBitcoinThorchainRule(cfg map[string]any, fromChain, toChain
 		memoPattern = fmt.Sprintf(memoPatternAnyAsset, regexp.QuoteMeta(toAddressStr))
 	}
 
-	// Create Bitcoin transaction rule with 3 outputs
+	// Create Bitcoin BTC transfer rule with 3 outputs
 	return &rtypes.Rule{
-		Resource: "bitcoin.transaction",
+		Resource: "bitcoin.btc.transfer",
 		Effect:   rtypes.Effect_EFFECT_ALLOW,
 		ParameterConstraints: []*rtypes.ParameterConstraint{
 			{
