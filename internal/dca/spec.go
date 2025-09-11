@@ -42,13 +42,13 @@ const (
 const (
 	// Pattern for native BTC only: SWAP:BTC.BTC:address or =:b:address
 	memoPatternNativeBTC = "^(SWAP|=):(BTC\\.BTC|b):%s(:.*)?$"
-	
+
 	// Pattern for native token on specific EVM chain: SWAP:ETH.ETH:address or =:e:address
 	memoPatternNativeEVM = "^(SWAP|=):(%s\\.%s|[a-z]):%s(:.*)?$"
-	
+
 	// Pattern for any token on specific EVM chain: SWAP:ETH.USDC-0x123:address or =:e:address
 	memoPatternEvmToken = "^(SWAP|=):(%s\\.[A-Z0-9.-]+|[a-z]):%s(:.*)?$"
-	
+
 	// Pattern for any asset to specific address: SWAP:ANYTHING:address
 	memoPatternAnyAsset = "^(SWAP|=):[a-zA-Z0-9.-]+:%s(:.*)?$"
 )
