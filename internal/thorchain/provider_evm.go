@@ -204,7 +204,7 @@ func (p *ProviderEvm) MakeTx(
 
 	expectedOut, ok := new(big.Int).SetString(quote.ExpectedAmountOut, 10)
 	if !ok {
-		return nil, nil, fmt.Errorf("failed to parse expected amount out: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse expected amount out: %s", quote.ExpectedAmountOut)
 	}
 
 	targetTokenAddr := common.HexToAddress(to.AssetID)
