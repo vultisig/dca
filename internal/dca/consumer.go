@@ -2,6 +2,7 @@ package dca
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -152,33 +153,42 @@ func (c *Consumer) evmPubToAddress(chain common.Chain, pub string) (ecommon.Addr
 	return ecommon.HexToAddress(addr), nil
 }
 
-func (c *Consumer) btcPubToAddress(pub string) (btcutil.Address, error) {
-	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(pub, string(types.PluginVultisigDCA_0000)))
+func (c *Consumer) btcPubToAddress(rootPub string) (btcutil.Address, *btcutil.AddressPubKey, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, string(types.PluginVultisigDCA_0000)))
 	if err != nil {
-		return nil, fmt.Errorf("failed to get vault content: %w", err)
+		return nil, nil, fmt.Errorf("failed to get vault content: %w", err)
 	}
 
 	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt vault: %w", err)
+		return nil, nil, fmt.Errorf("failed to decrypt vault: %w", err)
 	}
 
-	childPub, err := tss.GetDerivedPubKey(pub, vlt.GetHexChainCode(), common.Bitcoin.GetDerivePath(), false)
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.Bitcoin.GetDerivePath(), false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get derived pubkey: %w", err)
+		return nil, nil, fmt.Errorf("failed to get derived pubkey: %w", err)
 	}
 
 	addr, err := address.GetBitcoinAddress(childPub)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get address: %w", err)
+		return nil, nil, fmt.Errorf("failed to get address: %w", err)
 	}
 
 	btcAddr, err := btcutil.DecodeAddress(addr, &chaincfg.MainNetParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode BTC address: %w", err)
+		return nil, nil, fmt.Errorf("failed to decode BTC address: %w", err)
 	}
 
-	return btcAddr, nil
+	pubKeyBytes, err := hex.DecodeString(childPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid derived ECDSA public key: %w", err)
+	}
+	pub, err := btcutil.NewAddressPubKey(pubKeyBytes, &chaincfg.MainNetParams)
+	if err != nil {
+		return nil, nil, fmt.Errorf("fail to get public key hash: %w", err)
+	}
+
+	return btcAddr, pub, nil
 }
 
 func (c *Consumer) handleBtcSwap(
@@ -187,7 +197,7 @@ func (c *Consumer) handleBtcSwap(
 	cfg map[string]any,
 	fromAmount, toAsset, toAddress string,
 ) error {
-	fromAddressTyped, err := c.btcPubToAddress(pol.PublicKey)
+	fromAddressTyped, childPub, err := c.btcPubToAddress(pol.PublicKey)
 	if err != nil {
 		return fmt.Errorf("failed to get BTC address from policy PublicKey: %w", err)
 	}
@@ -207,6 +217,7 @@ func (c *Consumer) handleBtcSwap(
 	}
 
 	from := btc.From{
+		PubKey:  childPub,
 		Address: fromAddressTyped,
 		Amount:  fromAmountSats,
 	}

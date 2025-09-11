@@ -219,6 +219,7 @@ func main() {
 	}
 
 	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
+	blockchairClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
 
 	dcaConsumer := dca.NewConsumer(
 		logger,
@@ -228,8 +229,8 @@ func main() {
 			btcRpcClient,
 			thorchainBtc,
 			btc.NewSwapService([]btc.SwapProvider{thorchainBtc}),
-			btc.NewSignerService(btcsdk.NewSDK(btcRpcClient), signer, txIndexerService),
-			blockchair.NewClient(cfg.BTC.BlockchairURL),
+			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signer, txIndexerService),
+			blockchairClient,
 		),
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,

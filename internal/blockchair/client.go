@@ -1,10 +1,14 @@
 package blockchair
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/wire"
 	"github.com/vultisig/verifier/plugin/libhttp"
 )
 
@@ -16,6 +20,42 @@ func NewClient(url string) *Client {
 	return &Client{
 		url: url,
 	}
+}
+
+type PushResponse struct {
+	Data struct {
+		TransactionHash string `json:"transaction_hash"`
+	} `json:"data"`
+}
+
+func (c *Client) SendRawTransaction(tx *wire.MsgTx, _ bool) (*chainhash.Hash, error) {
+	var b bytes.Buffer
+	err := tx.Serialize(&b)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize tx: %w", err)
+	}
+
+	res, err := libhttp.Call[PushResponse](
+		context.Background(),
+		http.MethodPost,
+		c.url+"/bitcoin/push/transaction",
+		map[string]string{
+			"Content-Type": "application/json",
+		},
+		map[string]string{
+			"data": hex.EncodeToString(b.Bytes()),
+		},
+		map[string]string{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to push tx: %w", err)
+	}
+
+	hash, err := chainhash.NewHashFromStr(res.Data.TransactionHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse tx hash: %w", err)
+	}
+	return hash, nil
 }
 
 type Utxo struct {

@@ -58,8 +58,7 @@ func (n *Network) Swap(ctx context.Context, policy vtypes.PluginPolicy, from Fro
 		return "", fmt.Errorf("failed to build tx: %w", err)
 	}
 
-	pubKeyBytes := []byte(policy.PublicKey)
-	psbtTx, err := toPsbt(msgTx, pubKeyBytes)
+	psbtTx, err := toPsbt(msgTx, from.PubKey.PubKey().SerializeCompressed())
 	if err != nil {
 		return "", fmt.Errorf("failed to convert tx to psbt: %w", err)
 	}
@@ -220,13 +219,11 @@ func toPsbt(tx *wire.MsgTx, publicKey []byte) (*psbt.Packet, error) {
 		return nil, fmt.Errorf("failed to create PSBT: %w", err)
 	}
 
-	// Add Bip32Derivation to all inputs. Assume all inputs used are from the same address
-	derivation := &psbt.Bip32Derivation{
-		PubKey:    publicKey,
-		Bip32Path: nil, // Can be empty
-	}
-
 	for i := range packet.Inputs {
+		derivation := &psbt.Bip32Derivation{
+			PubKey:    publicKey,
+			Bip32Path: nil, // Can be empty
+		}
 		packet.Inputs[i].Bip32Derivation = []*psbt.Bip32Derivation{derivation}
 	}
 

@@ -9,6 +9,7 @@ import (
 )
 
 type From struct {
+	PubKey  *btcutil.AddressPubKey
 	Address btcutil.Address
 	Amount  uint64
 }
