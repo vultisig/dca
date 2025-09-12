@@ -13,13 +13,11 @@ import (
 	rcommon "github.com/vultisig/vultisig-go/common"
 )
 
-type ProviderConstructor func(rcommon.Chain, *ethclient.Client, *evm.SDK) Provider
-
 func NewNetwork(
 	ctx context.Context,
 	chain rcommon.Chain,
 	rpcUrl string,
-	providers []ProviderConstructor,
+	providers []Provider,
 	signer *keysign.Signer,
 	txIndexer *tx_indexer.Service,
 ) (*Network, error) {
@@ -35,11 +33,6 @@ func NewNetwork(
 
 	sdk := evm.NewSDK(evmID, rpc, rpc.Client())
 
-	var swaps []Provider
-	for _, provider := range providers {
-		swaps = append(swaps, provider(chain, rpc, sdk))
-	}
-
 	rpcCaller, err := txrpc.NewEvm(ctx, rpcUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to RPC: %w", err)
@@ -47,7 +40,7 @@ func NewNetwork(
 
 	return &Network{
 		Approve: newApproveService(rpc, sdk),
-		Swap:    newSwapService(swaps),
+		Swap:    newSwapService(providers),
 		Signer:  newSignerService(sdk, chain, signer, txIndexer),
 		Status:  status.NewStatus(rpcCaller),
 	}, nil

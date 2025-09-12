@@ -7,15 +7,22 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/btcsuite/btcd/rpcclient"
 	ecommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/dca/internal/blockchair"
+	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
+	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/uniswap"
+	btcsdk "github.com/vultisig/recipes/sdk/btc"
+	evmsdk "github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -27,8 +34,8 @@ import (
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/verifier/vault_config"
-	"github.com/vultisig/vultiserver/relay"
 	"github.com/vultisig/vultisig-go/common"
+	"github.com/vultisig/vultisig-go/relay"
 )
 
 func main() {
@@ -152,6 +159,8 @@ func main() {
 
 	networks := make(map[common.Chain]*evm.Network)
 
+	thorchainClient := thorchain.NewClient(cfg.ThorChain.URL)
+
 	networkConfigs := []struct {
 		chain      common.Chain
 		rpcURL     string
@@ -168,12 +177,28 @@ func main() {
 	}
 
 	for _, c := range networkConfigs {
+		evmID, er := c.chain.EvmID()
+		if er != nil {
+			logger.Fatalf("failed to initialize evm sdk: %s %v", c.chain.String(), er)
+		}
+
+		evmRpc, er := ethclient.DialContext(ctx, c.rpcURL)
+		if er != nil {
+			logger.Fatalf("failed to create rpc client: %s %v", c.chain.String(), er)
+		}
+
+		evmSdk := evmsdk.NewSDK(evmID, evmRpc, evmRpc.Client())
 		network, er := evm.NewNetwork(
 			ctx,
 			c.chain,
 			c.rpcURL,
-			[]evm.ProviderConstructor{
-				uniswap.ConstructorV2(ecommon.HexToAddress(c.routerAddr)),
+			[]evm.Provider{
+				uniswap.NewProviderV2(
+					evmRpc,
+					evmSdk,
+					ecommon.HexToAddress(c.routerAddr),
+				),
+				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
 			},
 			signer,
 			txIndexerService,
@@ -182,13 +207,31 @@ func main() {
 			logger.Fatalf("failed to initialize %s network: %v", c.chain.String(), er)
 		}
 		networks[c.chain] = network
-		logger.Infof("initialized %s network with RPC: %s", c.chain.String(), c.rpcURL)
 	}
+
+	btcRpcClient, err := rpcclient.New(&rpcclient.ConnConfig{
+		Host:         cfg.Rpc.BTC.URL,
+		HTTPPostMode: true,
+		Pass:         "pass",
+	}, nil)
+	if err != nil {
+		logger.Fatalf("failed to initialize BTC RPC client: %v", err)
+	}
+
+	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
+	blockchairClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
 
 	dcaConsumer := dca.NewConsumer(
 		logger,
 		policyService,
 		evm.NewManager(networks),
+		btc.NewNetwork(
+			btcRpcClient,
+			thorchainBtc,
+			btc.NewSwapService([]btc.SwapProvider{thorchainBtc}),
+			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signer, txIndexerService),
+			blockchairClient,
+		),
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
@@ -219,12 +262,18 @@ type config struct {
 	Verifier     plugin_config.Verifier
 	Rpc          rpc
 	Uniswap      uniswapConfig
+	ThorChain    thorChainConfig
+	BTC          btcConfig
 	DataDog      dataDog
 	HealthPort   int
 }
 
 type uniswapConfig struct {
 	RouterV2 router
+}
+
+type thorChainConfig struct {
+	URL string
 }
 
 type router struct {
@@ -247,10 +296,15 @@ type rpc struct {
 	Blast     rpcItem
 	Optimism  rpcItem
 	Polygon   rpcItem
+	BTC       rpcItem
 }
 
 type rpcItem struct {
 	URL string
+}
+
+type btcConfig struct {
+	BlockchairURL string
 }
 
 type dataDog struct {
