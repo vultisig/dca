@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
@@ -35,8 +36,11 @@ func (c *Client) SendRawTransaction(tx *wire.MsgTx, _ bool) (*chainhash.Hash, er
 		return nil, fmt.Errorf("failed to serialize tx: %w", err)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	res, err := libhttp.Call[PushResponse](
-		context.Background(),
+		ctx,
 		http.MethodPost,
 		c.url+"/bitcoin/push/transaction",
 		map[string]string{
