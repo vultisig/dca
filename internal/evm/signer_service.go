@@ -51,7 +51,12 @@ func (s *signerService) SignAndBroadcast(
 		return "", fmt.Errorf("failed to unpack recipe: %w", err)
 	}
 
-	_, er := engine.NewEngine().Evaluate(recipe, fromChain, unsignedTx)
+	eng, err := engine.NewEngine()
+	if err != nil {
+		return "", fmt.Errorf("failed to create engine: %w", err)
+	}
+
+	_, er := eng.Evaluate(recipe, fromChain, unsignedTx)
 	if er != nil {
 		return "", fmt.Errorf("failed to evaluate tx: %w", er)
 	}
