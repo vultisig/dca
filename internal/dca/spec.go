@@ -26,6 +26,7 @@ var supportedChains = []common.Chain{
 	common.Optimism,
 	common.Polygon,
 	common.Bitcoin,
+	common.Solana,
 }
 
 const (

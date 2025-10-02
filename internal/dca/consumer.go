@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/evm"
+	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/policy"
@@ -33,6 +34,7 @@ type Consumer struct {
 	policy      policy.Service
 	evm         *evm.Manager
 	btc         *btc.Network
+	solana      *solana.Network
 	vault       vault.Storage
 	vaultSecret string
 }
@@ -42,6 +44,7 @@ func NewConsumer(
 	policy policy.Service,
 	evm *evm.Manager,
 	btc *btc.Network,
+	solana *solana.Network,
 	vault vault.Storage,
 	vaultSecret string,
 ) *Consumer {
@@ -50,6 +53,7 @@ func NewConsumer(
 		policy:      policy,
 		evm:         evm,
 		btc:         btc,
+		solana:      solana,
 		vault:       vault,
 		vaultSecret: vaultSecret,
 	}
@@ -96,6 +100,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		er := c.handleBtcSwap(ctx, pol, cfg, fromAmountStr, toAssetStr, toAddressStr)
 		if er != nil {
 			return fmt.Errorf("failed to handle BTC swap: %w", er)
+		}
+		return nil
+	}
+
+	if fromChainTyped == common.Solana {
+		er := c.handleSolanaSwap(ctx, pol, cfg, fromAmountStr, toAssetStr, toAddressStr)
+		if er != nil {
+			return fmt.Errorf("failed to handle Solana swap: %w", er)
 		}
 		return nil
 	}
@@ -191,6 +203,30 @@ func (c *Consumer) btcPubToAddress(rootPub string) (btcutil.Address, *btcutil.Ad
 	return btcAddr, pub, nil
 }
 
+func (c *Consumer) solanaPubToAddress(rootPub string) (string, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, string(types.PluginVultisigDCA_0000)))
+	if err != nil {
+		return "", fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.Solana.GetDerivePath(), false)
+	if err != nil {
+		return "", fmt.Errorf("failed to get derived pubkey: %w", err)
+	}
+
+	addr, err := address.GetSolAddress(childPub)
+	if err != nil {
+		return "", fmt.Errorf("failed to get Solana address: %w", err)
+	}
+
+	return addr, nil
+}
+
 func (c *Consumer) handleBtcSwap(
 	ctx context.Context,
 	pol *types.PluginPolicy,
@@ -243,6 +279,57 @@ func (c *Consumer) handleBtcSwap(
 	}
 
 	c.logger.WithField("txHash", txHash).Info("BTC swap executed successfully")
+	return nil
+}
+
+func (c *Consumer) handleSolanaSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	cfg map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get Solana address from policy PublicKey: %w", err)
+	}
+
+	fromAmountTyped, ok := new(big.Int).SetString(fromAmount, 10)
+	if !ok {
+		return fmt.Errorf("failed to parse fromAmount: %s", fromAmount)
+	}
+
+	toChainTyped, err := getChainFromCfg(cfg, toChain)
+	if err != nil {
+		return fmt.Errorf("failed to get toChain: %w", err)
+	}
+
+	from := solana.From{
+		Amount:  fromAmountTyped,
+		AssetID: cfg[fromAsset].(string),
+		Address: fromAddressTyped,
+	}
+
+	to := solana.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressTyped,
+		"fromAmount":  fromAmountTyped.String(),
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling Solana swap")
+
+	txHash, err := c.solana.Swap(ctx, *pol, from, to)
+	if err != nil {
+		return fmt.Errorf("failed to execute Solana swap: %w", err)
+	}
+
+	c.logger.WithField("txHash", txHash).Info("Solana swap executed successfully")
 	return nil
 }
 

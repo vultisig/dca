@@ -21,7 +21,11 @@ The system consists of four main services that can be run independently:
 
 - **`internal/dca/`** - Core DCA logic including policy specs, scheduling, and transaction consumption
 - **`internal/evm/`** - EVM blockchain abstraction layer with network management and approval services
-- **`internal/uniswap/`** - Uniswap V2 integration for DEX swapping functionality
+- **`internal/btc/`** - Bitcoin network integration with PSBT support
+- **`internal/solana/`** - Solana blockchain integration with token account management
+- **`internal/uniswap/`** - Uniswap V2 integration for EVM-based DEX swapping
+- **`internal/thorchain/`** - THORChain integration for cross-chain swaps (BTC, EVM)
+- **`internal/jupiter/`** - Jupiter DEX aggregator integration for Solana swaps
 - **`internal/graceful/`** - Graceful shutdown handling
 
 ### Plugin System Integration
@@ -44,6 +48,10 @@ The DCA plugin integrates with the Vultisig verifier system through:
 - `github.com/vultisig/recipes` - Recipe system and blockchain abstractions
 - `github.com/vultisig/verifier` - Policy verification and plugin framework
 - `github.com/vultisig/go-wrappers` - Native cryptographic library wrappers (DKLS)
+
+### Blockchain Dependencies
+- `github.com/gagliardetto/solana-go` - Solana blockchain SDK
+- `github.com/btcsuite/btcd` - Bitcoin protocol implementation
 
 ## Configuration
 

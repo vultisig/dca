@@ -100,6 +100,11 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: bitcoin
+            - name: RPC_SOLANA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: solana
             - name: THORCHAIN_URL
               valueFrom:
                 configMapKeyRef:
@@ -110,6 +115,11 @@ spec:
                 configMapKeyRef:
                   name: blockchair
                   key: url
+            - name: SOLANA_JUPITERAPIURL
+              valueFrom:
+                configMapKeyRef:
+                  name: solana
+                  key: jupiter-api-url
             - name: UNISWAP_ROUTERV2_ETHEREUM
               valueFrom:
                 configMapKeyRef:
