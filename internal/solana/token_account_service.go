@@ -85,8 +85,7 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 }
 
 func (s *tokenAccountService) GetTokenBalance(ctx context.Context, tokenAccount solana.PublicKey) (uint64, error) {
-	// Parse the UiAmountString to get the balance
-	// For simplicity, return 0 if parsing fails
+	// TODO implement
 	return 0, nil
 }
 
