@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 
-	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
@@ -22,7 +21,6 @@ import (
 	"github.com/vultisig/verifier/plugin/server"
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/verifier/vault_config"
-	"github.com/vultisig/vultisig-go/common"
 )
 
 func main() {
@@ -93,17 +91,6 @@ func main() {
 		logger.Fatalf("failed to initialize policy service: %v", err)
 	}
 
-	uniswapRouters := map[common.Chain]ecommon.Address{
-		common.Ethereum:  ecommon.HexToAddress(cfg.Uniswap.RouterV2.Ethereum),
-		common.Arbitrum:  ecommon.HexToAddress(cfg.Uniswap.RouterV2.Arbitrum),
-		common.Avalanche: ecommon.HexToAddress(cfg.Uniswap.RouterV2.Avalanche),
-		common.BscChain:  ecommon.HexToAddress(cfg.Uniswap.RouterV2.BSC),
-		common.Base:      ecommon.HexToAddress(cfg.Uniswap.RouterV2.Base),
-		common.Blast:     ecommon.HexToAddress(cfg.Uniswap.RouterV2.Blast),
-		common.Optimism:  ecommon.HexToAddress(cfg.Uniswap.RouterV2.Optimism),
-		common.Polygon:   ecommon.HexToAddress(cfg.Uniswap.RouterV2.Polygon),
-	}
-
 	srv := server.NewServer(
 		cfg.Server,
 		policyService,
@@ -111,7 +98,7 @@ func main() {
 		vaultStorage,
 		asynqClient,
 		asynqInspector,
-		dca.NewSpec(uniswapRouters),
+		dca.NewSpec(),
 		server.DefaultMiddlewares(),
 	)
 
@@ -132,22 +119,6 @@ type config struct {
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database
 	Redis        plugin_config.Redis
-	Uniswap      uniswapConfig
-}
-
-type uniswapConfig struct {
-	RouterV2 router
-}
-
-type router struct {
-	Ethereum  string
-	Arbitrum  string
-	Avalanche string
-	BSC       string
-	Base      string
-	Blast     string
-	Optimism  string
-	Polygon   string
 }
 
 func newConfig() (config, error) {
