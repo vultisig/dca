@@ -65,16 +65,16 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 		return nil, fmt.Errorf("associated token account already exists")
 	}
 
-	instruction := s.BuildCreateATAInstruction(payer, owner, mint)
+	inst := s.BuildCreateATAInstruction(payer, owner, mint)
 
-	recentBlockhash, err := s.rpcClient.GetRecentBlockhash(ctx, rpc.CommitmentFinalized)
+	block, err := s.rpcClient.GetRecentBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recent blockhash: %w", err)
 	}
 
 	tx, err := solana.NewTransaction(
-		[]solana.Instruction{instruction},
-		recentBlockhash.Value.Blockhash,
+		[]solana.Instruction{inst},
+		block.Value.Blockhash,
 		solana.TransactionPayer(payer),
 	)
 	if err != nil {
@@ -82,13 +82,4 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 	}
 
 	return tx, nil
-}
-
-func (s *tokenAccountService) GetTokenBalance(ctx context.Context, tokenAccount solana.PublicKey) (uint64, error) {
-	// TODO implement
-	return 0, nil
-}
-
-func (s *tokenAccountService) IsNativeSOL(mint string) bool {
-	return mint == solana.SolMint.String()
 }

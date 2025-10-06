@@ -85,10 +85,63 @@ type SwapInstructionsResponse struct {
 	AddressLookupTableAddresses []string          `json:"addressLookupTableAddresses"`
 }
 
+type Account struct {
+	Pubkey     string `json:"pubkey"`
+	IsSigner   bool   `json:"isSigner"`
+	IsWritable bool   `json:"isWritable"`
+}
+
 type InstructionData struct {
-	ProgramId string   `json:"programId"`
-	Accounts  []string `json:"accounts"`
-	Data      string   `json:"data"`
+	ProgramId string    `json:"programId"`
+	Accounts  []Account `json:"accounts"`
+	Data      string    `json:"data"`
+}
+
+// InstructionDataTyped implements solana.Instruction interface
+type InstructionDataTyped struct {
+	programID solana.PublicKey
+	accounts  []*solana.AccountMeta
+	data      []byte
+}
+
+func (i InstructionData) Typed() (InstructionDataTyped, error) {
+	progr, err := solana.PublicKeyFromBase58(i.ProgramId)
+	if err != nil {
+		return InstructionDataTyped{}, fmt.Errorf("failed to get program id: %w", err)
+	}
+
+	accounts := make([]*solana.AccountMeta, 0, len(i.Accounts))
+	for _, acc := range i.Accounts {
+		pk, er := solana.PublicKeyFromBase58(acc.Pubkey)
+		if er != nil {
+			return InstructionDataTyped{}, fmt.Errorf("failed to get account: %w", er)
+		}
+
+		accounts = append(accounts, solana.NewAccountMeta(pk, acc.IsSigner, acc.IsWritable))
+	}
+
+	data, err := base64.StdEncoding.DecodeString(i.Data)
+	if err != nil {
+		return InstructionDataTyped{}, fmt.Errorf("failed to decode data: %w", err)
+	}
+
+	return InstructionDataTyped{
+		programID: progr,
+		accounts:  accounts,
+		data:      data,
+	}, nil
+}
+
+func (i InstructionDataTyped) ProgramID() solana.PublicKey {
+	return i.programID
+}
+
+func (i InstructionDataTyped) Accounts() []*solana.AccountMeta {
+	return i.accounts
+}
+
+func (i InstructionDataTyped) Data() ([]byte, error) {
+	return i.data, nil
 }
 
 func NewProvider(apiURL string, rpcClient *rpc.Client) *Provider {
@@ -103,28 +156,26 @@ func (p *Provider) GetQuote(
 	inputMint, outputMint string,
 	amount *big.Int,
 	slippageBps int,
-) (*QuoteResponse, error) {
+) (QuoteResponse, error) {
 	params := url.Values{}
 	params.Add("inputMint", inputMint)
 	params.Add("outputMint", outputMint)
 	params.Add("amount", amount.String())
 	params.Add("slippageBps", fmt.Sprintf("%d", slippageBps))
 
-	url := fmt.Sprintf("%s/swap/v1/quote?%s", p.apiURL, params.Encode())
-
 	resp, err := libhttp.Call[QuoteResponse](
 		ctx,
 		http.MethodGet,
-		url,
+		fmt.Sprintf("%s/swap/v1/quote?%s", p.apiURL, params.Encode()),
 		nil,
 		nil,
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get quote from Jupiter: %w", err)
+		return QuoteResponse{}, fmt.Errorf("failed to get quote from Jupiter: %w", err)
 	}
 
-	return &resp, nil
+	return resp, nil
 }
 
 func (p *Provider) GetSwapInstructions(
@@ -140,12 +191,10 @@ func (p *Provider) GetSwapInstructions(
 		AsLegacyTransaction: false,
 	}
 
-	url := fmt.Sprintf("%s/swap/v1/swap-instructions", p.apiURL)
-
 	resp, err := libhttp.Call[SwapInstructionsResponse](
 		ctx,
 		http.MethodPost,
-		url,
+		fmt.Sprintf("%s/swap/v1/swap-instructions", p.apiURL),
 		nil,
 		swapReq,
 		nil,
@@ -163,27 +212,39 @@ func (p *Provider) MakeTx(
 	from solana_swap.From,
 	to solana_swap.To,
 ) (*big.Int, []byte, error) {
-	// Get quote
 	quote, err := p.GetQuote(ctx, from.AssetID, to.AssetID, from.Amount, DefaultSlippageBps)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get quote: %w", err)
 	}
 
-	// Get swap instructions
-	instructions, err := p.GetSwapInstructions(ctx, *quote, from.Address)
+	insts, err := p.GetSwapInstructions(ctx, quote, from.Address)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get swap instructions: %w", err)
 	}
 
-	// TODO parse insts
+	block, err := p.rpcClient.GetRecentBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get recent blockhash: %w", err)
+	}
 
-	// Serialize the transaction
+	inst, err := insts.SwapInstruction.Typed()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to format swap instruction: %w", err)
+	}
+
+	tx, err := solana.NewTransaction(
+		[]solana.Instruction{inst},
+		block.Value.Blockhash,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create transaction: %w", err)
+	}
+
 	serializedTx, err := tx.MarshalBinary()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to serialize transaction: %w", err)
 	}
 
-	// Parse output amount
 	outAmount, ok := new(big.Int).SetString(quote.OutAmount, 10)
 	if !ok {
 		return nil, nil, fmt.Errorf("failed to parse out amount: %s", quote.OutAmount)

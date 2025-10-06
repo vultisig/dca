@@ -100,7 +100,11 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	fromChainStr := cfg[fromChain].(string)
+	fromChainStr, ok := cfg[fromChain].(string)
+	if !ok {
+		return nil, fmt.Errorf("'fromChain' could not be empty")
+	}
+
 	fromChainTyped, err := common.FromString(fromChainStr)
 	if err != nil {
 		return nil, fmt.Errorf("unsupported chain: %s", fromChainStr)
@@ -150,8 +154,29 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 
 func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chain) (*rtypes.Rule, error) {
 	fromChainLowercase := strings.ToLower(fromChainTyped.String())
-	toAddressStr := cfg[toAddress].(string)
-	fromAddressStr := cfg[fromAddress].(string)
+	toAddressStr, ok := cfg[toAddress].(string)
+	if !ok {
+		return nil, fmt.Errorf("'toAddress' could not be empty")
+	}
+
+	fromAddressStr, ok := cfg[fromAddress].(string)
+	if !ok {
+		return nil, fmt.Errorf("'fromAddress' could not be empty")
+	}
+
+	// empty means native
+	fromAssetStr, _ := cfg[fromAsset].(string)
+	toAssetStr, _ := cfg[toAsset].(string)
+
+	fromAmountStr, ok := cfg[fromAmount].(string)
+	if !ok {
+		return nil, fmt.Errorf("'fromAmount' could not be empty")
+	}
+
+	toChainStr, ok := cfg[toChain].(string)
+	if !ok {
+		return nil, fmt.Errorf("'toChain' could not be empty")
+	}
 
 	return &rtypes.Rule{
 		Resource: fromChainLowercase + ".swap",
@@ -162,8 +187,9 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: cfg[fromAsset].(string),
+						FixedValue: fromAssetStr,
 					},
+					Required: true,
 				},
 			},
 			{
@@ -173,6 +199,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 					Value: &rtypes.Constraint_FixedValue{
 						FixedValue: fromAddressStr,
 					},
+					Required: true,
 				},
 			},
 			{
@@ -180,8 +207,9 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: cfg[fromAmount].(string),
+						FixedValue: fromAmountStr,
 					},
+					Required: true,
 				},
 			},
 			{
@@ -189,8 +217,9 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: strings.ToLower(cfg[toChain].(string)),
+						FixedValue: strings.ToLower(toChainStr),
 					},
+					Required: true,
 				},
 			},
 			{
@@ -198,8 +227,9 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: cfg[toAsset].(string),
+						FixedValue: toAssetStr,
 					},
+					Required: true,
 				},
 			},
 			{
@@ -209,6 +239,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 					Value: &rtypes.Constraint_FixedValue{
 						FixedValue: toAddressStr,
 					},
+					Required: true,
 				},
 			},
 		},
