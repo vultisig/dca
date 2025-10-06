@@ -17,9 +17,9 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20251001200715-254e526cc242
-	github.com/vultisig/verifier v0.0.0-20251001183020-bd599997f836
-	github.com/vultisig/vultisig-go v0.0.0-20250826134334-ddbbadd76c86
+	github.com/vultisig/recipes v0.0.0-20251006192813-52d88afe31bb
+	github.com/vultisig/verifier v0.0.0-20251002145722-6d5fb84d7afb
+	github.com/vultisig/vultisig-go v0.0.0-20251004125942-60b3b1898d15
 	golang.org/x/sync v0.14.0
 	google.golang.org/protobuf v1.36.6
 )
