@@ -21,6 +21,7 @@ import (
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/uniswap"
+	"github.com/vultisig/dca/internal/xrp"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/plugin"
@@ -221,6 +222,15 @@ func main() {
 	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
 	blockchairClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
 
+	// Initialize XRP network
+	xrpClient := xrp.NewClient(cfg.Rpc.XRP.URL)
+	thorchainXrp := thorchain.NewProviderXrp(thorchainClient, xrpClient)
+	xrpNetwork := xrp.NewNetwork(
+		xrp.NewSwapService([]xrp.SwapProvider{thorchainXrp}),
+		xrp.NewSignerService(signer, txIndexerService),
+		xrpClient,
+	)
+
 	dcaConsumer := dca.NewConsumer(
 		logger,
 		policyService,
@@ -232,6 +242,7 @@ func main() {
 			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signer, txIndexerService),
 			blockchairClient,
 		),
+		xrpNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
@@ -264,6 +275,7 @@ type config struct {
 	Uniswap      uniswapConfig
 	ThorChain    thorChainConfig
 	BTC          btcConfig
+	XRP          xrpConfig
 	DataDog      dataDog
 	HealthPort   int
 }
@@ -297,6 +309,7 @@ type rpc struct {
 	Optimism  rpcItem
 	Polygon   rpcItem
 	BTC       rpcItem
+	XRP       rpcItem
 }
 
 type rpcItem struct {
@@ -305,6 +318,10 @@ type rpcItem struct {
 
 type btcConfig struct {
 	BlockchairURL string
+}
+
+type xrpConfig struct {
+	RPC string
 }
 
 type dataDog struct {
