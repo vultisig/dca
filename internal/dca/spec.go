@@ -270,9 +270,11 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		"required": []any{
 			frequency,
 			fromChain,
+			fromAsset,
 			fromAmount,
 			fromAddress,
 			toChain,
+			toAsset,
 			toAddress,
 		},
 	})
