@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/btcsuite/btcd/rpcclient"
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -50,10 +49,6 @@ func main() {
 		logger.Fatalf("failed to load config: %v", err)
 	}
 
-	sdClient, err := statsd.New(cfg.DataDog.Host + ":" + cfg.DataDog.Port)
-	if err != nil {
-		logger.Fatalf("failed to initialize StatsD client: %v", err)
-	}
 	vaultStorage, err := vault.NewBlockStorageImp(cfg.BlockStorage)
 	if err != nil {
 		logger.Fatalf("failed to initialize vault storage: %v", err)
@@ -107,7 +102,6 @@ func main() {
 	vaultService, err := vault.NewManagementService(
 		cfg.VaultService,
 		client,
-		sdClient,
 		vaultStorage,
 		txIndexerService,
 	)
@@ -264,7 +258,6 @@ type config struct {
 	Uniswap      uniswapConfig
 	ThorChain    thorChainConfig
 	BTC          btcConfig
-	DataDog      dataDog
 	HealthPort   int
 }
 
@@ -305,11 +298,6 @@ type rpcItem struct {
 
 type btcConfig struct {
 	BlockchairURL string
-}
-
-type dataDog struct {
-	Host string
-	Port string
 }
 
 func newConfig() (config, error) {
