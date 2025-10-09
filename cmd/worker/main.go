@@ -24,6 +24,7 @@ import (
 	"github.com/vultisig/dca/internal/xrp"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
+	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -225,9 +226,14 @@ func main() {
 	// Initialize XRP network
 	xrpClient := xrp.NewClient(cfg.Rpc.XRP.URL)
 	thorchainXrp := thorchain.NewProviderXrp(thorchainClient, xrpClient)
+	
+	// Initialize XRP SDK for signing and broadcasting
+	xrpRpcClient := xrplsdk.NewHTTPRPCClient([]string{cfg.Rpc.XRP.URL})
+	xrpSDK := xrplsdk.NewSDK(xrpRpcClient)
+	
 	xrpNetwork := xrp.NewNetwork(
 		xrp.NewSwapService([]xrp.SwapProvider{thorchainXrp}),
-		xrp.NewSignerService(signer, txIndexerService),
+		xrp.NewSignerService(xrpSDK, signer, txIndexerService),
 		xrpClient,
 	)
 
