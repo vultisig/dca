@@ -24,6 +24,8 @@ func parseThorNetwork(c common.Chain) (thorNetwork, error) {
 		return base, nil
 	case common.Avalanche:
 		return avax, nil
+	case common.XRP:
+		return xrp, nil
 	default:
 		return "", errors.New("unknown chain")
 	}
@@ -37,4 +39,5 @@ const (
 	bsc  thorNetwork = "BSC"
 	base thorNetwork = "BASE"
 	avax thorNetwork = "AVAX"
+	xrp  thorNetwork = "XRP"
 )
