@@ -35,17 +35,19 @@ func NewClient(rpcURL string) *Client {
 
 // XRPL JSON-RPC request/response structures
 type xrplRequest struct {
-	Method string      `json:"method"`
-	Params []xrplParam `json:"params"`
+	Method  string        `json:"method"`
+	Params  []xrplParam   `json:"params"`
+	ID      int           `json:"id"`
+	JSONRPC string        `json:"jsonrpc"`
 }
 
 type xrplParam struct {
-	Command      string `json:"command"`
 	Account      string `json:"account,omitempty"`
 	LedgerIndex  string `json:"ledger_index,omitempty"`
 	Strict       bool   `json:"strict,omitempty"`
 	LedgerHash   string `json:"ledger_hash,omitempty"`
 	Transactions bool   `json:"transactions,omitempty"`
+	Queue        bool   `json:"queue,omitempty"`
 }
 
 type xrplResponse struct {
@@ -81,11 +83,9 @@ type validatedLedger struct {
 
 // makeRequest performs an XRPL JSON-RPC request
 func (c *Client) makeRequest(ctx context.Context, command string, params map[string]interface{}) (*xrplResponse, error) {
-	param := xrplParam{
-		Command: command,
-	}
+	param := xrplParam{}
 	
-	// Add parameters based on command type
+	// Add parameters based on input
 	for key, value := range params {
 		switch key {
 		case "account":
@@ -100,12 +100,18 @@ func (c *Client) makeRequest(ctx context.Context, command string, params map[str
 			if b, ok := value.(bool); ok {
 				param.Strict = b
 			}
+		case "queue":
+			if b, ok := value.(bool); ok {
+				param.Queue = b
+			}
 		}
 	}
 
 	reqBody := xrplRequest{
-		Method: "command",
-		Params: []xrplParam{param},
+		Method:  command,
+		Params:  []xrplParam{param},
+		ID:      1,
+		JSONRPC: "2.0",
 	}
 
 	jsonData, err := json.Marshal(reqBody)
