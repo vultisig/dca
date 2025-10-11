@@ -90,7 +90,7 @@ func (s *SignerService) buildKeysignRequest(
 	}
 
 	// Create tx tracking entry
-	txHex := hex.EncodeToString(txData)
+	txBase64 := base64.StdEncoding.EncodeToString(txData)
 	txToTrack, err := s.txIndexer.CreateTx(ctx, storage.CreateTxDto{
 		PluginID:      policy.PluginID,
 		PolicyID:      policy.ID,
@@ -98,7 +98,7 @@ func (s *SignerService) buildKeysignRequest(
 		TokenID:       "",
 		FromPublicKey: policy.PublicKey,
 		ToPublicKey:   "",
-		ProposedTxHex: txHex,
+		ProposedTxHex: txBase64,
 	})
 	if err != nil {
 		return types.PluginKeysignRequest{}, fmt.Errorf("failed to create tx: %w", err)
@@ -109,7 +109,7 @@ func (s *SignerService) buildKeysignRequest(
 		TxIndexerID:  txToTrack.ID.String(),
 		Message:      base64.StdEncoding.EncodeToString(hashToSign),
 		Hash:         base64.StdEncoding.EncodeToString(hashToSign), // XRP uses hash directly
-		HashFunction: types.HashFunction_SHA256, // Using SHA256 for consistency with other chains
+		HashFunction: types.HashFunction_SHA256,                     // Using SHA256 for consistency with other chains
 		Chain:        common.XRP,
 	}
 
@@ -120,14 +120,14 @@ func (s *SignerService) buildKeysignRequest(
 			PolicyID:  policy.ID,
 			PluginID:  policy.PluginID.String(),
 		},
-		Transaction: txHex,
+		Transaction: txBase64,
 	}, nil
 }
 
 func (s *SignerService) calculateXRPLHashToSign(txData []byte) ([]byte, error) {
 	// Convert to hex for binary codec processing
 	baseHex := hex.EncodeToString(txData)
-	
+
 	// Decode the unsigned transaction
 	decoded, err := xrpgo.Decode(baseHex)
 	if err != nil {
@@ -147,7 +147,7 @@ func (s *SignerService) calculateXRPLHashToSign(txData []byte) ([]byte, error) {
 
 	// Create XRPL signing digest: STX prefix + canonical transaction bytes
 	preimage := append(stxPrefix, canonicalBytes...)
-	
+
 	// SHA512-half (first 32 bytes of SHA512)
 	hash := sha512.Sum512(preimage)
 	return hash[:32], nil
@@ -184,6 +184,6 @@ func (s *SignerService) extractTransactionHash(signedTxBytes []byte) (string, er
 	// For XRPL, the transaction hash is SHA512-half of the signed transaction bytes
 	hash := sha512.Sum512(signedTxBytes)
 	txHash := hex.EncodeToString(hash[:32])
-	
+
 	return strings.ToUpper(txHash), nil
 }
