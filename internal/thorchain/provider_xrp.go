@@ -122,13 +122,19 @@ func (p *ProviderXrp) MakeTransaction(
 		return nil, 0, fmt.Errorf("invalid swap: %w", err)
 	}
 
+	// Convert from asset to THORChain format
+	fromAsset, err := makeThorAsset(ctx, p.client, common.XRP, from.AssetID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to convert from thor asset: %w", err)
+	}
+
 	toAsset, err := makeThorAsset(ctx, p.client, to.Chain, to.AssetID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to convert thor asset: %w", err)
+		return nil, 0, fmt.Errorf("failed to convert to thor asset: %w", err)
 	}
 
 	quote, err := p.client.getQuote(ctx, quoteSwapRequest{
-		FromAsset:         "XRP.XRP",
+		FromAsset:         fromAsset,
 		ToAsset:           toAsset,
 		Amount:            fmt.Sprintf("%d", from.Amount),
 		Destination:       to.Address,

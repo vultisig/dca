@@ -6,6 +6,7 @@ import (
 
 type From struct {
 	Address  string
+	AssetID  string // Asset identifier (empty string for native XRP)
 	Amount   uint64 // XRP drops (1 XRP = 1,000,000 drops)
 	Sequence uint32 // Will be auto-fetched by provider
 	PubKey   string // Child-derived pubkey for SigningPubKey field
