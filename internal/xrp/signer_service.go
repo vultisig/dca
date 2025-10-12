@@ -105,11 +105,13 @@ func (s *SignerService) buildKeysignRequest(
 	}
 
 	// Create keysign message - XRP uses single signature per transaction
+	hashToSignBase64 := base64.StdEncoding.EncodeToString(hashToSign)
+
 	msg := types.KeysignMessage{
 		TxIndexerID:  txToTrack.ID.String(),
-		Message:      base64.StdEncoding.EncodeToString(hashToSign),
-		Hash:         base64.StdEncoding.EncodeToString(hashToSign), // XRP uses hash directly
-		HashFunction: types.HashFunction_SHA256,                     // Using SHA256 for consistency with other chains
+		Message:      hashToSignBase64,
+		Hash:         hashToSignBase64,          // XRP uses hash directly
+		HashFunction: types.HashFunction_SHA256, // Using SHA256 for consistency with other chains
 		Chain:        common.XRP,
 	}
 
@@ -180,9 +182,19 @@ func (s *SignerService) extractPublicKeyFromTx(txData []byte) ([]byte, error) {
 }
 
 func (s *SignerService) extractTransactionHash(signedTxBytes []byte) (string, error) {
-	// Calculate transaction hash using XRPL method
-	// For XRPL, the transaction hash is SHA512-half of the signed transaction bytes
-	hash := sha512.Sum512(signedTxBytes)
+	// For XRP transaction ID computation, we need to:
+	// 1. Use the fully serialized signed transaction (including TxnSignature)
+	// 2. Prefix with "TXN\0" (0x54584E00)
+	// 3. Hash with SHA512-half
+
+	// XRP transaction ID prefix: "TXN\0"
+	txnPrefix := []byte{0x54, 0x58, 0x4E, 0x00}
+
+	// Construct the full preimage: TXN prefix + signed transaction bytes
+	preimage := append(append([]byte{}, txnPrefix...), signedTxBytes...)
+
+	// Compute SHA512-half (this is how XRP computes transaction IDs)
+	hash := sha512.Sum512(preimage)
 	txHash := hex.EncodeToString(hash[:32])
 
 	return strings.ToUpper(txHash), nil
