@@ -15,10 +15,12 @@ require (
 	github.com/kaptinlin/jsonschema v0.4.6
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/sirupsen/logrus v1.9.3
+	github.com/stretchr/testify v1.10.0
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20250929160934-dbd13ca8ee29
-	github.com/vultisig/verifier v0.0.0-20250916163157-9745c49200c3
-	github.com/vultisig/vultisig-go v0.0.0-20250826134334-ddbbadd76c86
+	github.com/vultisig/recipes v0.0.0-20251012173050-2adfa1f8babd
+	github.com/vultisig/verifier v0.0.0-20251013135358-a7a4dda73adb
+	github.com/vultisig/vultisig-go v0.0.0-20251004125942-60b3b1898d15
+	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
 	golang.org/x/sync v0.14.0
 	google.golang.org/protobuf v1.36.6
 )
@@ -38,6 +40,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/agl/ed25519 v0.0.0-20200225211852-fd4d107ace12 // indirect
+	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
@@ -178,7 +181,6 @@ require (
 	github.com/spf13/viper v1.20.1 // indirect
 	github.com/streamingfast/logging v0.0.0-20230608130331-f22c91403091 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/supranational/blst v0.3.14 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
@@ -192,10 +194,10 @@ require (
 	github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778 // indirect
 	github.com/vultisig/go-wrappers v0.0.0-20250716071337-34a5c0f4d6e0 // indirect
 	github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 // indirect
-	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830 // indirect
 	go.etcd.io/bbolt v1.3.8 // indirect
 	go.mongodb.org/mongo-driver v1.12.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/ratelimit v0.2.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
