@@ -16,7 +16,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
 	github.com/vultisig/recipes v0.0.0-20251006192813-52d88afe31bb
-	github.com/vultisig/verifier v0.0.0-20251009160043-6af9d46ae9c6
+	github.com/vultisig/verifier v0.0.0-20251013074404-735eb2001d6e
 	github.com/vultisig/vultisig-go v0.0.0-20251004125942-60b3b1898d15
 	golang.org/x/sync v0.14.0
 	google.golang.org/protobuf v1.36.6
