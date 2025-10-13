@@ -178,6 +178,16 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 		return nil, fmt.Errorf("'toChain' could not be empty")
 	}
 
+	var fromAssetStr string
+	if val, ok := cfg[fromAsset]; ok && val != nil {
+		fromAssetStr, _ = val.(string)
+	}
+
+	var toAssetStr string
+	if val, ok := cfg[toAsset]; ok && val != nil {
+		toAssetStr, _ = val.(string)
+	}
+
 	return &rtypes.Rule{
 		Resource: fromChainLowercase + ".swap",
 		Effect:   rtypes.Effect_EFFECT_ALLOW,
