@@ -42,34 +42,34 @@ func (s *SignerService) SignAndBroadcast(
 ) (string, error) {
 	keysignRequest, err := s.buildKeysignRequest(ctx, policy, txData)
 	if err != nil {
-		return "", fmt.Errorf("failed to build keysign request: %w", err)
+		return "", fmt.Errorf("xrp: failed to build keysign request: %w", err)
 	}
 
 	signatures, err := s.signer.Sign(ctx, keysignRequest)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign transaction: %w", err)
+		return "", fmt.Errorf("xrp: failed to get signature: %w", err)
 	}
 
 	// Get the child public key from the unsigned transaction
 	pubKey, err := s.extractPublicKeyFromTx(txData)
 	if err != nil {
-		return "", fmt.Errorf("failed to extract public key: %w", err)
+		return "", fmt.Errorf("xrp: failed to extract public key: %w", err)
 	}
 
 	signedTxBytes, err := s.sdk.Sign(txData, signatures, pubKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign transaction: %w", err)
+		return "", fmt.Errorf("xrp: failed to sign transaction: %w", err)
 	}
 
 	err = s.sdk.Broadcast(ctx, signedTxBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to broadcast transaction: %w", err)
+		return "", fmt.Errorf("xrp: failed to broadcast transaction: %w", err)
 	}
 
 	// Extract transaction hash from signed transaction
 	txHash, err := s.extractTransactionHash(signedTxBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to extract transaction hash: %w", err)
+		return "", fmt.Errorf("xrp: failed to extract transaction hash: %w", err)
 	}
 
 	return txHash, nil
@@ -86,7 +86,7 @@ func (s *SignerService) buildKeysignRequest(
 	// Calculate hash-to-sign for XRPL transaction
 	hashToSign, err := s.calculateXRPLHashToSign(txData)
 	if err != nil {
-		return types.PluginKeysignRequest{}, fmt.Errorf("failed to calculate hash to sign: %w", err)
+		return types.PluginKeysignRequest{}, fmt.Errorf("xrp: failed to calculate hash to sign: %w", err)
 	}
 
 	// Create tx tracking entry
@@ -101,7 +101,7 @@ func (s *SignerService) buildKeysignRequest(
 		ProposedTxHex: txBase64,
 	})
 	if err != nil {
-		return types.PluginKeysignRequest{}, fmt.Errorf("failed to create tx: %w", err)
+		return types.PluginKeysignRequest{}, fmt.Errorf("xrp: failed to create tx: %w", err)
 	}
 
 	// Create keysign message - XRP uses single signature per transaction
@@ -133,18 +133,18 @@ func (s *SignerService) calculateXRPLHashToSign(txData []byte) ([]byte, error) {
 	// Decode the unsigned transaction
 	decoded, err := xrpgo.Decode(baseHex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode transaction: %w", err)
+		return nil, fmt.Errorf("xrp: failed to decode transaction for hash calculation: %w", err)
 	}
 
 	// Re-encode to get canonical bytes (with SigningPubKey but without TxnSignature)
 	canonicalHex, err := xrpgo.Encode(decoded)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode canonical transaction: %w", err)
+		return nil, fmt.Errorf("xrp: failed to encode canonical transaction: %w", err)
 	}
 
 	canonicalBytes, err := hex.DecodeString(canonicalHex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode canonical hex: %w", err)
+		return nil, fmt.Errorf("xrp: failed to decode canonical hex: %w", err)
 	}
 
 	// Create XRPL signing digest: STX prefix + canonical transaction bytes
@@ -160,22 +160,22 @@ func (s *SignerService) extractPublicKeyFromTx(txData []byte) ([]byte, error) {
 	baseHex := hex.EncodeToString(txData)
 	decoded, err := xrpgo.Decode(baseHex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode transaction: %w", err)
+		return nil, fmt.Errorf("xrp: failed to decode transaction for pubkey extraction: %w", err)
 	}
 
 	// Extract SigningPubKey
 	signingPubKeyHex, ok := decoded["SigningPubKey"].(string)
 	if !ok {
-		return nil, fmt.Errorf("SigningPubKey not found in transaction")
+		return nil, fmt.Errorf("xrp: SigningPubKey not found in transaction")
 	}
 
 	pubKeyBytes, err := hex.DecodeString(signingPubKeyHex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode SigningPubKey: %w", err)
+		return nil, fmt.Errorf("xrp: failed to decode SigningPubKey: %w", err)
 	}
 
 	if len(pubKeyBytes) != 33 {
-		return nil, fmt.Errorf("invalid public key length: expected 33 bytes, got %d", len(pubKeyBytes))
+		return nil, fmt.Errorf("xrp: invalid public key length: expected 33 bytes, got %d", len(pubKeyBytes))
 	}
 
 	return pubKeyBytes, nil

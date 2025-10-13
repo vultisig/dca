@@ -32,12 +32,12 @@ func NewProviderXrp(client *Client, xrpClient interface {
 
 func (p *ProviderXrp) validateXrp(from xrp_swap.From, to xrp_swap.To) error {
 	if to.Chain == common.XRP {
-		return fmt.Errorf("can't swap XRP to XRP")
+		return fmt.Errorf("[XRP] can't swap XRP to XRP")
 	}
 
 	_, err := parseThorNetwork(to.Chain)
 	if err != nil {
-		return fmt.Errorf("unsupported 'to' chain: %w", err)
+		return fmt.Errorf("[XRP] unsupported 'to' chain: %w", err)
 	}
 
 	return nil
@@ -119,18 +119,18 @@ func (p *ProviderXrp) MakeTransaction(
 	to xrp_swap.To,
 ) ([]byte, uint64, error) {
 	if err := p.validateXrp(from, to); err != nil {
-		return nil, 0, fmt.Errorf("invalid swap: %w", err)
+		return nil, 0, fmt.Errorf("[XRP] invalid swap: %w", err)
 	}
 
 	// Convert from asset to THORChain format
 	fromAsset, err := makeThorAsset(ctx, p.client, common.XRP, from.AssetID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to convert from thor asset: %w", err)
+		return nil, 0, fmt.Errorf("[XRP] failed to convert from thor asset: %w", err)
 	}
 
 	toAsset, err := makeThorAsset(ctx, p.client, to.Chain, to.AssetID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to convert to thor asset: %w", err)
+		return nil, 0, fmt.Errorf("[XRP] failed to convert to thor asset: %w", err)
 	}
 
 	quote, err := p.client.getQuote(ctx, quoteSwapRequest{
@@ -143,24 +143,24 @@ func (p *ProviderXrp) MakeTransaction(
 		//ToleranceBps:      defaultToleranceBps,
 	})
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get quote: %w", err)
+		return nil, 0, fmt.Errorf("[XRP] failed to get THORChain quote: %w", err)
 	}
 
 	// Parse expected amount out
 	expectedOut, err := strconv.ParseUint(quote.ExpectedAmountOut, 10, 64)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to parse expected amount out: %w", err)
+		return nil, 0, fmt.Errorf("[XRP] failed to parse expected amount out: %w", err)
 	}
 
 	// Get dynamic data from XRP client
 	currentLedger, err := p.xrpClient.GetCurrentLedger(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get current ledger: %w", err)
+		return nil, 0, fmt.Errorf("[XRP] failed to get current ledger: %w", err)
 	}
 	
 	baseFee, err := p.xrpClient.GetBaseFee(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get base fee: %w", err)
+		return nil, 0, fmt.Errorf("[XRP] failed to get base fee: %w", err)
 	}
 
 	// Calculate dynamic values
@@ -188,7 +188,7 @@ func (p *ProviderXrp) MakeTransaction(
 		from.PubKey, // Child-derived pubkey
 	)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to build XRP transaction: %w", err)
+		return nil, 0, fmt.Errorf("[XRP] failed to build XRP transaction: %w", err)
 	}
 
 	return txBytes, expectedOut, nil

@@ -116,33 +116,33 @@ func (c *Client) makeRequest(ctx context.Context, command string, params map[str
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("xrp: failed to marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.rpcURL, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("xrp: failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
+		return nil, fmt.Errorf("xrp: failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("xrp: unexpected status code: %d", resp.StatusCode)
 	}
 
 	var xrplResp xrplResponse
 	if err := json.NewDecoder(resp.Body).Decode(&xrplResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, fmt.Errorf("xrp: failed to decode response: %w", err)
 	}
 
 	if xrplResp.Result.Error != "" {
-		return nil, fmt.Errorf("XRPL error: %s - %s", xrplResp.Result.Error, xrplResp.Result.ErrorMessage)
+		return nil, fmt.Errorf("xrp: XRPL error: %s - %s", xrplResp.Result.Error, xrplResp.Result.ErrorMessage)
 	}
 
 	return &xrplResp, nil
@@ -156,7 +156,7 @@ func (c *Client) GetAccountInfo(ctx context.Context, address string) (uint32, er
 		"ledger_index": "validated",
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to get account info: %w", err)
+		return 0, fmt.Errorf("xrp: failed to get account info: %w", err)
 	}
 
 	// Parse sequence number (can be string or number)
@@ -167,11 +167,11 @@ func (c *Client) GetAccountInfo(ctx context.Context, address string) (uint32, er
 	case string:
 		seq, err := strconv.ParseUint(v, 10, 32)
 		if err != nil {
-			return 0, fmt.Errorf("failed to parse sequence: %w", err)
+			return 0, fmt.Errorf("xrp: failed to parse sequence: %w", err)
 		}
 		sequence = uint32(seq)
 	default:
-		return 0, fmt.Errorf("unexpected sequence type: %T", v)
+		return 0, fmt.Errorf("xrp: unexpected sequence type: %T", v)
 	}
 
 	return sequence, nil
@@ -183,7 +183,7 @@ func (c *Client) GetCurrentLedger(ctx context.Context) (uint32, error) {
 		"ledger_index": "validated",
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to get current ledger: %w", err)
+		return 0, fmt.Errorf("xrp: failed to get current ledger: %w", err)
 	}
 
 	// Parse ledger index (can be string or number)  
@@ -194,11 +194,11 @@ func (c *Client) GetCurrentLedger(ctx context.Context) (uint32, error) {
 	case string:
 		idx, err := strconv.ParseUint(v, 10, 32)
 		if err != nil {
-			return 0, fmt.Errorf("failed to parse ledger index: %w", err)
+			return 0, fmt.Errorf("xrp: failed to parse ledger index: %w", err)
 		}
 		ledgerIndex = uint32(idx)
 	default:
-		return 0, fmt.Errorf("unexpected ledger index type: %T", v)
+		return 0, fmt.Errorf("xrp: unexpected ledger index type: %T", v)
 	}
 
 	return ledgerIndex, nil
@@ -208,7 +208,7 @@ func (c *Client) GetCurrentLedger(ctx context.Context) (uint32, error) {
 func (c *Client) GetBaseFee(ctx context.Context) (uint64, error) {
 	resp, err := c.makeRequest(ctx, "server_info", map[string]interface{}{})
 	if err != nil {
-		return 0, fmt.Errorf("failed to get server info: %w", err)
+		return 0, fmt.Errorf("xrp: failed to get base fee: %w", err)
 	}
 
 	// Parse base fee (can be in different formats)
