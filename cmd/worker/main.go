@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/btcsuite/btcd/rpcclient"
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -52,10 +51,6 @@ func main() {
 		logger.Fatalf("failed to load config: %v", err)
 	}
 
-	sdClient, err := statsd.New(cfg.DataDog.Host + ":" + cfg.DataDog.Port)
-	if err != nil {
-		logger.Fatalf("failed to initialize StatsD client: %v", err)
-	}
 	vaultStorage, err := vault.NewBlockStorageImp(cfg.BlockStorage)
 	if err != nil {
 		logger.Fatalf("failed to initialize vault storage: %v", err)
@@ -109,7 +104,6 @@ func main() {
 	vaultService, err := vault.NewManagementService(
 		cfg.VaultService,
 		client,
-		sdClient,
 		vaultStorage,
 		txIndexerService,
 	)
@@ -226,11 +220,11 @@ func main() {
 	// Initialize XRP network
 	xrpClient := xrp.NewClient(cfg.Rpc.XRP.URL)
 	thorchainXrp := thorchain.NewProviderXrp(thorchainClient, xrpClient)
-	
+
 	// Initialize XRP SDK for signing and broadcasting
 	xrpRpcClient := xrplsdk.NewHTTPRPCClient([]string{cfg.Rpc.XRP.URL})
 	xrpSDK := xrplsdk.NewSDK(xrpRpcClient)
-	
+
 	xrpNetwork := xrp.NewNetwork(
 		xrp.NewSwapService([]xrp.SwapProvider{thorchainXrp}),
 		xrp.NewSignerService(xrpSDK, signer, txIndexerService),
