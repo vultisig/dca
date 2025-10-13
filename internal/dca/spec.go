@@ -156,6 +156,16 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 	toAddressStr := cfg[toAddress].(string)
 	fromAddressStr := cfg[fromAddress].(string)
 
+	var fromAssetStr string
+	if val, ok := cfg[fromAsset]; ok && val != nil {
+		fromAssetStr, _ = val.(string)
+	}
+
+	var toAssetStr string
+	if val, ok := cfg[toAsset]; ok && val != nil {
+		toAssetStr, _ = val.(string)
+	}
+
 	return &rtypes.Rule{
 		Resource: fromChainLowercase + ".swap",
 		Effect:   rtypes.Effect_EFFECT_ALLOW,
@@ -165,7 +175,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: cfg[fromAsset].(string),
+						FixedValue: fromAssetStr,
 					},
 				},
 			},
@@ -201,7 +211,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: cfg[toAsset].(string),
+						FixedValue: toAssetStr,
 					},
 				},
 			},
