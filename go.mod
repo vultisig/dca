@@ -3,7 +3,6 @@ module github.com/vultisig/dca
 go 1.24.2
 
 require (
-	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcutil v1.1.6
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.10
