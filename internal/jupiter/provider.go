@@ -1,21 +1,26 @@
 package jupiter
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 	solana_swap "github.com/vultisig/dca/internal/solana"
-	"github.com/vultisig/verifier/plugin/libhttp"
+	"github.com/vultisig/dca/internal/util"
 )
 
 type Provider struct {
 	apiURL    string
+	headers   map[string]string
 	rpcClient *rpc.Client
 }
 
@@ -144,11 +149,74 @@ func (i InstructionDataTyped) Data() ([]byte, error) {
 	return i.data, nil
 }
 
-func NewProvider(apiURL string, rpcClient *rpc.Client) *Provider {
+func NewProvider(apiURL string, rpcClient *rpc.Client) (*Provider, error) {
 	return &Provider{
 		apiURL:    apiURL,
 		rpcClient: rpcClient,
+		headers: map[string]string{
+			"User-Agent": "vultisig-dca/1.0",
+			"Accept":     "application/json",
+		},
+	}, nil
+}
+
+func (p *Provider) makeRequest(ctx context.Context, method, path string, body interface{}) ([]byte, error) {
+	fullURL := fmt.Sprintf("%s%s", p.apiURL, path)
+	u, err := url.Parse(fullURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL: %w", err)
 	}
+
+	var reqBody io.Reader
+	if body != nil {
+		jsonData, er := json.Marshal(body)
+		if er != nil {
+			return nil, fmt.Errorf("failed to marshal body: %w", er)
+		}
+		reqBody = bytes.NewReader(jsonData)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	parsedURL, err := url.Parse(p.apiURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse api url: %w", err)
+	}
+	req.Host = parsedURL.Host
+
+	for k, v := range p.headers {
+		req.Header.Set(k, v)
+	}
+
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make http call: %w", err)
+	}
+	defer func() {
+		_ = res.Body.Close()
+	}()
+
+	bodyBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get successful response: status_code: %d, res_body: %s", res.StatusCode, string(bodyBytes))
+	}
+
+	return bodyBytes, nil
 }
 
 func (p *Provider) GetQuote(
@@ -157,22 +225,23 @@ func (p *Provider) GetQuote(
 	amount *big.Int,
 	slippageBps int,
 ) (QuoteResponse, error) {
-	params := url.Values{}
-	params.Add("inputMint", inputMint)
-	params.Add("outputMint", outputMint)
-	params.Add("amount", amount.String())
-	params.Add("slippageBps", fmt.Sprintf("%d", slippageBps))
+	queryParams := url.Values{}
+	queryParams.Set("inputMint", inputMint)
+	queryParams.Set("outputMint", outputMint)
+	queryParams.Set("amount", amount.String())
+	queryParams.Set("slippageBps", fmt.Sprintf("%d", slippageBps))
 
-	resp, err := libhttp.Call[QuoteResponse](
-		ctx,
-		http.MethodGet,
-		fmt.Sprintf("%s/swap/v1/quote?%s", p.apiURL, params.Encode()),
-		nil,
-		nil,
-		nil,
-	)
+	path := fmt.Sprintf("/swap/v1/quote?%s", queryParams.Encode())
+
+	bodyBytes, err := p.makeRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return QuoteResponse{}, fmt.Errorf("failed to get quote from Jupiter: %w", err)
+	}
+
+	var resp QuoteResponse
+	err = json.Unmarshal(bodyBytes, &resp)
+	if err != nil {
+		return QuoteResponse{}, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	return resp, nil
@@ -191,16 +260,15 @@ func (p *Provider) GetSwapInstructions(
 		AsLegacyTransaction: false,
 	}
 
-	resp, err := libhttp.Call[SwapInstructionsResponse](
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("%s/swap/v1/swap-instructions", p.apiURL),
-		nil,
-		swapReq,
-		nil,
-	)
+	bodyBytes, err := p.makeRequest(ctx, http.MethodPost, "/swap/v1/swap-instructions", swapReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get swap instructions from Jupiter: %w", err)
+	}
+
+	var resp SwapInstructionsResponse
+	err = json.Unmarshal(bodyBytes, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	return &resp, nil
@@ -212,7 +280,13 @@ func (p *Provider) MakeTx(
 	from solana_swap.From,
 	to solana_swap.To,
 ) (*big.Int, []byte, error) {
-	quote, err := p.GetQuote(ctx, from.AssetID, to.AssetID, from.Amount, DefaultSlippageBps)
+	quote, err := p.GetQuote(
+		ctx,
+		util.IfEmptyElse(from.AssetID, solana.SolMint.String()),
+		util.IfEmptyElse(to.AssetID, solana.SolMint.String()),
+		from.Amount,
+		DefaultSlippageBps,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get quote: %w", err)
 	}
@@ -222,7 +296,7 @@ func (p *Provider) MakeTx(
 		return nil, nil, fmt.Errorf("failed to get swap instructions: %w", err)
 	}
 
-	block, err := p.rpcClient.GetRecentBlockhash(ctx, rpc.CommitmentFinalized)
+	block, err := p.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get recent blockhash: %w", err)
 	}

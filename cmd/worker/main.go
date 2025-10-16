@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/btcsuite/btcd/rpcclient"
 	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -53,10 +52,6 @@ func main() {
 		logger.Fatalf("failed to load config: %v", err)
 	}
 
-	sdClient, err := statsd.New(cfg.DataDog.Host + ":" + cfg.DataDog.Port)
-	if err != nil {
-		logger.Fatalf("failed to initialize StatsD client: %v", err)
-	}
 	vaultStorage, err := vault.NewBlockStorageImp(cfg.BlockStorage)
 	if err != nil {
 		logger.Fatalf("failed to initialize vault storage: %v", err)
@@ -110,7 +105,6 @@ func main() {
 	vaultService, err := vault.NewManagementService(
 		cfg.VaultService,
 		client,
-		sdClient,
 		vaultStorage,
 		txIndexerService,
 	)
@@ -224,12 +218,16 @@ func main() {
 	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
 	blockchairClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
 
-	solanaRpcClient := solanarpc.New(cfg.Rpc.Solana.URL)
+	jup, err := jupiter.NewProvider(cfg.Solana.JupiterAPIURL, solanarpc.New(cfg.Rpc.Solana.URL))
+	if err != nil {
+		logger.Fatalf("failed to initialize Jupiter provider: %v", err)
+	}
+
 	solanaNetwork, err := solana.NewNetwork(
 		ctx,
 		cfg.Rpc.Solana.URL,
 		[]solana.Provider{
-			jupiter.NewProvider(cfg.Solana.JupiterAPIURL, solanaRpcClient),
+			jup,
 		},
 		signer,
 		txIndexerService,

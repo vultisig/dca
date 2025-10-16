@@ -2,6 +2,7 @@ package solana
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/gagliardetto/solana-go"
@@ -30,6 +31,9 @@ func (s *tokenAccountService) GetAssociatedTokenAddress(owner, mint solana.Publi
 func (s *tokenAccountService) CheckAccountExists(ctx context.Context, account solana.PublicKey) (bool, error) {
 	accountInfo, err := s.rpcClient.GetAccountInfo(ctx, account)
 	if err != nil {
+		if errors.Is(err, rpc.ErrNotFound) {
+			return false, nil
+		}
 		return false, fmt.Errorf("failed to get account info: %w", err)
 	}
 	return accountInfo.Value != nil, nil
@@ -67,7 +71,7 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 
 	inst := s.BuildCreateATAInstruction(payer, owner, mint)
 
-	block, err := s.rpcClient.GetRecentBlockhash(ctx, rpc.CommitmentFinalized)
+	block, err := s.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recent blockhash: %w", err)
 	}

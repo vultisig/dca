@@ -3,7 +3,6 @@ module github.com/vultisig/dca
 go 1.24.2
 
 require (
-	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcutil v1.1.6
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.10
@@ -16,9 +15,10 @@ require (
 	github.com/kaptinlin/jsonschema v0.4.6
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/sirupsen/logrus v1.9.3
+	github.com/stretchr/testify v1.10.0
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20251006192813-52d88afe31bb
-	github.com/vultisig/verifier v0.0.0-20251002145722-6d5fb84d7afb
+	github.com/vultisig/recipes v0.0.0-20251015220947-7a8440acdba1
+	github.com/vultisig/verifier v0.0.0-20251013213346-a09372d2e8af
 	github.com/vultisig/vultisig-go v0.0.0-20251004125942-60b3b1898d15
 	golang.org/x/sync v0.14.0
 	google.golang.org/protobuf v1.36.6
@@ -179,7 +179,6 @@ require (
 	github.com/spf13/viper v1.20.1 // indirect
 	github.com/streamingfast/logging v0.0.0-20230608130331-f22c91403091 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/supranational/blst v0.3.14 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
@@ -220,5 +219,6 @@ replace (
 	github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 	github.com/cwespare/xxhash/v2 => github.com/cespare/xxhash/v2 v2.1.1
 	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
+	github.com/vultisig/recipes => ../recipes
 	nhooyr.io/websocket => github.com/coder/websocket v1.8.6
 )

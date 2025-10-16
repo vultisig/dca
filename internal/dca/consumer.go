@@ -18,6 +18,7 @@ import (
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/solana"
+	"github.com/vultisig/dca/internal/util"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/policy"
@@ -83,8 +84,8 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// optional fields
-	fromAssetStr, _ := cfg[fromAsset].(string)
-	toAssetStr, _ := cfg[toAsset].(string)
+	fromAssetStr := util.GetStr(cfg, fromAsset)
+	toAssetStr := util.GetStr(cfg, toAsset)
 
 	toAddressStr, ok := cfg[toAddress].(string)
 	if !ok {
@@ -105,7 +106,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	if fromChainTyped == common.Solana {
-		er := c.handleSolanaSwap(ctx, pol, cfg, fromAmountStr, toAssetStr, toAddressStr)
+		er := c.handleSolanaSwap(ctx, pol, cfg, fromAmountStr, fromAssetStr, toAssetStr, toAddressStr)
 		if er != nil {
 			return fmt.Errorf("failed to handle Solana swap: %w", er)
 		}
@@ -214,12 +215,7 @@ func (c *Consumer) solanaPubToAddress(rootPub string) (string, error) {
 		return "", fmt.Errorf("failed to decrypt vault: %w", err)
 	}
 
-	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.Solana.GetDerivePath(), false)
-	if err != nil {
-		return "", fmt.Errorf("failed to get derived pubkey: %w", err)
-	}
-
-	addr, err := address.GetSolAddress(childPub)
+	addr, err := address.GetSolAddress(vlt.GetPublicKeyEddsa())
 	if err != nil {
 		return "", fmt.Errorf("failed to get Solana address: %w", err)
 	}
@@ -286,7 +282,7 @@ func (c *Consumer) handleSolanaSwap(
 	ctx context.Context,
 	pol *types.PluginPolicy,
 	cfg map[string]any,
-	fromAmount, toAsset, toAddress string,
+	fromAmount, fromAsset, toAsset, toAddress string,
 ) error {
 	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey)
 	if err != nil {
@@ -305,7 +301,7 @@ func (c *Consumer) handleSolanaSwap(
 
 	from := solana.From{
 		Amount:  fromAmountTyped,
-		AssetID: cfg[fromAsset].(string),
+		AssetID: fromAsset,
 		Address: fromAddressTyped,
 	}
 

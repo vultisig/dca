@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kaptinlin/jsonschema"
+	"github.com/vultisig/dca/internal/util"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
@@ -159,34 +160,23 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 		return nil, fmt.Errorf("'toAddress' could not be empty")
 	}
 
-	fromAddressStr, ok := cfg[fromAddress].(string)
-	if !ok {
+	fromAddressStr := util.GetStr(cfg, fromAddress)
+	if fromAddressStr == "" {
 		return nil, fmt.Errorf("'fromAddress' could not be empty")
 	}
 
-	// empty means native
-	fromAssetStr, _ := cfg[fromAsset].(string)
-	toAssetStr, _ := cfg[toAsset].(string)
-
-	fromAmountStr, ok := cfg[fromAmount].(string)
-	if !ok {
+	fromAmountStr := util.GetStr(cfg, fromAmount)
+	if fromAmountStr == "" {
 		return nil, fmt.Errorf("'fromAmount' could not be empty")
 	}
 
-	toChainStr, ok := cfg[toChain].(string)
-	if !ok {
+	toChainStr := util.GetStr(cfg, toChain)
+	if toChainStr == "" {
 		return nil, fmt.Errorf("'toChain' could not be empty")
 	}
 
-	var fromAssetStr string
-	if val, ok := cfg[fromAsset]; ok && val != nil {
-		fromAssetStr, _ = val.(string)
-	}
-
-	var toAssetStr string
-	if val, ok := cfg[toAsset]; ok && val != nil {
-		toAssetStr, _ = val.(string)
-	}
+	fromAssetStr := util.GetStr(cfg, fromAsset)
+	toAssetStr := util.GetStr(cfg, toAsset)
 
 	return &rtypes.Rule{
 		Resource: fromChainLowercase + ".swap",
@@ -353,12 +343,11 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 				FunctionId: "",
 				Full:       chainNameLower + ".swap",
 			},
-			Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
 			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
 				{
 					ParameterName:  "from_asset",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       true,
 				},
 				{
 					ParameterName:  "from_address",
@@ -378,7 +367,6 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 				{
 					ParameterName:  "to_asset",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       true,
 				},
 				{
 					ParameterName:  "to_address",
