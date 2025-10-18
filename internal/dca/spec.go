@@ -24,6 +24,7 @@ var supportedChains = []common.Chain{
 	common.Polygon,
 	common.Bitcoin,
 	common.Solana,
+	common.XRP,
 }
 
 const (
@@ -135,6 +136,8 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	switch {
 	case fromChainTyped == common.Solana:
 		maxTxsPerWindow = 3 // to fit ATA create + SPL token approve + Payload tx
+	case fromChainTyped == common.XRP:
+		maxTxsPerWindow = 1 // XRP doesn't need approvals, single tx for swaps
 	case fromChainTyped.IsEvm():
 		maxTxsPerWindow = 2 // to fit ERC20 approve + Payload tx
 	default:

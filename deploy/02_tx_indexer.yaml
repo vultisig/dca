@@ -71,6 +71,11 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: bitcoin
+            - name: BASE_RPC_XRP_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: xrp
             - name: BASE_INTERVAL
               value: "30s"
             - name: BASE_ITERATIONTIMEOUT
