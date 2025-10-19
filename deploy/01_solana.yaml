@@ -3,4 +3,4 @@ kind: ConfigMap
 metadata:
   name: solana
 data:
-  jupiter-api-url: "https://lite-api.jup.ag"
+  jupiter-api-url: "https://api.vultisig.com/jup"

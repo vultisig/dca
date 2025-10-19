@@ -79,6 +79,7 @@ type SwapRequest struct {
 	AsLegacyTransaction           bool           `json:"asLegacyTransaction,omitempty"`
 	UseTokenLedger                bool           `json:"useTokenLedger,omitempty"`
 	DestinationTokenAccount       string         `json:"destinationTokenAccount,omitempty"`
+	DynamicComputeUnitLimit       bool           `json:"dynamicComputeUnitLimit,omitempty"`
 }
 
 type SwapInstructionsResponse struct {
@@ -122,7 +123,7 @@ func (i InstructionData) Typed() (InstructionDataTyped, error) {
 			return InstructionDataTyped{}, fmt.Errorf("failed to get account: %w", er)
 		}
 
-		accounts = append(accounts, solana.NewAccountMeta(pk, acc.IsSigner, acc.IsWritable))
+		accounts = append(accounts, solana.NewAccountMeta(pk, acc.IsWritable, acc.IsSigner))
 	}
 
 	data, err := base64.StdEncoding.DecodeString(i.Data)
@@ -226,6 +227,7 @@ func (p *Provider) GetQuote(
 	slippageBps int,
 ) (QuoteResponse, error) {
 	queryParams := url.Values{}
+	queryParams.Set("swapMode", "ExactIn")
 	queryParams.Set("inputMint", inputMint)
 	queryParams.Set("outputMint", outputMint)
 	queryParams.Set("amount", amount.String())
@@ -253,11 +255,12 @@ func (p *Provider) GetSwapInstructions(
 	userPublicKey string,
 ) (*SwapInstructionsResponse, error) {
 	swapReq := SwapRequest{
-		UserPublicKey:       userPublicKey,
-		QuoteResponse:       quote,
-		WrapAndUnwrapSol:    true,
-		UseSharedAccounts:   true,
-		AsLegacyTransaction: false,
+		UserPublicKey:           userPublicKey,
+		QuoteResponse:           quote,
+		WrapAndUnwrapSol:        true,
+		UseSharedAccounts:       true,
+		AsLegacyTransaction:     false,
+		DynamicComputeUnitLimit: true,
 	}
 
 	bodyBytes, err := p.makeRequest(ctx, http.MethodPost, "/swap/v1/swap-instructions", swapReq)
@@ -274,7 +277,116 @@ func (p *Provider) GetSwapInstructions(
 	return &resp, nil
 }
 
+// CheckSetup checks if setup transactions are needed
+func (p *Provider) CheckSetup(ctx context.Context, from solana_swap.From, to solana_swap.To) (bool, error) {
+	quote, err := p.GetQuote(
+		ctx,
+		util.IfEmptyElse(from.AssetID, solana.SolMint.String()),
+		util.IfEmptyElse(to.AssetID, solana.SolMint.String()),
+		from.Amount,
+		DefaultSlippageBps,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to get quote: %w", err)
+	}
+
+	insts, err := p.GetSwapInstructions(ctx, quote, from.Address)
+	if err != nil {
+		return false, fmt.Errorf("failed to get swap instructions: %w", err)
+	}
+
+	return len(insts.SetupInstructions) > 0, nil
+}
+
+// BuildSetupTxs builds setup transactions that must be executed before the swap
+func (p *Provider) BuildSetupTxs(ctx context.Context, from solana_swap.From, to solana_swap.To) ([][]byte, error) {
+	quote, err := p.GetQuote(
+		ctx,
+		util.IfEmptyElse(from.AssetID, solana.SolMint.String()),
+		util.IfEmptyElse(to.AssetID, solana.SolMint.String()),
+		from.Amount,
+		DefaultSlippageBps,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get quote: %w", err)
+	}
+
+	insts, err := p.GetSwapInstructions(ctx, quote, from.Address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get swap instructions: %w", err)
+	}
+
+	if len(insts.SetupInstructions) == 0 {
+		return nil, nil
+	}
+
+	block, err := p.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent blockhash: %w", err)
+	}
+
+	feePayer, err := solana.PublicKeyFromBase58(from.Address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse fee payer address: %w", err)
+	}
+
+	setupTxs := make([][]byte, 0, len(insts.SetupInstructions))
+
+	for i, setupInst := range insts.SetupInstructions {
+		typedInst, err := setupInst.Typed()
+		if err != nil {
+			return nil, fmt.Errorf("failed to format setup instruction %d: %w", i, err)
+		}
+
+		requiredSigners := countRequiredSigners(setupInst)
+
+		var ephemeralSigners []solana.PrivateKey
+		txOptions := []solana.TransactionOption{solana.TransactionPayer(feePayer)}
+
+		if requiredSigners > 1 {
+			ephemeralCount := requiredSigners - 1
+			ephemeralSigners = make([]solana.PrivateKey, ephemeralCount)
+
+			for j := 0; j < ephemeralCount; j++ {
+				ephemeralKey := solana.NewWallet()
+				ephemeralSigners[j] = ephemeralKey.PrivateKey
+			}
+		}
+
+		tx, err := solana.NewTransaction(
+			[]solana.Instruction{typedInst},
+			block.Value.Blockhash,
+			txOptions...,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create setup transaction %d: %w", i, err)
+		}
+
+		for _, ephemeralSigner := range ephemeralSigners {
+			_, signerErr := tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
+				if key.Equals(ephemeralSigner.PublicKey()) {
+					return &ephemeralSigner
+				}
+				return nil
+			})
+			if signerErr != nil {
+				return nil, fmt.Errorf("failed to sign setup transaction %d with ephemeral signer: %w", i, signerErr)
+			}
+		}
+
+		serializedTx, err := tx.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize setup transaction %d: %w", i, err)
+		}
+
+		setupTxs = append(setupTxs, serializedTx)
+	}
+
+	return setupTxs, nil
+}
+
 // MakeTx implements solana.Provider interface
+// Note: Setup transactions should be executed via BuildSetupTxs before calling this
 func (p *Provider) MakeTx(
 	ctx context.Context,
 	from solana_swap.From,
@@ -301,17 +413,50 @@ func (p *Provider) MakeTx(
 		return nil, nil, fmt.Errorf("failed to get recent blockhash: %w", err)
 	}
 
-	inst, err := insts.SwapInstruction.Typed()
+	feePayer, err := solana.PublicKeyFromBase58(from.Address)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse fee payer address: %w", err)
+	}
+
+	swapInst, err := insts.SwapInstruction.Typed()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to format swap instruction: %w", err)
 	}
 
+	requiredSigners := countRequiredSigners(insts.SwapInstruction)
+
+	var ephemeralSigners []solana.PrivateKey
+	txOptions := []solana.TransactionOption{solana.TransactionPayer(feePayer)}
+
+	if requiredSigners > 1 {
+		ephemeralCount := requiredSigners - 1
+		ephemeralSigners = make([]solana.PrivateKey, ephemeralCount)
+
+		for i := 0; i < ephemeralCount; i++ {
+			ephemeralKey := solana.NewWallet()
+			ephemeralSigners[i] = ephemeralKey.PrivateKey
+		}
+	}
+
 	tx, err := solana.NewTransaction(
-		[]solana.Instruction{inst},
+		[]solana.Instruction{swapInst},
 		block.Value.Blockhash,
+		txOptions...,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	for _, ephemeralSigner := range ephemeralSigners {
+		_, signerErr := tx.Sign(func(key solana.PublicKey) *solana.PrivateKey {
+			if key.Equals(ephemeralSigner.PublicKey()) {
+				return &ephemeralSigner
+			}
+			return nil
+		})
+		if signerErr != nil {
+			return nil, nil, fmt.Errorf("failed to sign with ephemeral signer: %w", signerErr)
+		}
 	}
 
 	serializedTx, err := tx.MarshalBinary()
@@ -325,4 +470,87 @@ func (p *Provider) MakeTx(
 	}
 
 	return outAmount, serializedTx, nil
+}
+
+func countRequiredSigners(inst InstructionData) int {
+	count := 0
+	for _, acc := range inst.Accounts {
+		if acc.IsSigner {
+			count++
+		}
+	}
+	return count
+}
+
+func (p *Provider) CheckCleanup(ctx context.Context, from solana_swap.From, to solana_swap.To) (bool, error) {
+	quote, err := p.GetQuote(
+		ctx,
+		util.IfEmptyElse(from.AssetID, solana.SolMint.String()),
+		util.IfEmptyElse(to.AssetID, solana.SolMint.String()),
+		from.Amount,
+		DefaultSlippageBps,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to get quote: %w", err)
+	}
+
+	insts, err := p.GetSwapInstructions(ctx, quote, from.Address)
+	if err != nil {
+		return false, fmt.Errorf("failed to get swap instructions: %w", err)
+	}
+
+	return insts.CleanupInstruction != nil, nil
+}
+
+func (p *Provider) BuildCleanupTxs(ctx context.Context, from solana_swap.From, to solana_swap.To) ([][]byte, error) {
+	quote, err := p.GetQuote(
+		ctx,
+		util.IfEmptyElse(from.AssetID, solana.SolMint.String()),
+		util.IfEmptyElse(to.AssetID, solana.SolMint.String()),
+		from.Amount,
+		DefaultSlippageBps,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get quote: %w", err)
+	}
+
+	insts, err := p.GetSwapInstructions(ctx, quote, from.Address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get swap instructions: %w", err)
+	}
+
+	if insts.CleanupInstruction == nil {
+		return nil, nil
+	}
+
+	block, err := p.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent blockhash: %w", err)
+	}
+
+	feePayer, err := solana.PublicKeyFromBase58(from.Address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse fee payer address: %w", err)
+	}
+
+	cleanupInst, err := insts.CleanupInstruction.Typed()
+	if err != nil {
+		return nil, fmt.Errorf("failed to format cleanup instruction: %w", err)
+	}
+
+	tx, err := solana.NewTransaction(
+		[]solana.Instruction{cleanupInst},
+		block.Value.Blockhash,
+		solana.TransactionPayer(feePayer),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cleanup transaction: %w", err)
+	}
+
+	serializedTx, err := tx.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize cleanup transaction: %w", err)
+	}
+
+	return [][]byte{serializedTx}, nil
 }

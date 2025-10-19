@@ -798,6 +798,8 @@ github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4n
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
 github.com/vultisig/verifier v0.0.0-20251013213346-a09372d2e8af h1:Pdy0HtZ5k1shkKJEbN6bFKXHIpU27hrV1N+5W9k264E=
 github.com/vultisig/verifier v0.0.0-20251013213346-a09372d2e8af/go.mod h1:hhtGyx4CCCUxQI+iNBmy+c5VitH/dtDvq/GnPc+7fEc=
+github.com/vultisig/verifier v0.0.0-20251015151522-ddb013eb256f h1:90Y20vRsgvni5HC5l9dY631BqJfuxVSAn6F9XMEidmM=
+github.com/vultisig/verifier v0.0.0-20251015151522-ddb013eb256f/go.mod h1:yp/QFuu+3F1oysp7tXnBH36ozx8ZUT4cUZpGkxclSWE=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 h1:7WDQ92FAdu08Byjgm3RNS8Sok49sK521PzPcbRpbzCE=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/vultisig/vultisig-go v0.0.0-20251004125942-60b3b1898d15 h1:wdRFnDMLdbaWXExUR/88WBAZ9sY9i9ldzurrYJWQeuw=

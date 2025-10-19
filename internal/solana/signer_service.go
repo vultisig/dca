@@ -59,7 +59,11 @@ func (s *signerService) SignAndBroadcast(
 
 	_, err = eng.Evaluate(recipe, common.Solana, txBytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to evaluate tx: %w", err)
+		return "", fmt.Errorf(
+			"failed to evaluate tx (base64: %s): %w",
+			base64.StdEncoding.EncodeToString(txBytes),
+			err,
+		)
 	}
 
 	keysignRequest, err := s.buildKeysignRequest(ctx, policy, txBytes)

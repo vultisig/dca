@@ -21,6 +21,40 @@ func newSwapService(rpcClient *rpc.Client, providers []Provider) *swapService {
 	}
 }
 
+func (s *swapService) CheckSetupNeeded(
+	ctx context.Context,
+	from From,
+	to To,
+) (Provider, bool, error) {
+	for _, provider := range s.providers {
+		needed, err := provider.CheckSetup(ctx, from, to)
+		if err != nil {
+			continue
+		}
+		if needed {
+			return provider, true, nil
+		}
+	}
+	return nil, false, nil
+}
+
+func (s *swapService) CheckCleanupNeeded(
+	ctx context.Context,
+	from From,
+	to To,
+) (Provider, bool, error) {
+	for _, provider := range s.providers {
+		needed, err := provider.CheckCleanup(ctx, from, to)
+		if err != nil {
+			continue
+		}
+		if needed {
+			return provider, true, nil
+		}
+	}
+	return nil, false, nil
+}
+
 func (s *swapService) FindBestAmountOut(
 	ctx context.Context,
 	from From,
