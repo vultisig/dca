@@ -263,8 +263,8 @@ func main() {
 			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signer, txIndexerService),
 			blockchairClient,
 		),
-		xrpNetwork,
 		solanaNetwork,
+		xrpNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
