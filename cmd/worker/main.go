@@ -23,8 +23,10 @@ import (
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/uniswap"
+	"github.com/vultisig/dca/internal/xrp"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
+	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -218,6 +220,20 @@ func main() {
 	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
 	blockchairClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
 
+	// Initialize XRP network
+	xrpClient := xrp.NewClient(cfg.Rpc.XRP.URL)
+	thorchainXrp := thorchain.NewProviderXrp(thorchainClient, xrpClient)
+
+	// Initialize XRP SDK for signing and broadcasting
+	xrpRpcClient := xrplsdk.NewHTTPRPCClient([]string{cfg.Rpc.XRP.URL})
+	xrpSDK := xrplsdk.NewSDK(xrpRpcClient)
+
+	xrpNetwork := xrp.NewNetwork(
+		xrp.NewSwapService([]xrp.SwapProvider{thorchainXrp}),
+		xrp.NewSignerService(xrpSDK, signer, txIndexerService),
+		xrpClient,
+	)
+
 	jup, err := jupiter.NewProvider(cfg.Solana.JupiterAPIURL, solanarpc.New(cfg.Rpc.Solana.URL))
 	if err != nil {
 		logger.Fatalf("failed to initialize Jupiter provider: %v", err)
@@ -247,6 +263,7 @@ func main() {
 			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signer, txIndexerService),
 			blockchairClient,
 		),
+		xrpNetwork,
 		solanaNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
@@ -280,6 +297,7 @@ type config struct {
 	Uniswap      uniswapConfig
 	ThorChain    thorChainConfig
 	BTC          btcConfig
+	XRP          xrpConfig
 	Solana       solanaConfig
 	DataDog      dataDog
 	HealthPort   int
@@ -314,6 +332,7 @@ type rpc struct {
 	Optimism  rpcItem
 	Polygon   rpcItem
 	BTC       rpcItem
+	XRP       rpcItem
 	Solana    rpcItem
 }
 
@@ -323,6 +342,10 @@ type rpcItem struct {
 
 type btcConfig struct {
 	BlockchairURL string
+}
+
+type xrpConfig struct {
+	RPC string
 }
 
 type solanaConfig struct {

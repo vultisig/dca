@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/evm"
+	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/util"
 	"github.com/vultisig/mobile-tss-lib/tss"
@@ -35,6 +37,7 @@ type Consumer struct {
 	policy      policy.Service
 	evm         *evm.Manager
 	btc         *btc.Network
+	xrp         *xrp.Network
 	solana      *solana.Network
 	vault       vault.Storage
 	vaultSecret string
@@ -46,6 +49,7 @@ func NewConsumer(
 	evm *evm.Manager,
 	btc *btc.Network,
 	solana *solana.Network,
+	xrp *xrp.Network,
 	vault vault.Storage,
 	vaultSecret string,
 ) *Consumer {
@@ -54,6 +58,7 @@ func NewConsumer(
 		policy:      policy,
 		evm:         evm,
 		btc:         btc,
+		xrp:         xrp,
 		solana:      solana,
 		vault:       vault,
 		vaultSecret: vaultSecret,
@@ -101,6 +106,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		er := c.handleBtcSwap(ctx, pol, cfg, fromAmountStr, toAssetStr, toAddressStr)
 		if er != nil {
 			return fmt.Errorf("failed to handle BTC swap: %w", er)
+		}
+		return nil
+	}
+
+	if fromChainTyped == common.XRP {
+		er := c.handleXrpSwap(ctx, pol, cfg, fromAmountStr, toAssetStr, toAddressStr)
+		if er != nil {
+			return fmt.Errorf("failed to handle XRP swap: %w", er)
 		}
 		return nil
 	}
@@ -202,6 +215,86 @@ func (c *Consumer) btcPubToAddress(rootPub string) (btcutil.Address, *btcutil.Ad
 	}
 
 	return btcAddr, pub, nil
+}
+
+func (c *Consumer) xrpPubToAddress(rootPub string) (string, string, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, string(types.PluginVultisigDCA_0000)))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.XRP.GetDerivePath(), false)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get derived pubkey: %w", err)
+	}
+
+	addr, err := address.GetXRPAddress(childPub)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get XRP address: %w", err)
+	}
+
+	return addr, childPub, nil
+}
+
+func (c *Consumer) handleXrpSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	cfg map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressStr, childPubKey, err := c.xrpPubToAddress(pol.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get XRP address from policy PublicKey: %w", err)
+	}
+
+	fromAmountDrops, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	toChainTyped, err := getChainFromCfg(cfg, toChain)
+	if err != nil {
+		return fmt.Errorf("failed to get toChain: %w", err)
+	}
+
+	from := xrp.From{
+		Address: fromAddressStr,
+		Amount:  fromAmountDrops,
+		PubKey:  childPubKey,
+		// Sequence will be auto-fetched by network
+	}
+
+	to := xrp.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"fromAmount":  fromAmountDrops,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling XRP swap")
+
+	txHash, err := c.xrp.Swap(ctx, *pol, from, to)
+	if err != nil {
+		return fmt.Errorf("failed to execute XRP swap: %w", err)
+	}
+
+	c.logger.WithField("txHash", txHash).Info("XRP swap executed successfully")
+	return nil
+}
+
+func parseUint64(s string) (uint64, error) {
+	return strconv.ParseUint(s, 10, 64)
 }
 
 func (c *Consumer) solanaPubToAddress(rootPub string) (string, error) {

@@ -100,6 +100,11 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: bitcoin
+            - name: RPC_XRP_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: xrp
             - name: RPC_SOLANA_URL
               valueFrom:
                 configMapKeyRef:
