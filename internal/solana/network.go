@@ -59,80 +59,16 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 	}
 
 	if from.AssetID != "" {
-		mintPubKey, er := solana.PublicKeyFromBase58(from.AssetID)
-		if er != nil {
-			return "", fmt.Errorf("invalid source mint public key: %w", er)
-		}
-
-		ata, er := n.tokenAccount.GetAssociatedTokenAddress(ownerPubKey, mintPubKey)
-		if er != nil {
-			return "", fmt.Errorf("failed to get source associated token address: %w", er)
-		}
-
-		exists, er := n.tokenAccount.CheckAccountExists(ctx, ata)
-		if er != nil {
-			return "", fmt.Errorf("failed to check if source ATA exists: %w", er)
-		}
-
-		if !exists {
-			createTx, er2 := n.tokenAccount.BuildCreateATATransaction(ctx, ownerPubKey, ownerPubKey, mintPubKey)
-			if er2 != nil {
-				return "", fmt.Errorf("failed to build create source ATA transaction: %w", er2)
-			}
-
-			createTxBytes, er2 := createTx.MarshalBinary()
-			if er2 != nil {
-				return "", fmt.Errorf("failed to serialize create source ATA transaction: %w", er2)
-			}
-
-			createTxHash, er2 := n.signer.SignAndBroadcast(ctx, policy, createTxBytes)
-			if er2 != nil {
-				return "", fmt.Errorf("failed to create source ATA: %w", er2)
-			}
-
-			er2 = n.signer.WaitForConfirmation(ctx, createTxHash)
-			if er2 != nil {
-				return "", fmt.Errorf("failed to wait for source ATA creation confirmation: %w", er2)
-			}
+		err = n.ensureATAExists(ctx, policy, ownerPubKey, from.AssetID, "source")
+		if err != nil {
+			return "", fmt.Errorf("failed to ensure source ATA: %w", err)
 		}
 	}
 
 	if to.AssetID != "" {
-		mintPubKey, er := solana.PublicKeyFromBase58(to.AssetID)
-		if er != nil {
-			return "", fmt.Errorf("invalid destination mint public key: %w", er)
-		}
-
-		ata, er := n.tokenAccount.GetAssociatedTokenAddress(ownerPubKey, mintPubKey)
-		if er != nil {
-			return "", fmt.Errorf("failed to get destination associated token address: %w", er)
-		}
-
-		exists, er := n.tokenAccount.CheckAccountExists(ctx, ata)
-		if er != nil {
-			return "", fmt.Errorf("failed to check if destination ATA exists: %w", er)
-		}
-
-		if !exists {
-			createTx, er2 := n.tokenAccount.BuildCreateATATransaction(ctx, ownerPubKey, ownerPubKey, mintPubKey)
-			if er2 != nil {
-				return "", fmt.Errorf("failed to build create destination ATA transaction: %w", er2)
-			}
-
-			createTxBytes, er2 := createTx.MarshalBinary()
-			if er2 != nil {
-				return "", fmt.Errorf("failed to serialize create destination ATA transaction: %w", er2)
-			}
-
-			createTxHash, er2 := n.signer.SignAndBroadcast(ctx, policy, createTxBytes)
-			if er2 != nil {
-				return "", fmt.Errorf("failed to create destination ATA: %w", er2)
-			}
-
-			er2 = n.signer.WaitForConfirmation(ctx, createTxHash)
-			if er2 != nil {
-				return "", fmt.Errorf("failed to wait for destination ATA creation confirmation: %w", er2)
-			}
+		err = n.ensureATAExists(ctx, policy, ownerPubKey, to.AssetID, "destination")
+		if err != nil {
+			return "", fmt.Errorf("failed to ensure destination ATA: %w", err)
 		}
 	}
 
@@ -158,14 +94,9 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 				return "", fmt.Errorf("failed to serialize close wSOL transaction: %w", err)
 			}
 
-			closeWsolTxHash, err := n.signer.SignAndBroadcast(ctx, policy, closeWsolTxBytes)
+			_, err = n.signBroadcastWait(ctx, policy, closeWsolTxBytes)
 			if err != nil {
-				return "", fmt.Errorf("failed to sign and broadcast close wSOL transaction: %w", err)
-			}
-
-			err = n.signer.WaitForConfirmation(ctx, closeWsolTxHash)
-			if err != nil {
-				return "", fmt.Errorf("failed to wait for close wSOL transaction confirmation: %w", err)
+				return "", fmt.Errorf("failed to execute: %w", err)
 			}
 		}
 	}
@@ -181,15 +112,10 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 			return "", fmt.Errorf("failed to build setup transactions: %w", err)
 		}
 
-		for i, setupTxBytes := range setupTxs {
-			setupTxHash, er := n.signer.SignAndBroadcast(ctx, policy, setupTxBytes)
+		for _, setupTxBytes := range setupTxs {
+			_, er := n.signBroadcastWait(ctx, policy, setupTxBytes)
 			if er != nil {
-				return "", fmt.Errorf("failed to sign and broadcast setup transaction %d: %w", i, er)
-			}
-
-			er = n.signer.WaitForConfirmation(ctx, setupTxHash)
-			if er != nil {
-				return "", fmt.Errorf("failed to wait for setup transaction %d confirmation: %w", i, er)
+				return "", fmt.Errorf("failed to execute: %w", er)
 			}
 		}
 	}
@@ -199,14 +125,9 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 		return "", fmt.Errorf("failed to build swap transaction: %w", err)
 	}
 
-	txHash, err := n.signer.SignAndBroadcast(ctx, policy, swapTx)
+	txHash, err := n.signBroadcastWait(ctx, policy, swapTx)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign and broadcast swap: %w", err)
-	}
-
-	err = n.signer.WaitForConfirmation(ctx, txHash)
-	if err != nil {
-		return "", fmt.Errorf("failed to wait for swap confirmation: %w", err)
+		return "", fmt.Errorf("failed to execute: %w", err)
 	}
 
 	provider, cleanupNeeded, err := n.swapService.CheckCleanupNeeded(ctx, from, to)
@@ -220,18 +141,68 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 			return "", fmt.Errorf("failed to build cleanup transactions: %w", err)
 		}
 
-		for i, cleanupTxBytes := range cleanupTxs {
-			cleanupTxHash, er := n.signer.SignAndBroadcast(ctx, policy, cleanupTxBytes)
+		for _, cleanupTxBytes := range cleanupTxs {
+			_, er := n.signBroadcastWait(ctx, policy, cleanupTxBytes)
 			if er != nil {
-				return "", fmt.Errorf("failed to sign and broadcast cleanup transaction %d: %w", i, er)
-			}
-
-			er = n.signer.WaitForConfirmation(ctx, cleanupTxHash)
-			if er != nil {
-				return "", fmt.Errorf("failed to wait for cleanup transaction %d confirmation: %w", i, er)
+				return "", fmt.Errorf("failed to execute: %w", er)
 			}
 		}
 	}
 
 	return txHash, nil
+}
+
+func (n *Network) ensureATAExists(
+	ctx context.Context,
+	policy types.PluginPolicy,
+	ownerPubKey solana.PublicKey,
+	assetID string,
+	label string,
+) error {
+	mintPubKey, err := solana.PublicKeyFromBase58(assetID)
+	if err != nil {
+		return fmt.Errorf("invalid %s mint public key: %w", label, err)
+	}
+
+	ata, err := n.tokenAccount.GetAssociatedTokenAddress(ownerPubKey, mintPubKey)
+	if err != nil {
+		return fmt.Errorf("failed to get %s associated token address: %w", label, err)
+	}
+
+	exists, err := n.tokenAccount.CheckAccountExists(ctx, ata)
+	if err != nil {
+		return fmt.Errorf("failed to check if %s ATA exists: %w", label, err)
+	}
+
+	if !exists {
+		createTx, err := n.tokenAccount.BuildCreateATATransaction(ctx, ownerPubKey, ownerPubKey, mintPubKey)
+		if err != nil {
+			return fmt.Errorf("failed to build create %s ATA transaction: %w", label, err)
+		}
+
+		createTxBytes, err := createTx.MarshalBinary()
+		if err != nil {
+			return fmt.Errorf("failed to serialize create %s ATA transaction: %w", label, err)
+		}
+
+		_, err = n.signBroadcastWait(ctx, policy, createTxBytes)
+		if err != nil {
+			return fmt.Errorf("failed to create %s ATA: %w", label, err)
+		}
+	}
+
+	return nil
+}
+
+func (n *Network) signBroadcastWait(ctx context.Context, policy types.PluginPolicy, txBytes []byte) (string, error) {
+	hash, err := n.signer.SignAndBroadcast(ctx, policy, txBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign and broadcast: %w", err)
+	}
+
+	err = n.signer.WaitForConfirmation(ctx, hash)
+	if err != nil {
+		return "", fmt.Errorf("failed to wait for confirmation: %w", err)
+	}
+	return hash, nil
 }
