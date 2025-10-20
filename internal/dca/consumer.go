@@ -18,10 +18,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/evm"
-	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/util"
+	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/recipes/metarule"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/policy"
 	"github.com/vultisig/verifier/plugin/scheduler"
@@ -544,12 +545,19 @@ func getChainFromCfg(cfg map[string]interface{}, field string) (common.Chain, er
 	return chainTyped, nil
 }
 
-func findApproveSpender(chain common.Chain, rules []*rtypes.Rule) (ecommon.Address, error) {
-	for _, rule := range rules {
-		if rule.GetResource() == fmt.Sprintf("%s.erc20.approve", strings.ToLower(chain.String())) {
-			for _, constraint := range rule.GetParameterConstraints() {
-				if strings.EqualFold(constraint.GetParameterName(), "spender") {
-					return ecommon.HexToAddress(constraint.GetConstraint().GetFixedValue()), nil
+func findApproveSpender(chain common.Chain, rawRules []*rtypes.Rule) (ecommon.Address, error) {
+	for _, rawRule := range rawRules {
+		rules, err := metarule.NewMetaRule().TryFormat(rawRule)
+		if err != nil {
+			return ecommon.Address{}, fmt.Errorf("failed to parse rule: %w", err)
+		}
+
+		for _, rule := range rules {
+			if rule.GetResource() == fmt.Sprintf("%s.erc20.approve", strings.ToLower(chain.String())) {
+				for _, constraint := range rule.GetParameterConstraints() {
+					if strings.EqualFold(constraint.GetParameterName(), "spender") {
+						return ecommon.HexToAddress(constraint.GetConstraint().GetFixedValue()), nil
+					}
 				}
 			}
 		}

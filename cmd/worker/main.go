@@ -19,6 +19,7 @@ import (
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/jupiter"
+	"github.com/vultisig/dca/internal/oneinch"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/xrp"
@@ -157,6 +158,7 @@ func main() {
 	networks := make(map[common.Chain]*evm.Network)
 
 	thorchainClient := thorchain.NewClient(cfg.ThorChain.URL)
+	oneInchClient := oneinch.NewClient(cfg.OneInch.BaseURL, cfg.OneInch.APIKey)
 
 	networkConfigs := []struct {
 		chain  common.Chain
@@ -189,7 +191,8 @@ func main() {
 			c.chain,
 			c.rpcURL,
 			[]evm.Provider{
-				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
+				oneinch.NewProvider(oneInchClient, evmRpc, evmSdk),
+				//thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
 			},
 			signer,
 			txIndexerService,
@@ -286,12 +289,18 @@ type config struct {
 	Redis        plugin_config.Redis
 	Verifier     plugin_config.Verifier
 	Rpc          rpc
+	OneInch      oneInchConfig
 	ThorChain    thorChainConfig
 	BTC          btcConfig
 	XRP          xrpConfig
 	Solana       solanaConfig
 	DataDog      dataDog
 	HealthPort   int
+}
+
+type oneInchConfig struct {
+	BaseURL string
+	APIKey  string
 }
 
 type thorChainConfig struct {

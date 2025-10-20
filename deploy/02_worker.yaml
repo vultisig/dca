@@ -105,6 +105,16 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: xrp
+            - name: ONEINCH_BASEURL
+              valueFrom:
+                configMapKeyRef:
+                  name: oneinch
+                  key: base-url
+            - name: ONEINCH_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: oneinch
+                  key: api-key
             - name: RPC_SOLANA_URL
               valueFrom:
                 configMapKeyRef:
