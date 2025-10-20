@@ -19,6 +19,8 @@ import (
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/xrp"
+	"github.com/vultisig/dca/internal/solana"
+	"github.com/vultisig/dca/internal/util"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/policy"
@@ -36,6 +38,7 @@ type Consumer struct {
 	evm         *evm.Manager
 	btc         *btc.Network
 	xrp         *xrp.Network
+	solana      *solana.Network
 	vault       vault.Storage
 	vaultSecret string
 }
@@ -45,6 +48,7 @@ func NewConsumer(
 	policy policy.Service,
 	evm *evm.Manager,
 	btc *btc.Network,
+	solana *solana.Network,
 	xrp *xrp.Network,
 	vault vault.Storage,
 	vaultSecret string,
@@ -55,6 +59,7 @@ func NewConsumer(
 		evm:         evm,
 		btc:         btc,
 		xrp:         xrp,
+		solana:      solana,
 		vault:       vault,
 		vaultSecret: vaultSecret,
 	}
@@ -84,8 +89,8 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	// optional fields
-	fromAssetStr, _ := cfg[fromAsset].(string)
-	toAssetStr, _ := cfg[toAsset].(string)
+	fromAssetStr := util.GetStr(cfg, fromAsset)
+	toAssetStr := util.GetStr(cfg, toAsset)
 
 	toAddressStr, ok := cfg[toAddress].(string)
 	if !ok {
@@ -109,6 +114,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		er := c.handleXrpSwap(ctx, pol, cfg, fromAmountStr, toAssetStr, toAddressStr)
 		if er != nil {
 			return fmt.Errorf("failed to handle XRP swap: %w", er)
+		}
+		return nil
+	}
+
+	if fromChainTyped == common.Solana {
+		er := c.handleSolanaSwap(ctx, pol, cfg, fromAmountStr, fromAssetStr, toAssetStr, toAddressStr)
+		if er != nil {
+			return fmt.Errorf("failed to handle Solana swap: %w", er)
 		}
 		return nil
 	}
@@ -224,7 +237,7 @@ func (c *Consumer) xrpPubToAddress(rootPub string) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get XRP address: %w", err)
 	}
-	
+
 	return addr, childPub, nil
 }
 
@@ -284,6 +297,25 @@ func parseUint64(s string) (uint64, error) {
 	return strconv.ParseUint(s, 10, 64)
 }
 
+func (c *Consumer) solanaPubToAddress(rootPub string) (string, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, string(types.PluginVultisigDCA_0000)))
+	if err != nil {
+		return "", fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	addr, err := address.GetSolAddress(vlt.GetPublicKeyEddsa())
+	if err != nil {
+		return "", fmt.Errorf("failed to get Solana address: %w", err)
+	}
+
+	return addr, nil
+}
+
 func (c *Consumer) handleBtcSwap(
 	ctx context.Context,
 	pol *types.PluginPolicy,
@@ -336,6 +368,57 @@ func (c *Consumer) handleBtcSwap(
 	}
 
 	c.logger.WithField("txHash", txHash).Info("BTC swap executed successfully")
+	return nil
+}
+
+func (c *Consumer) handleSolanaSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	cfg map[string]any,
+	fromAmount, fromAsset, toAsset, toAddress string,
+) error {
+	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get Solana address from policy PublicKey: %w", err)
+	}
+
+	fromAmountTyped, ok := new(big.Int).SetString(fromAmount, 10)
+	if !ok {
+		return fmt.Errorf("failed to parse fromAmount: %s", fromAmount)
+	}
+
+	toChainTyped, err := getChainFromCfg(cfg, toChain)
+	if err != nil {
+		return fmt.Errorf("failed to get toChain: %w", err)
+	}
+
+	from := solana.From{
+		Amount:  fromAmountTyped,
+		AssetID: fromAsset,
+		Address: fromAddressTyped,
+	}
+
+	to := solana.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressTyped,
+		"fromAmount":  fromAmountTyped.String(),
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling Solana swap")
+
+	txHash, err := c.solana.Swap(ctx, *pol, from, to)
+	if err != nil {
+		return fmt.Errorf("failed to execute Solana swap: %w", err)
+	}
+
+	c.logger.WithField("txHash", txHash).Info("Solana swap executed successfully")
 	return nil
 }
 

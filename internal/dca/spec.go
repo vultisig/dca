@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kaptinlin/jsonschema"
+	"github.com/vultisig/dca/internal/util"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
@@ -101,7 +102,11 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	fromChainStr := cfg[fromChain].(string)
+	fromChainStr, ok := cfg[fromChain].(string)
+	if !ok {
+		return nil, fmt.Errorf("'fromChain' could not be empty")
+	}
+
 	fromChainTyped, err := common.FromString(fromChainStr)
 	if err != nil {
 		return nil, fmt.Errorf("unsupported chain: %s", fromChainStr)
@@ -135,7 +140,7 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	var maxTxsPerWindow uint32
 	switch {
 	case fromChainTyped == common.Solana:
-		maxTxsPerWindow = 3 // to fit ATA create + SPL token approve + Payload tx
+		maxTxsPerWindow = 8 // to fit ATA create + SPL token approve + Payload tx
 	case fromChainTyped == common.XRP:
 		maxTxsPerWindow = 1 // XRP doesn't need approvals, single tx for swaps
 	case fromChainTyped.IsEvm():
@@ -153,18 +158,28 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 
 func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chain) (*rtypes.Rule, error) {
 	fromChainLowercase := strings.ToLower(fromChainTyped.String())
-	toAddressStr := cfg[toAddress].(string)
-	fromAddressStr := cfg[fromAddress].(string)
-
-	var fromAssetStr string
-	if val, ok := cfg[fromAsset]; ok && val != nil {
-		fromAssetStr, _ = val.(string)
+	toAddressStr, ok := cfg[toAddress].(string)
+	if !ok {
+		return nil, fmt.Errorf("'toAddress' could not be empty")
 	}
 
-	var toAssetStr string
-	if val, ok := cfg[toAsset]; ok && val != nil {
-		toAssetStr, _ = val.(string)
+	fromAddressStr := util.GetStr(cfg, fromAddress)
+	if fromAddressStr == "" {
+		return nil, fmt.Errorf("'fromAddress' could not be empty")
 	}
+
+	fromAmountStr := util.GetStr(cfg, fromAmount)
+	if fromAmountStr == "" {
+		return nil, fmt.Errorf("'fromAmount' could not be empty")
+	}
+
+	toChainStr := util.GetStr(cfg, toChain)
+	if toChainStr == "" {
+		return nil, fmt.Errorf("'toChain' could not be empty")
+	}
+
+	fromAssetStr := util.GetStr(cfg, fromAsset)
+	toAssetStr := util.GetStr(cfg, toAsset)
 
 	return &rtypes.Rule{
 		Resource: fromChainLowercase + ".swap",
@@ -177,6 +192,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 					Value: &rtypes.Constraint_FixedValue{
 						FixedValue: fromAssetStr,
 					},
+					Required: true,
 				},
 			},
 			{
@@ -186,6 +202,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 					Value: &rtypes.Constraint_FixedValue{
 						FixedValue: fromAddressStr,
 					},
+					Required: true,
 				},
 			},
 			{
@@ -193,8 +210,9 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: cfg[fromAmount].(string),
+						FixedValue: fromAmountStr,
 					},
+					Required: true,
 				},
 			},
 			{
@@ -202,8 +220,9 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: strings.ToLower(cfg[toChain].(string)),
+						FixedValue: strings.ToLower(toChainStr),
 					},
+					Required: true,
 				},
 			},
 			{
@@ -213,6 +232,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 					Value: &rtypes.Constraint_FixedValue{
 						FixedValue: toAssetStr,
 					},
+					Required: true,
 				},
 			},
 			{
@@ -222,6 +242,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 					Value: &rtypes.Constraint_FixedValue{
 						FixedValue: toAddressStr,
 					},
+					Required: true,
 				},
 			},
 		},
@@ -325,12 +346,11 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 				FunctionId: "",
 				Full:       chainNameLower + ".swap",
 			},
-			Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
 			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
 				{
 					ParameterName:  "from_asset",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       true,
 				},
 				{
 					ParameterName:  "from_address",
@@ -350,7 +370,6 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 				{
 					ParameterName:  "to_asset",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       true,
 				},
 				{
 					ParameterName:  "to_address",

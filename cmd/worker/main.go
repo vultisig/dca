@@ -8,6 +8,7 @@ import (
 
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/ethereum/go-ethereum/ethclient"
+	solanarpc "github.com/gagliardetto/solana-go/rpc"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
@@ -17,6 +18,8 @@ import (
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
+	"github.com/vultisig/dca/internal/jupiter"
+	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/xrp"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
@@ -223,6 +226,24 @@ func main() {
 		xrpClient,
 	)
 
+	jup, err := jupiter.NewProvider(cfg.Solana.JupiterAPIURL, solanarpc.New(cfg.Rpc.Solana.URL))
+	if err != nil {
+		logger.Fatalf("failed to initialize Jupiter provider: %v", err)
+	}
+
+	solanaNetwork, err := solana.NewNetwork(
+		ctx,
+		cfg.Rpc.Solana.URL,
+		[]solana.Provider{
+			jup,
+		},
+		signer,
+		txIndexerService,
+	)
+	if err != nil {
+		logger.Fatalf("failed to initialize Solana network: %v", err)
+	}
+
 	dcaConsumer := dca.NewConsumer(
 		logger,
 		policyService,
@@ -234,6 +255,7 @@ func main() {
 			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signer, txIndexerService),
 			blockchairClient,
 		),
+		solanaNetwork,
 		xrpNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
@@ -267,6 +289,7 @@ type config struct {
 	ThorChain    thorChainConfig
 	BTC          btcConfig
 	XRP          xrpConfig
+	Solana       solanaConfig
 	DataDog      dataDog
 	HealthPort   int
 }
@@ -286,6 +309,7 @@ type rpc struct {
 	Polygon   rpcItem
 	BTC       rpcItem
 	XRP       rpcItem
+	Solana    rpcItem
 }
 
 type rpcItem struct {
@@ -298,6 +322,10 @@ type btcConfig struct {
 
 type xrpConfig struct {
 	RPC string
+}
+
+type solanaConfig struct {
+	JupiterAPIURL string
 }
 
 type dataDog struct {
