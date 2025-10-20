@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/btcsuite/btcd/rpcclient"
-	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,7 +18,6 @@ import (
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/thorchain"
-	"github.com/vultisig/dca/internal/uniswap"
 	"github.com/vultisig/dca/internal/xrp"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
@@ -158,18 +156,17 @@ func main() {
 	thorchainClient := thorchain.NewClient(cfg.ThorChain.URL)
 
 	networkConfigs := []struct {
-		chain      common.Chain
-		rpcURL     string
-		routerAddr string
+		chain  common.Chain
+		rpcURL string
 	}{
-		{common.Ethereum, cfg.Rpc.Ethereum.URL, cfg.Uniswap.RouterV2.Ethereum},
-		{common.Arbitrum, cfg.Rpc.Arbitrum.URL, cfg.Uniswap.RouterV2.Arbitrum},
-		{common.Avalanche, cfg.Rpc.Avalanche.URL, cfg.Uniswap.RouterV2.Avalanche},
-		{common.BscChain, cfg.Rpc.BSC.URL, cfg.Uniswap.RouterV2.BSC},
-		{common.Base, cfg.Rpc.Base.URL, cfg.Uniswap.RouterV2.Base},
-		{common.Blast, cfg.Rpc.Blast.URL, cfg.Uniswap.RouterV2.Blast},
-		{common.Optimism, cfg.Rpc.Optimism.URL, cfg.Uniswap.RouterV2.Optimism},
-		{common.Polygon, cfg.Rpc.Polygon.URL, cfg.Uniswap.RouterV2.Polygon},
+		{common.Ethereum, cfg.Rpc.Ethereum.URL},
+		{common.Arbitrum, cfg.Rpc.Arbitrum.URL},
+		{common.Avalanche, cfg.Rpc.Avalanche.URL},
+		{common.BscChain, cfg.Rpc.BSC.URL},
+		{common.Base, cfg.Rpc.Base.URL},
+		{common.Blast, cfg.Rpc.Blast.URL},
+		{common.Optimism, cfg.Rpc.Optimism.URL},
+		{common.Polygon, cfg.Rpc.Polygon.URL},
 	}
 
 	for _, c := range networkConfigs {
@@ -189,11 +186,6 @@ func main() {
 			c.chain,
 			c.rpcURL,
 			[]evm.Provider{
-				uniswap.NewProviderV2(
-					evmRpc,
-					evmSdk,
-					ecommon.HexToAddress(c.routerAddr),
-				),
 				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
 			},
 			signer,
@@ -272,7 +264,6 @@ type config struct {
 	Redis        plugin_config.Redis
 	Verifier     plugin_config.Verifier
 	Rpc          rpc
-	Uniswap      uniswapConfig
 	ThorChain    thorChainConfig
 	BTC          btcConfig
 	XRP          xrpConfig
@@ -280,23 +271,8 @@ type config struct {
 	HealthPort   int
 }
 
-type uniswapConfig struct {
-	RouterV2 router
-}
-
 type thorChainConfig struct {
 	URL string
-}
-
-type router struct {
-	Ethereum  string
-	Arbitrum  string
-	Avalanche string
-	BSC       string
-	Base      string
-	Blast     string
-	Optimism  string
-	Polygon   string
 }
 
 type rpc struct {

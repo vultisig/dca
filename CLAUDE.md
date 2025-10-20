@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a DCA (Dollar Cost Averaging) plugin for the Vultisig ecosystem that enables automated, recurring cryptocurrency swaps across multiple EVM chains using Uniswap V2. The plugin operates as part of a larger policy-based transaction verification system, supporting 8 EVM networks with official Uniswap V2 deployments.
+This is a DCA (Dollar Cost Averaging) plugin for the Vultisig ecosystem that enables automated, recurring cryptocurrency swaps across multiple chains. The plugin operates as part of a larger policy-based transaction verification system.
+
+**Note**: Uniswap V2 support has been removed. The plugin is being migrated to use 1inch as the DEX aggregator for EVM networks.
 
 ## Architecture
 
@@ -21,7 +23,6 @@ The system consists of four main services that can be run independently:
 
 - **`internal/dca/`** - Core DCA logic including policy specs, scheduling, and transaction consumption
 - **`internal/evm/`** - EVM blockchain abstraction layer with network management and approval services
-- **`internal/uniswap/`** - Uniswap V2 integration for DEX swapping functionality
 - **`internal/graceful/`** - Graceful shutdown handling
 
 ### Plugin System Integration
@@ -29,7 +30,7 @@ The system consists of four main services that can be run independently:
 The DCA plugin integrates with the Vultisig verifier system through:
 - **Policy specifications** (`spec.go`) - Defines supported operations, parameters, and constraints
 - **Recipe configuration** - JSON schema validation for DCA parameters
-- **Rule generation** - Creates policy rules for Uniswap V2 operations (swapExactTokensForTokens, swapExactETHForTokens, etc.)
+- **Rule generation** - Creates policy rules for swap operations
 
 ## Dependencies
 
@@ -50,9 +51,8 @@ The DCA plugin integrates with the Vultisig verifier system through:
 All services use environment-based configuration. Key configuration areas:
 
 - **Database**: PostgreSQL connection settings
-- **Redis**: Task queue and caching configuration  
-- **Blockchain RPCs**: Multi-chain EVM node endpoints (publicnode.com)
-- **Uniswap**: Official Uniswap V2 router contract addresses for all supported chains
+- **Redis**: Task queue and caching configuration
+- **Blockchain RPCs**: Multi-chain node endpoints (publicnode.com)
 - **Vault**: Block storage and key management settings
 - **DataDog**: Metrics and monitoring integration
 
@@ -60,18 +60,10 @@ All services use environment-based configuration. Key configuration areas:
 
 1. **Policy Creation** - User configures DCA parameters (frequency, assets, amounts)
 2. **Recipe Validation** - System validates configuration against JSON schema
-3. **Rule Generation** - Creates Uniswap V2 operation rules with parameter constraints
+3. **Rule Generation** - Creates swap operation rules with parameter constraints
 4. **Scheduling** - Scheduler queues transactions based on frequency settings, respecting endDate constraints
 5. **Execution** - Worker processes queued tasks, handling approvals and swaps
 6. **Key Signing** - Integrates with Vultisig's distributed key signing system
-
-### Supported Operations
-
-The plugin generates rules for these Uniswap V2 operations:
-- `swapExactTokensForTokens` - ERC20 to ERC20 swaps
-- `swapExactETHForTokens` - ETH to ERC20 swaps  
-- `swapExactTokensForETH` - ERC20 to ETH swaps
-- ERC20 `approve` operations for token allowances
 
 ### Frequency Options
 
@@ -109,7 +101,6 @@ go test ./...
 
 # Run specific package tests
 go test ./internal/dca/
-go test ./internal/uniswap/
 ```
 
 ### Development Setup
@@ -123,9 +114,8 @@ go test ./internal/uniswap/
 
 ### Transaction Building
 
-- Uniswap V2 integration calculates optimal swap amounts and handles slippage (configured via `slippageBips`)
 - Automatic approval checking and transaction building for ERC20 tokens
-- Deadline management for time-sensitive DEX operations
+- Integration with swap providers (currently being migrated to 1inch for EVM chains)
 
 ### Key Management
 
@@ -147,16 +137,22 @@ go test ./internal/uniswap/
 
 ## Chain Support
 
-Currently supports **8 EVM chains** with official Uniswap V2 deployments:
+The plugin supports multiple chains across different blockchain ecosystems:
 
-- **Ethereum** (`0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D`)
-- **Arbitrum** (`0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24`)
-- **Avalanche** (`0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24`) 
-- **BNB Chain** (`0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24`)
-- **Base** (`0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24`)
-- **Blast** (`0xBB66Eb1c5e875933D44DAe661dbD80e5D9B03035`)
-- **Optimism** (`0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2`)
-- **Polygon** (`0xedf6066a2b290C185783862C7F4776A2C8077AD1`)
+### EVM Chains
+- **Ethereum**
+- **Arbitrum**
+- **Avalanche**
+- **BNB Chain**
+- **Base**
+- **Blast**
+- **Optimism**
+- **Polygon**
+
+### Other Chains
+- **Bitcoin**
+- **Solana**
+- **XRP**
 
 The system uses the Vultisig recipes framework for blockchain abstractions and dynamically generates policy rules for all supported chains.
 
@@ -166,10 +162,10 @@ The system uses the Vultisig recipes framework for blockchain abstractions and d
 
 The DCA plugin has been architected for seamless multi-chain expansion:
 
-- **Dynamic Policy Generation**: The `spec.go` file automatically generates resource patterns and policy rules for all EVM chains
-- **Chain-Agnostic Resource Paths**: Resource paths are dynamically constructed using chain names (e.g., `ethereum.uniswapV2_router.swapExactTokensForTokens`, `arbitrum.uniswapV2_router.swapExactTokensForTokens`)  
+- **Dynamic Policy Generation**: The `spec.go` file automatically generates resource patterns and policy rules for all supported chains
+- **Chain-Agnostic Resource Paths**: Resource paths are dynamically constructed using chain names (e.g., `ethereum.swap`, `arbitrum.swap`)
 - **Unified Configuration**: Single configuration structure supports all chains with consistent environment variable patterns
-- **Network Initialization**: Worker service automatically initializes EVM networks for all configured chains with appropriate RPC endpoints and router addresses
+- **Network Initialization**: Worker service automatically initializes networks for all configured chains with appropriate RPC endpoints
 
 ### Configuration Patterns
 
@@ -179,14 +175,11 @@ All chain-specific configurations follow consistent patterns:
 # RPC Endpoints
 RPC_{CHAIN}_URL="https://{chain}-rpc.publicnode.com"
 
-# Uniswap V2 Routers (official addresses)
-UNISWAP_ROUTERV2_{CHAIN}="0x{official_router_address}"
-
 # TX Indexer RPCs
 BASE_RPC_{CHAIN}_URL="https://{chain}-rpc.publicnode.com"
 ```
 
-This design allows for easy addition of new EVM chains by simply adding their configuration without code changes.
+This design allows for easy addition of new chains by simply adding their configuration without code changes.
 
 ## Monitoring and Observability
 
@@ -198,11 +191,16 @@ This design allows for easy addition of new EVM chains by simply adding their co
 
 ## Recent Improvements
 
-### Multi-Chain Expansion (Latest)
+### Migration to 1inch (Latest)
 
-- **Expanded from Ethereum-only to 8 EVM chains** with official Uniswap V2 support
-- **Updated all router addresses** to use official Uniswap V2 deployment addresses
-- **Removed unsupported chains** (CronosChain, Zksync) that lack official Uniswap V2 deployments
+- **Removed Uniswap V2 support** - Preparing for migration to 1inch as the DEX aggregator for EVM chains
+- **Cleaned up configuration** - Removed all Uniswap-specific router addresses and environment variables
+- **Simplified EVM network initialization** - Removed provider-specific dependencies from network setup
+- **Updated documentation** - Removed all Uniswap references from docs and configuration files
+
+### Previous Updates
+
+- **Multi-chain expansion** - Expanded from Ethereum-only to 8 EVM chains plus Bitcoin, Solana, and XRP
 - **Dynamic spec generation** for automatic policy rule creation across all chains
 - **Unified configuration patterns** for consistent multi-chain management
 - **Enhanced scheduler with endDate support** - automatically stops scheduling when policies expire
@@ -228,7 +226,7 @@ When working with this codebase:
 
 1. **Chain Support**: Always consider multi-chain implications when making changes
 2. **Configuration**: Follow the established `{SERVICE}_{CHAIN}_{CONFIG}` environment variable pattern
-3. **Resource Paths**: Use lowercase chain names for resource path construction
-4. **Router Addresses**: Only use official Uniswap V2 router addresses from [Uniswap docs](https://docs.uniswap.org/contracts/v2/reference/smart-contracts/v2-deployments)
-5. **Testing**: Ensure all changes work across supported EVM chains
-6. **Error Handling**: Include chain identification in error messages and logs
+3. **Resource Paths**: Use lowercase chain names for resource path construction (e.g., `ethereum.swap`, `arbitrum.swap`)
+4. **Testing**: Ensure all changes work across supported chains
+5. **Error Handling**: Include chain identification in error messages and logs
+6. **Provider Integration**: When adding new swap providers (like 1inch), ensure they integrate cleanly with the existing EVM provider abstraction
