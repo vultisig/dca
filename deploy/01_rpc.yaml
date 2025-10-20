@@ -13,3 +13,4 @@ data:
   blast: "https://blast-rpc.publicnode.com"
   optimism: "https://optimism-rpc.publicnode.com"
   polygon: "https://polygon-bor-rpc.publicnode.com"
+  solana: "https://solana-rpc.publicnode.com"

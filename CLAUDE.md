@@ -21,7 +21,11 @@ The system consists of four main services that can be run independently:
 
 - **`internal/dca/`** - Core DCA logic including policy specs, scheduling, and transaction consumption
 - **`internal/evm/`** - EVM blockchain abstraction layer with network management and approval services
-- **`internal/uniswap/`** - Uniswap V2 integration for DEX swapping functionality
+- **`internal/btc/`** - Bitcoin network integration with PSBT support
+- **`internal/solana/`** - Solana blockchain integration with token account management
+- **`internal/uniswap/`** - Uniswap V2 integration for EVM-based DEX swapping
+- **`internal/thorchain/`** - THORChain integration for cross-chain swaps (BTC, EVM)
+- **`internal/jupiter/`** - Jupiter DEX aggregator integration for Solana swaps
 - **`internal/graceful/`** - Graceful shutdown handling
 
 ### Plugin System Integration
@@ -45,6 +49,10 @@ The DCA plugin integrates with the Vultisig verifier system through:
 - `github.com/vultisig/verifier` - Policy verification and plugin framework
 - `github.com/vultisig/go-wrappers` - Native cryptographic library wrappers (DKLS)
 
+### Blockchain Dependencies
+- `github.com/gagliardetto/solana-go` - Solana blockchain SDK
+- `github.com/btcsuite/btcd` - Bitcoin protocol implementation
+
 ## Configuration
 
 All services use environment-based configuration. Key configuration areas:
@@ -67,11 +75,20 @@ All services use environment-based configuration. Key configuration areas:
 
 ### Supported Operations
 
+#### EVM (Uniswap V2)
 The plugin generates rules for these Uniswap V2 operations:
 - `swapExactTokensForTokens` - ERC20 to ERC20 swaps
-- `swapExactETHForTokens` - ETH to ERC20 swaps  
+- `swapExactETHForTokens` - ETH to ERC20 swaps
 - `swapExactTokensForETH` - ERC20 to ETH swaps
 - ERC20 `approve` operations for token allowances
+
+#### Solana (Jupiter)
+The Jupiter integration supports:
+- `route` - Standard swap instruction for simple token swaps
+- `shared_accounts_route` - Optimized instruction using program-owned accounts for complex multi-hop swaps
+- SPL Token operations: `approve`, `syncNative`, `closeAccount`
+- Associated Token Account creation for source and destination tokens
+- Automatic wSOL wrapping/unwrapping for native SOL swaps
 
 ### Frequency Options
 
@@ -145,6 +162,49 @@ go test ./internal/uniswap/
 - Graceful degradation and retry mechanisms through asynq
 - Detailed logging with structured formats
 
+### Solana-Specific Implementation
+
+#### Jupiter Integration
+- **API**: Uses Jupiter v6 Swap API (`/swap/v1/quote` and `/swap/v1/swap-instructions`)
+- **Shared Accounts**: Enabled `UseSharedAccounts: true` to use program-owned intermediate accounts
+- **Dynamic Compute**: Enabled `dynamicComputeUnitLimit: true` for optimized transaction fees
+- **Instruction Separation**: Each instruction executes in its own transaction (required by policy system)
+
+#### wSOL Handling
+- **Pre-Swap Check**: Before setup, checks wSOL Associated Token Account balance
+- **Automatic Unwrap**: If wSOL balance > 0, closes account to recover lamports
+- **Error Resilience**: Handles non-existent accounts gracefully (returns 0 balance)
+- **Native SOL Swaps**: Automatically wraps SOL → wSOL in setup, unwraps wSOL → SOL in cleanup
+
+#### Ephemeral Signers
+- **Detection**: Counts required signers from instruction account metadata
+- **Generation**: Creates ephemeral keypairs for signers beyond fee payer
+- **Signing**: Applies ephemeral signatures before transaction serialization
+- **Use Case**: Required for complex multi-hop swaps with intermediate accounts
+
+#### Transaction Phases
+1. **Pre-Swap wSOL Cleanup** (if needed):
+   - Get wSOL ATA address
+   - Check balance
+   - Close account if balance > 0
+   - Wait for confirmation
+
+2. **Setup Transactions** (if needed):
+   - Create source ATA (if doesn't exist)
+   - Transfer SOL to wSOL ATA (for native SOL swaps)
+   - Sync native balance
+   - Each instruction in separate transaction
+
+3. **Swap Transaction**:
+   - Single swap instruction (`route` or `shared_accounts_route`)
+   - With ephemeral signers if required
+   - Wait for confirmation
+
+4. **Cleanup Transactions** (if needed):
+   - Close wSOL account (unwrap to native SOL)
+   - Separate transaction
+   - Wait for confirmation
+
 ## Chain Support
 
 Currently supports **8 EVM chains** with official Uniswap V2 deployments:
@@ -198,7 +258,25 @@ This design allows for easy addition of new EVM chains by simply adding their co
 
 ## Recent Improvements
 
-### Multi-Chain Expansion (Latest)
+### Solana Integration Enhancements (Latest)
+
+- **Jupiter Integration**: Added support for Jupiter DEX aggregator with shared_accounts_route and ephemeral signers
+- **Automatic wSOL Unwrapping**: Before swap execution, checks for existing wSOL balance and unwraps to native SOL
+- **Single Instruction Transactions**: All instructions execute in separate transactions (setup → swap → cleanup)
+- **Cleanup Transaction Handling**: Post-swap cleanup instructions (wSOL unwrapping) execute as separate transactions
+- **Ephemeral Signer Support**: Automatically detects and handles ephemeral signers for complex multi-hop swaps
+- **Robust Error Handling**: Gracefully handles non-existent token accounts and closed wSOL accounts
+- **Dynamic Compute Units**: Enabled `dynamicComputeUnitLimit` for optimized transaction prioritization
+
+#### Transaction Flow
+
+1. **Pre-Swap wSOL Check**: Checks wSOL ATA balance and closes account if balance > 0
+2. **Setup Phase**: Each setup instruction executes in separate transaction (ATA creation, SOL wrapping)
+3. **Swap Execution**: Single swap instruction transaction with ephemeral signers if needed
+4. **Cleanup Phase**: Cleanup instruction (wSOL unwrapping) executes in separate transaction
+5. **Confirmation**: Each transaction waits for confirmation before proceeding
+
+### Multi-Chain Expansion
 
 - **Expanded from Ethereum-only to 8 EVM chains** with official Uniswap V2 support
 - **Updated all router addresses** to use official Uniswap V2 deployment addresses

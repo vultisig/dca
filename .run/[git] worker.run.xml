@@ -3,45 +3,49 @@
     <module name="dca" />
     <working_directory value="$PROJECT_DIR$" />
     <envs>
-      <env name="VAULTSERVICE_RELAY_SERVER" value="https://api.vultisig.com/router" />
-      <env name="VAULTSERVICE_LOCALPARTYPREFIX" value="vultisig-dca-0000" />
-      <env name="VAULTSERVICE_ENCRYPTIONSECRET" value="test123" />
-      <env name="VAULTSERVICE_DOSETUPMSG" value="true" />
+      <env name="BLOCKSTORAGE_ACCESSKEY" value="minioadmin" />
+      <env name="BLOCKSTORAGE_BUCKET" value="vultisig-dca" />
       <env name="BLOCKSTORAGE_HOST" value="http://localhost:9100" />
       <env name="BLOCKSTORAGE_REGION" value="us-east-1" />
-      <env name="BLOCKSTORAGE_ACCESSKEY" value="minioadmin" />
       <env name="BLOCKSTORAGE_SECRETKEY" value="minioadmin" />
-      <env name="BLOCKSTORAGE_BUCKET" value="vultisig-dca" />
-      <env name="POSTGRES_DSN" value="postgres://myuser:mypassword@localhost:5431/dca?sslmode=disable" />
-      <env name="REDIS_HOST" value="localhost" />
-      <env name="REDIS_PORT" value="6378" />
-      <env name="REDIS_PASSWORD" value="password" />
-      <env name="VERIFIER_URL" value="http://localhost:8080" />
-      <env name="VERIFIER_TOKEN" value="localhost-apikey-dca" />
-      <env name="VERIFIER_PARTYPREFIX" value="verifier" />
-      <env name="RPC_ETHEREUM_URL" value="https://ethereum-rpc.publicnode.com" />
-      <env name="RPC_ARBITRUM_URL" value="https://arbitrum-rpc.publicnode.com" />
-      <env name="RPC_AVALANCHE_URL" value="https://avalanche-c-chain-rpc.publicnode.com" />
-      <env name="RPC_BSC_URL" value="https://bsc-rpc.publicnode.com" />
-      <env name="RPC_BASE_URL" value="https://base-rpc.publicnode.com" />
-      <env name="RPC_BLAST_URL" value="https://blast-rpc.publicnode.com" />
-      <env name="RPC_OPTIMISM_URL" value="https://optimism-rpc.publicnode.com" />
-      <env name="RPC_POLYGON_URL" value="https://polygon-bor-rpc.publicnode.com" />
-      <env name="RPC_BTC_URL" value="bitcoin-rpc.publicnode.com" />
-      <env name="RPC_XRP_URL" value="https://xrplcluster.com" />
-      <env name="THORCHAIN_URL" value="https://thornode.ninerealms.com" />
       <env name="BTC_BLOCKCHAIRURL" value="https://api.vultisig.com/blockchair" />
-      <env name="UNISWAP_ROUTERV2_ETHEREUM" value="0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D" />
-      <env name="UNISWAP_ROUTERV2_ARBITRUM" value="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24" />
-      <env name="UNISWAP_ROUTERV2_AVALANCHE" value="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24" />
-      <env name="UNISWAP_ROUTERV2_BSC" value="0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24" />
-      <env name="UNISWAP_ROUTERV2_BASE" value="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24" />
-      <env name="UNISWAP_ROUTERV2_BLAST" value="0xBB66Eb1c5e875933D44DAe661dbD80e5D9B03035" />
-      <env name="UNISWAP_ROUTERV2_OPTIMISM" value="0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2" />
-      <env name="UNISWAP_ROUTERV2_POLYGON" value="0xedf6066a2b290C185783862C7F4776A2C8077AD1" />
       <env name="DATADOG_HOST" value="localhost" />
       <env name="DATADOG_PORT" value="8125" />
+      <env name="GOARCH" value="arm64" />
+      <env name="GOOS" value="darwin" />
       <env name="HEALTHPORT" value="8184" />
+      <env name="POSTGRES_DSN" value="postgres://myuser:mypassword@localhost:5431/dca?sslmode=disable" />
+      <env name="REDIS_HOST" value="localhost" />
+      <env name="REDIS_PASSWORD" value="password" />
+      <env name="REDIS_PORT" value="6378" />
+      <env name="RPC_ARBITRUM_URL" value="https://arbitrum-rpc.publicnode.com" />
+      <env name="RPC_AVALANCHE_URL" value="https://avalanche-c-chain-rpc.publicnode.com" />
+      <env name="RPC_BASE_URL" value="https://base-rpc.publicnode.com" />
+      <env name="RPC_BLAST_URL" value="https://blast-rpc.publicnode.com" />
+      <env name="RPC_BSC_URL" value="https://bsc-rpc.publicnode.com" />
+      <env name="RPC_BTC_URL" value="bitcoin-rpc.publicnode.com" />
+      <env name="RPC_ETHEREUM_URL" value="https://ethereum-rpc.publicnode.com" />
+      <env name="RPC_OPTIMISM_URL" value="https://optimism-rpc.publicnode.com" />
+      <env name="RPC_POLYGON_URL" value="https://polygon-bor-rpc.publicnode.com" />
+      <env name="RPC_SOLANA_URL" value="https://solana-rpc.publicnode.com" />
+      <env name="SOLANA_JUPITERAPIURL" value="https://api.vultisig.com/jup" />
+      <env name="RPC_XRP_URL" value="https://xrplcluster.com" />
+      <env name="THORCHAIN_URL" value="https://thornode.ninerealms.com" />
+      <env name="UNISWAP_ROUTERV2_ARBITRUM" value="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24" />
+      <env name="UNISWAP_ROUTERV2_AVALANCHE" value="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24" />
+      <env name="UNISWAP_ROUTERV2_BASE" value="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24" />
+      <env name="UNISWAP_ROUTERV2_BLAST" value="0xBB66Eb1c5e875933D44DAe661dbD80e5D9B03035" />
+      <env name="UNISWAP_ROUTERV2_BSC" value="0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24" />
+      <env name="UNISWAP_ROUTERV2_ETHEREUM" value="0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D" />
+      <env name="UNISWAP_ROUTERV2_OPTIMISM" value="0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2" />
+      <env name="UNISWAP_ROUTERV2_POLYGON" value="0xedf6066a2b290C185783862C7F4776A2C8077AD1" />
+      <env name="VAULTSERVICE_DOSETUPMSG" value="true" />
+      <env name="VAULTSERVICE_ENCRYPTIONSECRET" value="test123" />
+      <env name="VAULTSERVICE_LOCALPARTYPREFIX" value="vultisig-dca-0000" />
+      <env name="VAULTSERVICE_RELAY_SERVER" value="https://api.vultisig.com/router" />
+      <env name="VERIFIER_PARTYPREFIX" value="verifier" />
+      <env name="VERIFIER_TOKEN" value="localhost-apikey-dca" />
+      <env name="VERIFIER_URL" value="http://localhost:8080" />
     </envs>
     <kind value="FILE" />
     <package value="github.com/vultisig/dca/cmd/worker" />
