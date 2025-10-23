@@ -221,5 +221,3 @@ replace (
 	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
 	nhooyr.io/websocket => github.com/coder/websocket v1.8.6
 )
-
-replace github.com/vultisig/recipes => /Users/daveryanov/go/src/github.com/vultisig/recipes
