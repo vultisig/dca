@@ -106,7 +106,10 @@ spec:
                   name: rpc
                   key: xrp
             - name: ONEINCH_BASEURL
-              value: "https://api.vultisig.com/1inch"
+              valueFrom:
+                configMapKeyRef:
+                  name: oneinch
+                  key: base-url
             - name: RPC_SOLANA_URL
               valueFrom:
                 configMapKeyRef:

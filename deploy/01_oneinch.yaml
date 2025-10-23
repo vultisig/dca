@@ -3,12 +3,4 @@ kind: ConfigMap
 metadata:
   name: oneinch
 data:
-  base-url: "https://api.1inch.dev"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: oneinch
-type: Opaque
-stringData:
-  api-key: "your-1inch-api-key-here"
+  base-url: "https://api.vultisig.com/1inch"
