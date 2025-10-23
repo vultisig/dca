@@ -18,9 +18,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/evm"
-	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/util"
+	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/policy"
@@ -88,22 +88,36 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("failed to get fromAmount: %w", err)
 	}
 
-	// optional fields
-	fromAssetStr := util.GetStr(cfg, fromAsset)
-	toAssetStr := util.GetStr(cfg, toAsset)
-
-	toAddressStr, ok := cfg[toAddress].(string)
+	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
 	if !ok {
-		return fmt.Errorf("failed to get toAddress: %w", err)
+		return fmt.Errorf("'fromAsset' must be an object")
 	}
 
-	fromChainTyped, err := getChainFromCfg(cfg, fromChain)
+	toAssetMap, ok := cfg[toAsset].(map[string]any)
+	if !ok {
+		return fmt.Errorf("'toAsset' must be an object")
+	}
+
+	fromAssetTokenStr := util.GetStr(fromAssetMap, "token")
+	toAssetTokenStr := util.GetStr(toAssetMap, "token")
+
+	toAddressStr, ok := toAssetMap["address"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.address")
+	}
+
+	fromChainStr, ok := fromAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get fromAsset.chain")
+	}
+
+	fromChainTyped, err := common.FromString(fromChainStr)
 	if err != nil {
-		return fmt.Errorf("failed to get fromChain: %w", err)
+		return fmt.Errorf("failed to parse fromAsset.chain: %w", err)
 	}
 
 	if fromChainTyped == common.Bitcoin {
-		er := c.handleBtcSwap(ctx, pol, cfg, fromAmountStr, toAssetStr, toAddressStr)
+		er := c.handleBtcSwap(ctx, pol, toAssetMap, fromAmountStr, toAssetTokenStr, toAddressStr)
 		if er != nil {
 			return fmt.Errorf("failed to handle BTC swap: %w", er)
 		}
@@ -111,7 +125,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	if fromChainTyped == common.XRP {
-		er := c.handleXrpSwap(ctx, pol, cfg, fromAmountStr, toAssetStr, toAddressStr)
+		er := c.handleXrpSwap(ctx, pol, toAssetMap, fromAmountStr, toAssetTokenStr, toAddressStr)
 		if er != nil {
 			return fmt.Errorf("failed to handle XRP swap: %w", er)
 		}
@@ -119,7 +133,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	if fromChainTyped == common.Solana {
-		er := c.handleSolanaSwap(ctx, pol, cfg, fromAmountStr, fromAssetStr, toAssetStr, toAddressStr)
+		er := c.handleSolanaSwap(ctx, pol, toAssetMap, fromAmountStr, fromAssetTokenStr, toAssetTokenStr, toAddressStr)
 		if er != nil {
 			return fmt.Errorf("failed to handle Solana swap: %w", er)
 		}
@@ -131,11 +145,11 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		pol,
 		recipe,
 		trigger,
-		cfg,
+		toAssetMap,
 		fromChainTyped,
-		fromAssetStr,
+		fromAssetTokenStr,
 		fromAmountStr,
-		toAssetStr,
+		toAssetTokenStr,
 		toAddressStr,
 	)
 	if err != nil {
@@ -244,7 +258,7 @@ func (c *Consumer) xrpPubToAddress(rootPub string) (string, string, error) {
 func (c *Consumer) handleXrpSwap(
 	ctx context.Context,
 	pol *types.PluginPolicy,
-	cfg map[string]any,
+	toAssetMap map[string]any,
 	fromAmount, toAsset, toAddress string,
 ) error {
 	fromAddressStr, childPubKey, err := c.xrpPubToAddress(pol.PublicKey)
@@ -257,9 +271,14 @@ func (c *Consumer) handleXrpSwap(
 		return fmt.Errorf("failed to parse fromAmount: %w", err)
 	}
 
-	toChainTyped, err := getChainFromCfg(cfg, toChain)
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
 	if err != nil {
-		return fmt.Errorf("failed to get toChain: %w", err)
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
 	}
 
 	from := xrp.From{
@@ -319,7 +338,7 @@ func (c *Consumer) solanaPubToAddress(rootPub string) (string, error) {
 func (c *Consumer) handleBtcSwap(
 	ctx context.Context,
 	pol *types.PluginPolicy,
-	cfg map[string]any,
+	toAssetMap map[string]any,
 	fromAmount, toAsset, toAddress string,
 ) error {
 	fromAddressTyped, childPub, err := c.btcPubToAddress(pol.PublicKey)
@@ -336,9 +355,14 @@ func (c *Consumer) handleBtcSwap(
 	}
 	fromAmountSats := fromAmountInt.Uint64()
 
-	toChainTyped, err := getChainFromCfg(cfg, toChain)
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
 	if err != nil {
-		return fmt.Errorf("failed to get toChain: %w", err)
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
 	}
 
 	from := btc.From{
@@ -374,7 +398,7 @@ func (c *Consumer) handleBtcSwap(
 func (c *Consumer) handleSolanaSwap(
 	ctx context.Context,
 	pol *types.PluginPolicy,
-	cfg map[string]any,
+	toAssetMap map[string]any,
 	fromAmount, fromAsset, toAsset, toAddress string,
 ) error {
 	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey)
@@ -387,9 +411,14 @@ func (c *Consumer) handleSolanaSwap(
 		return fmt.Errorf("failed to parse fromAmount: %s", fromAmount)
 	}
 
-	toChainTyped, err := getChainFromCfg(cfg, toChain)
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
 	if err != nil {
-		return fmt.Errorf("failed to get toChain: %w", err)
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
 	}
 
 	from := solana.From{
@@ -427,7 +456,7 @@ func (c *Consumer) handleEvmSwap(
 	pol *types.PluginPolicy,
 	recipe *rtypes.Policy,
 	trigger scheduler.Scheduler,
-	cfg map[string]any,
+	toAssetMap map[string]any,
 	fromChain common.Chain,
 	fromAsset, fromAmount, toAsset, toAddress string,
 ) error {
@@ -441,9 +470,14 @@ func (c *Consumer) handleEvmSwap(
 		return fmt.Errorf("failed to parse fromAmountStr: %w", err)
 	}
 
-	toChainTyped, err := getChainFromCfg(cfg, toChain)
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
 	if err != nil {
-		return fmt.Errorf("failed to get toChain: %w", err)
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
 	}
 
 	network, err := c.evm.Get(fromChain)

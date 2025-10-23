@@ -7,6 +7,7 @@ import (
 
 	"github.com/kaptinlin/jsonschema"
 	"github.com/vultisig/dca/internal/util"
+	rjsonschema "github.com/vultisig/recipes/jsonschema"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
@@ -102,9 +103,14 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	fromChainStr, ok := cfg[fromChain].(string)
+	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("'fromChain' could not be empty")
+		return nil, fmt.Errorf("'fromAsset' must be an object")
+	}
+
+	fromChainStr, ok := fromAssetMap["chain"].(string)
+	if !ok {
+		return nil, fmt.Errorf("'fromAsset.chain' could not be empty")
 	}
 
 	fromChainTyped, err := common.FromString(fromChainStr)
@@ -158,14 +164,30 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 
 func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chain) (*rtypes.Rule, error) {
 	fromChainLowercase := strings.ToLower(fromChainTyped.String())
-	toAddressStr, ok := cfg[toAddress].(string)
+
+	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("'toAddress' could not be empty")
+		return nil, fmt.Errorf("'fromAsset' must be an object")
 	}
 
-	fromAddressStr := util.GetStr(cfg, fromAddress)
-	if fromAddressStr == "" {
-		return nil, fmt.Errorf("'fromAddress' could not be empty")
+	toAssetMap, ok := cfg[toAsset].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'toAsset' must be an object")
+	}
+
+	fromAddressStr, ok := fromAssetMap["address"].(string)
+	if !ok || fromAddressStr == "" {
+		return nil, fmt.Errorf("'fromAsset.address' could not be empty")
+	}
+
+	toAddressStr, ok := toAssetMap["address"].(string)
+	if !ok || toAddressStr == "" {
+		return nil, fmt.Errorf("'toAsset.address' could not be empty")
+	}
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok || toChainStr == "" {
+		return nil, fmt.Errorf("'toAsset.chain' could not be empty")
 	}
 
 	fromAmountStr := util.GetStr(cfg, fromAmount)
@@ -173,13 +195,8 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 		return nil, fmt.Errorf("'fromAmount' could not be empty")
 	}
 
-	toChainStr := util.GetStr(cfg, toChain)
-	if toChainStr == "" {
-		return nil, fmt.Errorf("'toChain' could not be empty")
-	}
-
-	fromAssetStr := util.GetStr(cfg, fromAsset)
-	toAssetStr := util.GetStr(cfg, toAsset)
+	fromAssetTokenStr := util.GetStr(fromAssetMap, "token")
+	toAssetTokenStr := util.GetStr(toAssetMap, "token")
 
 	return &rtypes.Rule{
 		Resource: fromChainLowercase + ".swap",
@@ -190,7 +207,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: fromAssetStr,
+						FixedValue: fromAssetTokenStr,
 					},
 					Required: true,
 				},
@@ -230,7 +247,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: toAssetStr,
+						FixedValue: toAssetTokenStr,
 					},
 					Required: true,
 				},
@@ -259,30 +276,19 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		chains = append(chains, chain.String())
 	}
 
+	asset := rjsonschema.NewAsset()
+
 	cfg, err := plugin.RecipeConfiguration(map[string]any{
-		"type": "object",
+		"type":        "object",
+		"definitions": rjsonschema.Definitions(),
 		"properties": map[string]any{
-			fromChain: map[string]any{
-				"type": "string",
-				"enum": chains,
-			},
 			fromAsset: map[string]any{
-				"type": "string",
-			},
-			fromAmount: map[string]any{
-				"type": "string",
-			},
-			fromAddress: map[string]any{
-				"type": "string",
-			},
-			toChain: map[string]any{
-				"type": "string",
-				"enum": chains,
+				"$ref": "#/definitions/" + asset.Name(),
 			},
 			toAsset: map[string]any{
-				"type": "string",
+				"$ref": "#/definitions/" + asset.Name(),
 			},
-			toAddress: map[string]any{
+			fromAmount: map[string]any{
 				"type": "string",
 			},
 			endDate: map[string]any{
@@ -303,11 +309,9 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		},
 		"required": []any{
 			frequency,
-			fromChain,
+			fromAsset,
+			toAsset,
 			fromAmount,
-			fromAddress,
-			toChain,
-			toAddress,
 		},
 	})
 	if err != nil {
