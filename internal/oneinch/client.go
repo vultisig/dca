@@ -25,6 +25,7 @@ type swapRequest struct {
 	Dst          string
 	Amount       string
 	From         string
+	Receiver     string
 	SlippagePerc int
 }
 

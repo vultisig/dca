@@ -192,7 +192,7 @@ func main() {
 			c.rpcURL,
 			[]evm.Provider{
 				oneinch.NewProvider(oneInchClient, evmRpc, evmSdk),
-				//thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
+				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
 			},
 			signer,
 			txIndexerService,

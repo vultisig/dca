@@ -69,6 +69,7 @@ func (p *Provider) MakeTx(
 		Dst:          dstToken,
 		Amount:       from.Amount.String(),
 		From:         from.Address.Hex(),
+		Receiver:     to.Address,
 		SlippagePerc: DefaultSlippagePercent,
 	})
 	if err != nil {
