@@ -28,6 +28,11 @@ func (a *approveService) CheckAllowance(
 	tokenAddress, owner, spender common.Address,
 	amount *big.Int,
 ) (bool, []byte, error) {
+	var zero common.Address
+	if tokenAddress == zero {
+		return false, nil, nil
+	}
+
 	erc20Contract := erc20.NewErc20()
 
 	allowanceData := erc20Contract.PackAllowance(owner, spender)

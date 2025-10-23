@@ -59,7 +59,7 @@ func (p *Provider) MakeTx(
 	}
 
 	dstToken := to.AssetID
-	if dstToken == evm.ZeroAddress.Hex() || dstToken == "0x0000000000000000000000000000000000000000" {
+	if to.AssetID == "" {
 		dstToken = NativeTokenAddress
 	}
 
@@ -75,9 +75,9 @@ func (p *Provider) MakeTx(
 		return nil, nil, fmt.Errorf("failed to get swap from 1inch: %w", err)
 	}
 
-	toAmount, ok := new(big.Int).SetString(swapResp.ToAmount, 10)
+	toAmount, ok := new(big.Int).SetString(swapResp.DstAmount, 10)
 	if !ok {
-		return nil, nil, fmt.Errorf("failed to parse toAmount: %s", swapResp.ToAmount)
+		return nil, nil, fmt.Errorf("failed to parse toAmount: %s", swapResp.DstAmount)
 	}
 
 	txValue, ok := new(big.Int).SetString(swapResp.Tx.Value, 10)

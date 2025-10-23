@@ -11,13 +11,11 @@ import (
 
 type Client struct {
 	baseURL string
-	apiKey  string
 }
 
-func NewClient(baseURL, apiKey string) *Client {
+func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
-		apiKey:  apiKey,
 	}
 }
 
@@ -31,10 +29,8 @@ type swapRequest struct {
 }
 
 type SwapResponse struct {
-	ToAmount  string    `json:"toAmount"`
-	Tx        TxData    `json:"tx"`
-	FromToken TokenInfo `json:"fromToken"`
-	ToToken   TokenInfo `json:"toToken"`
+	DstAmount string `json:"dstAmount"`
+	Tx        TxData `json:"tx"`
 }
 
 type TxData struct {
@@ -46,11 +42,31 @@ type TxData struct {
 	GasPrice string `json:"gasPrice"`
 }
 
-type TokenInfo struct {
-	Symbol   string `json:"symbol"`
-	Name     string `json:"name"`
-	Address  string `json:"address"`
-	Decimals int    `json:"decimals"`
+type SpenderResponse struct {
+	Address string `json:"address"`
+}
+
+func (c *Client) GetSpender(ctx context.Context, chain common.Chain) (string, error) {
+	chainID, err := chain.EvmID()
+	if err != nil {
+		return "", fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	endpoint := fmt.Sprintf("%s/swap/%s/%d/approve/spender", c.baseURL, APIVersion, chainID)
+
+	resp, err := libhttp.Call[SpenderResponse](
+		ctx,
+		http.MethodGet,
+		endpoint,
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to get spender address: %w", err)
+	}
+
+	return resp.Address, nil
 }
 
 func (c *Client) GetSwap(ctx context.Context, req swapRequest) (*SwapResponse, error) {
@@ -69,17 +85,14 @@ func (c *Client) GetSwap(ctx context.Context, req swapRequest) (*SwapResponse, e
 		"slippage":         fmt.Sprintf("%d", req.SlippagePerc),
 		"disableEstimate":  "true",
 		"allowPartialFill": "false",
-	}
-
-	headers := map[string]string{
-		"Authorization": "Bearer " + c.apiKey,
+		"compatibility":    "true",
 	}
 
 	resp, err := libhttp.Call[SwapResponse](
 		ctx,
 		http.MethodGet,
 		endpoint,
-		headers,
+		nil,
 		nil,
 		params,
 	)

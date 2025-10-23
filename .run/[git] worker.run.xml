@@ -30,8 +30,7 @@
       <env name="RPC_SOLANA_URL" value="https://solana-rpc.publicnode.com" />
       <env name="SOLANA_JUPITERAPIURL" value="https://api.vultisig.com/jup" />
       <env name="RPC_XRP_URL" value="https://xrplcluster.com" />
-      <env name="ONEINCH_BASEURL" value="https://api.1inch.dev" />
-      <env name="ONEINCH_APIKEY" value="your-1inch-api-key-here" />
+      <env name="ONEINCH_BASEURL" value="https://api.vultisig.com/1inch" />
       <env name="THORCHAIN_URL" value="https://thornode.ninerealms.com" />
       <env name="UNISWAP_ROUTERV2_ARBITRUM" value="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24" />
       <env name="UNISWAP_ROUTERV2_AVALANCHE" value="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24" />

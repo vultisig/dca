@@ -158,7 +158,7 @@ func main() {
 	networks := make(map[common.Chain]*evm.Network)
 
 	thorchainClient := thorchain.NewClient(cfg.ThorChain.URL)
-	oneInchClient := oneinch.NewClient(cfg.OneInch.BaseURL, cfg.OneInch.APIKey)
+	oneInchClient := oneinch.NewClient(cfg.OneInch.BaseURL)
 
 	networkConfigs := []struct {
 		chain  common.Chain
@@ -300,7 +300,6 @@ type config struct {
 
 type oneInchConfig struct {
 	BaseURL string
-	APIKey  string
 }
 
 type thorChainConfig struct {

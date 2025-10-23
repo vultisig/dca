@@ -248,7 +248,6 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 		},
 		Target: &rtypes.Target{
 			TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
-			Target:     nil,
 		},
 	}, nil
 }
