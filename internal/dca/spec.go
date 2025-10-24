@@ -192,7 +192,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 					Value: &rtypes.Constraint_FixedValue{
 						FixedValue: fromAssetStr,
 					},
-					Required: true,
+					Required: false,
 				},
 			},
 			{
@@ -232,7 +232,7 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 					Value: &rtypes.Constraint_FixedValue{
 						FixedValue: toAssetStr,
 					},
-					Required: true,
+					Required: false,
 				},
 			},
 			{
@@ -248,7 +248,6 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 		},
 		Target: &rtypes.Target{
 			TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
-			Target:     nil,
 		},
 	}, nil
 }
@@ -351,6 +350,7 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 				{
 					ParameterName:  "from_asset",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       false,
 				},
 				{
 					ParameterName:  "from_address",
@@ -370,6 +370,7 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 				{
 					ParameterName:  "to_asset",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       false,
 				},
 				{
 					ParameterName:  "to_address",

@@ -1,6 +1,8 @@
 # Vultisig DCA Plugin
 
-A Dollar Cost Averaging (DCA) plugin for the Vultisig ecosystem that enables automated, recurring cryptocurrency swaps across multiple EVM chains using Uniswap V2.
+A Dollar Cost Averaging (DCA) plugin for the Vultisig ecosystem that enables automated, recurring cryptocurrency swaps across multiple chains.
+
+**Note**: Uniswap V2 support has been removed. The plugin is being migrated to use 1inch as the DEX aggregator for EVM networks.
 
 ## Overview
 
@@ -8,16 +10,20 @@ The DCA plugin operates as part of Vultisig's policy-based transaction verificat
 
 ## Supported Networks
 
-The plugin supports the following EVM chains with official Uniswap V2 deployments:
+### EVM Chains
+- **Ethereum**
+- **Arbitrum**
+- **Avalanche**
+- **BNB Chain**
+- **Base**
+- **Blast**
+- **Optimism**
+- **Polygon**
 
-- **Ethereum** (`0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D`)
-- **Arbitrum** (`0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24`)
-- **Avalanche** (`0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24`)
-- **BNB Chain** (`0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24`)
-- **Base** (`0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24`)
-- **Blast** (`0xBB66Eb1c5e875933D44DAe661dbD80e5D9B03035`)
-- **Optimism** (`0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2`)
-- **Polygon** (`0xedf6066a2b290C185783862C7F4776A2C8077AD1`)
+### Other Chains
+- **Bitcoin**
+- **Solana**
+- **XRP**
 
 ## Architecture
 
@@ -31,7 +37,7 @@ REST API server that handles policy management and provides the main plugin inte
 **Key Features:**
 - Policy creation and validation
 - Recipe specification management
-- Multi-chain Uniswap V2 router configuration
+- Multi-chain swap configuration
 
 #### 2. **Scheduler** (`cmd/scheduler/`)
 Background worker that schedules DCA transactions based on configured intervals.
@@ -48,8 +54,8 @@ Background worker that schedules DCA transactions based on configured intervals.
 Task consumer that executes DCA swaps and handles distributed key signing operations.
 
 **Key Features:**
-- Multi-chain EVM network initialization
-- Uniswap V2 swap execution
+- Multi-chain network initialization
+- Swap execution (migrating to 1inch for EVM chains)
 - ERC20 approval management
 - Distributed key signing integration
 
@@ -60,26 +66,17 @@ Blockchain transaction indexer for monitoring and verification.
 
 - **`internal/dca/`** - Core DCA logic, policy specs, and transaction consumption
 - **`internal/evm/`** - EVM blockchain abstraction with multi-network support
-- **`internal/uniswap/`** - Uniswap V2 integration for DEX operations
 - **`internal/graceful/`** - Graceful shutdown handling
 
 ## DCA Workflow
 
 1. **Policy Creation** - User configures DCA parameters through the API
 2. **Recipe Validation** - System validates configuration against JSON schema
-3. **Rule Generation** - Creates Uniswap V2 operation rules with parameter constraints
+3. **Rule Generation** - Creates swap operation rules with parameter constraints
 4. **Scheduling** - Scheduler queues transactions based on frequency settings, respecting endDate constraints
 5. **Execution** - Worker processes tasks, handling approvals and swaps
 6. **Key Signing** - Integrates with Vultisig's distributed key signing system
 
-### Supported Operations
-
-The plugin generates policy rules for these Uniswap V2 operations:
-
-- `swapExactTokensForTokens` - ERC20 to ERC20 swaps
-- `swapExactETHForTokens` - ETH to ERC20 swaps
-- `swapExactTokensForETH` - ERC20 to ETH swaps
-- `approve` - ERC20 token allowances
 
 ## Configuration
 
@@ -126,11 +123,6 @@ RPC_ETHEREUM_URL="https://ethereum-rpc.publicnode.com"
 RPC_ARBITRUM_URL="https://arbitrum-rpc.publicnode.com"
 RPC_AVALANCHE_URL="https://avalanche-c-chain-rpc.publicnode.com"
 # ... (other chains)
-
-# Uniswap V2 Routers (per chain)
-UNISWAP_ROUTERV2_ETHEREUM="0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
-UNISWAP_ROUTERV2_ARBITRUM="0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24"
-# ... (other chains)
 ```
 
 ## Building and Deployment
@@ -158,7 +150,6 @@ go test ./...
 
 # Run specific package tests
 go test ./internal/dca/
-go test ./internal/uniswap/
 ```
 
 ### Docker Deployment

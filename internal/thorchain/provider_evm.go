@@ -137,7 +137,7 @@ func (p *ProviderEvm) MakeTx(
 		Destination:       to.Address,
 		StreamingInterval: defaultStreamingInterval,
 		StreamingQuantity: defaultStreamingQuantity,
-		//ToleranceBps:      defaultToleranceBps,
+		ToleranceBps:      defaultToleranceBps,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get quote: %w", err)
