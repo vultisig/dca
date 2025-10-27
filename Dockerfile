@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 golang:latest AS builder
+FROM --platform=linux/amd64 golang:1.24.2 AS builder
 
 RUN apt-get update && apt-get install -y clang lld wget
 
@@ -17,6 +17,7 @@ COPY . .
 ENV CGO_ENABLED=1
 ENV CC=clang
 ENV CGO_LDFLAGS=-fuse-ld=lld
+ENV LD_LIBRARY_PATH=/usr/local/lib/dkls/includes/linux:$LD_LIBRARY_PATH
 RUN go build -o main cmd/${SERVICE}/main.go
 
 FROM --platform=linux/amd64 ubuntu:22.04
@@ -29,5 +30,4 @@ WORKDIR /app
 
 COPY --from=builder /app/main .
 COPY --from=builder /usr/local/lib/dkls /usr/local/lib/dkls
-
 ENV LD_LIBRARY_PATH=/usr/local/lib/dkls/includes/linux:$LD_LIBRARY_PATH
