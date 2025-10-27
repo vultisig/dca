@@ -2,13 +2,13 @@ package dca
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/btcsuite/btcd/btcutil"
@@ -22,6 +22,7 @@ import (
 	"github.com/vultisig/dca/internal/util"
 	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/recipes/metarule"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/policy"
 	"github.com/vultisig/verifier/plugin/scheduler"
@@ -485,7 +486,7 @@ func (c *Consumer) handleEvmSwap(
 		return fmt.Errorf("failed to get network: %w", err)
 	}
 
-	spender, err := findApproveSpender(fromChain, recipe.GetRules())
+	spender, err := findSpender(fromChain, recipe.GetRules())
 	if err != nil {
 		return fmt.Errorf("failed to find approve rule: %w", err)
 	}
@@ -554,7 +555,7 @@ func (c *Consumer) handleEvmSwap(
 	if err != nil {
 		return fmt.Errorf("failed to build swap tx: %w", err)
 	}
-	l.Info("swap route found")
+	l.Debug("swap route found, tx=", base64.StdEncoding.EncodeToString(swapTx))
 
 	_, err = network.Signer.SignAndBroadcast(ctx, fromChain, *pol, swapTx)
 	if err != nil {
@@ -578,15 +579,17 @@ func getChainFromCfg(cfg map[string]interface{}, field string) (common.Chain, er
 	return chainTyped, nil
 }
 
-func findApproveSpender(chain common.Chain, rules []*rtypes.Rule) (ecommon.Address, error) {
-	for _, rule := range rules {
-		if rule.GetResource() == fmt.Sprintf("%s.erc20.approve", strings.ToLower(chain.String())) {
-			for _, constraint := range rule.GetParameterConstraints() {
-				if strings.EqualFold(constraint.GetParameterName(), "spender") {
-					return ecommon.HexToAddress(constraint.GetConstraint().GetFixedValue()), nil
-				}
-			}
+func findSpender(_ common.Chain, rawRules []*rtypes.Rule) (ecommon.Address, error) {
+	for _, rawRule := range rawRules {
+		rules, err := metarule.NewMetaRule().TryFormat(rawRule)
+		if err != nil {
+			return ecommon.Address{}, fmt.Errorf("failed to parse rule: %w", err)
+		}
+
+		for _, rule := range rules {
+			// TODO when ThorChain added, need to resolve MagicConst
+			return ecommon.HexToAddress(rule.GetTarget().GetAddress()), nil
 		}
 	}
-	return ecommon.Address{}, fmt.Errorf("approve rule not found")
+	return ecommon.Address{}, fmt.Errorf("rule not found")
 }
