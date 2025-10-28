@@ -342,7 +342,7 @@ func (s *Spec) createSendMetaRule(cfg map[string]any, fromChainTyped common.Chai
 
 	target := fromAssetTokenStr
 	if target == "" {
-		target = evmsdk.ZeroAddress.Hex()
+		target = getNativeTokenAddress(fromChainTyped)
 	}
 
 	return &rtypes.Rule{
@@ -571,4 +571,14 @@ func (s *Spec) ValidatePluginPolicy(pol types.PluginPolicy) error {
 		return fmt.Errorf("failed to get recipe spec: %w", err)
 	}
 	return plugin.ValidatePluginPolicy(pol, spec)
+}
+
+func getNativeTokenAddress(chain common.Chain) string {
+	switch {
+	case chain.IsEvm():
+		return evmsdk.ZeroAddress.Hex()
+	// TODO add other chains during corresponding *.send tasks
+	default:
+		return ""
+	}
 }
