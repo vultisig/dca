@@ -119,9 +119,42 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("unsupported chain: %s", fromChainStr)
 	}
 
-	rule, err := s.createSwapMetaRule(cfg, fromChainTyped)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create swap meta rule: %w", err)
+	toAssetMap, ok := cfg[toAsset].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'toAsset' must be an object")
+	}
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return nil, fmt.Errorf("'toAsset.chain' could not be empty")
+	}
+
+	fromAssetTokenStr := util.GetStr(fromAssetMap, "token")
+	toAssetTokenStr := util.GetStr(toAssetMap, "token")
+
+	fromAddressStr, ok := fromAssetMap["address"].(string)
+	if !ok || fromAddressStr == "" {
+		return nil, fmt.Errorf("'fromAsset.address' could not be empty")
+	}
+
+	toAddressStr, ok := toAssetMap["address"].(string)
+	if !ok || toAddressStr == "" {
+		return nil, fmt.Errorf("'toAsset.address' could not be empty")
+	}
+
+	isSend := fromChainStr == toChainStr && fromAssetTokenStr == toAssetTokenStr && fromAddressStr != toAddressStr
+
+	var rule *rtypes.Rule
+	if isSend {
+		rule, err = s.createSendMetaRule(cfg, fromChainTyped)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create send meta rule: %w", err)
+		}
+	} else {
+		rule, err = s.createSwapMetaRule(cfg, fromChainTyped)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create swap meta rule: %w", err)
+		}
 	}
 
 	var rateLimitWindow uint32
@@ -147,15 +180,19 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	}
 
 	var maxTxsPerWindow uint32
-	switch {
-	case fromChainTyped == common.Solana:
-		maxTxsPerWindow = 8 // to fit ATA create + SPL token approve + Payload tx
-	case fromChainTyped == common.XRP:
-		maxTxsPerWindow = 1 // XRP doesn't need approvals, single tx for swaps
-	case fromChainTyped.IsEvm():
-		maxTxsPerWindow = 2 // to fit ERC20 approve + Payload tx
-	default:
+	if isSend {
 		maxTxsPerWindow = 1
+	} else {
+		switch {
+		case fromChainTyped == common.Solana:
+			maxTxsPerWindow = 8
+		case fromChainTyped == common.XRP:
+			maxTxsPerWindow = 1
+		case fromChainTyped.IsEvm():
+			maxTxsPerWindow = 2
+		default:
+			maxTxsPerWindow = 1
+		}
 	}
 
 	return &rtypes.PolicySuggest{
@@ -263,6 +300,94 @@ func (s *Spec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chai
 						FixedValue: toAddressStr,
 					},
 					Required: true,
+				},
+			},
+		},
+		Target: &rtypes.Target{
+			TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
+		},
+	}, nil
+}
+
+func (s *Spec) createSendMetaRule(cfg map[string]any, fromChainTyped common.Chain) (*rtypes.Rule, error) {
+	fromChainLowercase := strings.ToLower(fromChainTyped.String())
+
+	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'fromAsset' must be an object")
+	}
+
+	toAssetMap, ok := cfg[toAsset].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'toAsset' must be an object")
+	}
+
+	fromAddressStr, ok := fromAssetMap["address"].(string)
+	if !ok || fromAddressStr == "" {
+		return nil, fmt.Errorf("'fromAsset.address' could not be empty")
+	}
+
+	toAddressStr, ok := toAssetMap["address"].(string)
+	if !ok || toAddressStr == "" {
+		return nil, fmt.Errorf("'toAsset.address' could not be empty")
+	}
+
+	fromAmountStr := util.GetStr(cfg, fromAmount)
+	if fromAmountStr == "" {
+		return nil, fmt.Errorf("'fromAmount' could not be empty")
+	}
+
+	fromAssetTokenStr := util.GetStr(fromAssetMap, "token")
+
+	return &rtypes.Rule{
+		Resource: fromChainLowercase + ".send",
+		Effect:   rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: []*rtypes.ParameterConstraint{
+			{
+				ParameterName: "asset",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: fromAssetTokenStr,
+					},
+					Required: false,
+				},
+			},
+			{
+				ParameterName: "from_address",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: fromAddressStr,
+					},
+					Required: true,
+				},
+			},
+			{
+				ParameterName: "amount",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: fromAmountStr,
+					},
+					Required: true,
+				},
+			},
+			{
+				ParameterName: "to_address",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: toAddressStr,
+					},
+					Required: true,
+				},
+			},
+			{
+				ParameterName: "memo",
+				Constraint: &rtypes.Constraint{
+					Type:     rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required: false,
 				},
 			},
 		},
@@ -384,6 +509,44 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 					ParameterName:  "to_address",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Required:       true,
+				},
+			},
+			Required: true,
+		})
+
+		resources = append(resources, &rtypes.ResourcePattern{
+			ResourcePath: &rtypes.ResourcePath{
+				ChainId:    chainNameLower,
+				ProtocolId: "send",
+				FunctionId: "",
+				Full:       chainNameLower + ".send",
+			},
+			Target: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
+			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+				{
+					ParameterName:  "asset",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       false,
+				},
+				{
+					ParameterName:  "from_address",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "amount",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "to_address",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       true,
+				},
+				{
+					ParameterName:  "memo",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       false,
 				},
 			},
 			Required: true,

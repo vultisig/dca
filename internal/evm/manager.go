@@ -10,6 +10,7 @@ import (
 type Network struct {
 	Approve *approveService
 	Swap    *swapService
+	Send    *sendService
 	Signer  *signerService
 	Status  *status.Status
 }

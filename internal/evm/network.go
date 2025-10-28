@@ -41,6 +41,7 @@ func NewNetwork(
 	return &Network{
 		Approve: newApproveService(rpc, sdk),
 		Swap:    newSwapService(providers),
+		Send:    newSendService(sdk),
 		Signer:  newSignerService(sdk, chain, signer, txIndexer),
 		Status:  status.NewStatus(rpcCaller),
 	}, nil

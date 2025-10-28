@@ -119,6 +119,43 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("failed to parse fromAsset.chain: %w", err)
 	}
 
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	fromAddressStr, ok := fromAssetMap["address"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get fromAsset.address")
+	}
+
+	isSend := fromChainStr == toChainStr && fromAssetTokenStr == toAssetTokenStr && fromAddressStr != toAddressStr
+
+	if isSend {
+		c.logger.WithFields(logrus.Fields{
+			"policyID":    pol.ID.String(),
+			"operation":   "send",
+			"chain":       fromChainStr,
+			"asset":       fromAssetTokenStr,
+			"fromAddress": fromAddressStr,
+			"toAddress":   toAddressStr,
+		}).Info("detected send operation")
+
+		if fromChainTyped.IsEvm() {
+			er := c.handleEvmSend(ctx, pol, fromChainTyped, fromAssetTokenStr, fromAmountStr, toAddressStr)
+			if er != nil {
+				return fmt.Errorf("failed to handle EVM send: %w", er)
+			}
+			return nil
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"chain":     fromChainStr,
+			"operation": "send",
+		}).Warn("send operation not yet supported for this chain")
+		return fmt.Errorf("send operation not yet supported for chain: %s", fromChainTyped.String())
+	}
+
 	if fromChainTyped == common.Bitcoin {
 		er := c.handleBtcSwap(ctx, pol, toAssetMap, fromAmountStr, toAssetTokenStr, toAddressStr)
 		if er != nil {
@@ -571,17 +608,80 @@ func (c *Consumer) handleEvmSwap(
 	return nil
 }
 
-func getChainFromCfg(cfg map[string]interface{}, field string) (common.Chain, error) {
-	chainStr, ok := cfg[field].(string)
-	if !ok {
-		return 0, fmt.Errorf("failed to get chain: %s", field)
+func (c *Consumer) handleEvmSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	fromChain common.Chain,
+	fromAsset string,
+	fromAmount string,
+	toAddress string,
+) error {
+	fromAsset = util.IfEmptyElse(fromAsset, evmsdk.ZeroAddress.String())
+
+	fromAssetTyped := ecommon.HexToAddress(fromAsset)
+	fromAddressTyped, err := c.evmPubToAddress(fromChain, pol.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to parse policy PublicKey: %w", err)
 	}
 
-	chainTyped, err := common.FromString(chainStr)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse chain: %w", err)
+	fromAmountTyped, ok := new(big.Int).SetString(fromAmount, 10)
+	if !ok {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
 	}
-	return chainTyped, nil
+
+	toAddressTyped := ecommon.HexToAddress(toAddress)
+
+	network, err := c.evm.Get(fromChain)
+	if err != nil {
+		return fmt.Errorf("failed to get network: %w", err)
+	}
+
+	isNative := fromAssetTyped == evmsdk.ZeroAddress
+
+	l := c.logger.WithFields(logrus.Fields{
+		"operation":   "send",
+		"policyID":    pol.ID.String(),
+		"chain":       fromChain.String(),
+		"fromAddress": fromAddressTyped.String(),
+		"toAddress":   toAddressTyped.String(),
+		"asset":       fromAssetTyped.String(),
+		"amount":      fromAmountTyped.String(),
+		"isNative":    isNative,
+	})
+
+	var sendTx []byte
+	if isNative {
+		l.Info("building native token transfer")
+		sendTx, err = network.Send.BuildNativeTransfer(ctx, fromAddressTyped, toAddressTyped, fromAmountTyped)
+		if err != nil {
+			l.WithError(err).Error("failed to build native transfer")
+			return fmt.Errorf("failed to build native transfer: %w", err)
+		}
+		l.Debug("native transfer tx built successfully")
+	} else {
+		l.Info("building ERC20 token transfer")
+		sendTx, err = network.Send.BuildERC20Transfer(
+			ctx,
+			fromAssetTyped,
+			fromAddressTyped,
+			toAddressTyped,
+			fromAmountTyped,
+		)
+		if err != nil {
+			l.WithError(err).Error("failed to build ERC20 transfer")
+			return fmt.Errorf("failed to build ERC20 transfer: %w", err)
+		}
+		l.Debug("ERC20 transfer tx built successfully")
+	}
+
+	txHash, err := network.Signer.SignAndBroadcast(ctx, fromChain, *pol, sendTx)
+	if err != nil {
+		l.WithError(err).Error("failed to sign & broadcast send tx")
+		return fmt.Errorf("failed to sign & broadcast send: %w", err)
+	}
+
+	l.WithField("txHash", txHash).Info("send tx signed & broadcasted successfully")
+	return nil
 }
 
 func findSpender(chain common.Chain, rawRules []*rtypes.Rule) (ecommon.Address, error) {
