@@ -626,7 +626,7 @@ func (c *Consumer) handleEvmSend(
 
 	fromAmountTyped, ok := new(big.Int).SetString(fromAmount, 10)
 	if !ok {
-		return fmt.Errorf("failed to parse fromAmount: %w", err)
+		return fmt.Errorf("failed to parse fromAmount %q as integer", fromAmount)
 	}
 
 	toAddressTyped := ecommon.HexToAddress(toAddress)
