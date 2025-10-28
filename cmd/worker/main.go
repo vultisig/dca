@@ -294,7 +294,6 @@ type config struct {
 	BTC          btcConfig
 	XRP          xrpConfig
 	Solana       solanaConfig
-	DataDog      dataDog
 	HealthPort   int
 }
 
@@ -334,11 +333,6 @@ type xrpConfig struct {
 
 type solanaConfig struct {
 	JupiterAPIURL string
-}
-
-type dataDog struct {
-	Host string
-	Port string
 }
 
 func newConfig() (config, error) {

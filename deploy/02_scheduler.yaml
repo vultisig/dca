@@ -48,16 +48,6 @@ spec:
                 secretKeyRef:
                   name: redis
                   key: redis-password
-            - name: DATADOG_HOST
-              valueFrom:
-                configMapKeyRef:
-                  name: datadog
-                  key: host
-            - name: DATADOG_PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: datadog
-                  key: port
           resources:
             requests:
               memory: "32Mi"
