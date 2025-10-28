@@ -23,6 +23,8 @@ import (
 	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/recipes/metarule"
+	"github.com/vultisig/recipes/resolver"
+	evmsdk "github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/policy"
 	"github.com/vultisig/verifier/plugin/scheduler"
@@ -461,6 +463,9 @@ func (c *Consumer) handleEvmSwap(
 	fromChain common.Chain,
 	fromAsset, fromAmount, toAsset, toAddress string,
 ) error {
+	fromAsset = util.IfEmptyElse(fromAsset, evmsdk.ZeroAddress.String())
+	toAsset = util.IfEmptyElse(toAsset, evmsdk.ZeroAddress.String())
+
 	fromAssetTyped := ecommon.HexToAddress(fromAsset)
 	fromAddressTyped, err := c.evmPubToAddress(fromChain, pol.PublicKey)
 	if err != nil {
@@ -579,7 +584,7 @@ func getChainFromCfg(cfg map[string]interface{}, field string) (common.Chain, er
 	return chainTyped, nil
 }
 
-func findSpender(_ common.Chain, rawRules []*rtypes.Rule) (ecommon.Address, error) {
+func findSpender(chain common.Chain, rawRules []*rtypes.Rule) (ecommon.Address, error) {
 	for _, rawRule := range rawRules {
 		rules, err := metarule.NewMetaRule().TryFormat(rawRule)
 		if err != nil {
@@ -587,7 +592,29 @@ func findSpender(_ common.Chain, rawRules []*rtypes.Rule) (ecommon.Address, erro
 		}
 
 		for _, rule := range rules {
-			// TODO when ThorChain added, need to resolve MagicConst
+			if rule.GetTarget().GetTargetType() == rtypes.TargetType_TARGET_TYPE_MAGIC_CONSTANT {
+				c := rule.GetTarget().GetMagicConstant()
+
+				resolve, er := resolver.NewMagicConstantRegistry().GetResolver(c)
+				if er != nil {
+					return ecommon.Address{}, fmt.Errorf(
+						"failed to get resolver (%s): %w",
+						rule.GetTarget().GetMagicConstant(),
+						er,
+					)
+				}
+
+				router, _, er := resolve.Resolve(c, chain.String(), "")
+				if er != nil {
+					return ecommon.Address{}, fmt.Errorf(
+						"failed to resolve magic constant (%s): %w",
+						rule.GetTarget().GetMagicConstant(),
+						er,
+					)
+				}
+				return ecommon.HexToAddress(router), nil
+			}
+
 			return ecommon.HexToAddress(rule.GetTarget().GetAddress()), nil
 		}
 	}
