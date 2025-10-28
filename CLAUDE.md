@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a DCA (Dollar Cost Averaging) plugin for the Vultisig ecosystem that enables automated, recurring cryptocurrency swaps across multiple chains. The plugin operates as part of a larger policy-based transaction verification system.
+This is a DCA (Dollar Cost Averaging) plugin for the Vultisig ecosystem that enables automated, recurring cryptocurrency operations across multiple chains. The plugin operates as part of a larger policy-based transaction verification system.
+
+**Supported Operations:**
+- **Swap**: Cross-chain and same-chain token swaps using DEX aggregators
+- **Send**: Direct token transfers (native and ERC20) for same-chain, same-asset operations
 
 **Note**: Uniswap V2 support has been removed. The plugin is being migrated to use 1inch as the DEX aggregator for EVM networks.
 
@@ -22,7 +26,7 @@ The system consists of four main services that can be run independently:
 ### Key Modules
 
 - **`internal/dca/`** - Core DCA logic including policy specs, scheduling, and transaction consumption
-- **`internal/evm/`** - EVM blockchain abstraction layer with network management and approval services
+- **`internal/evm/`** - EVM blockchain abstraction layer with network management, approval, send, and swap services
 - **`internal/graceful/`** - Graceful shutdown handling
 
 ### Plugin System Integration
@@ -58,15 +62,21 @@ All services use environment-based configuration. Key configuration areas:
 
 ## DCA Workflow
 
-1. **Policy Creation** - User configures DCA parameters (frequency, assets, amounts)
+1. **Policy Creation** - User configures DCA parameters (frequency, assets, amounts, addresses)
 2. **Recipe Validation** - System validates configuration against JSON schema
-3. **Rule Generation** - Creates swap operation rules with parameter constraints
-4. **Scheduling** - Scheduler queues transactions based on frequency settings, respecting endDate constraints
-5. **Execution** - Worker processes queued tasks, handling approvals and swaps
-6. **Key Signing** - Integrates with Vultisig's distributed key signing system
+3. **Operation Detection** - System determines if it's a send or swap operation based on:
+   - **Send**: fromChain == toChain AND fromAsset == toAsset AND fromAddress != toAddress
+   - **Swap**: All other cases
+4. **Rule Generation** - Creates appropriate operation rules (send or swap) with parameter constraints
+5. **Scheduling** - Scheduler queues transactions based on frequency settings, respecting endDate constraints
+6. **Execution** - Worker processes queued tasks:
+   - **Send**: Direct token transfer (no approvals needed)
+   - **Swap**: Handles approvals and DEX interactions
+7. **Key Signing** - Integrates with Vultisig's distributed key signing system
 
 ### Frequency Options
 
+- `one-time` (execute once, no recurrence)
 - `minutely` (60s), `hourly` (3600s), `daily` (86400s)
 - `weekly` (604800s), `bi-weekly` (1209600s), `monthly` (2592000s)
 
@@ -114,8 +124,15 @@ go test ./internal/dca/
 
 ### Transaction Building
 
-- Automatic approval checking and transaction building for ERC20 tokens
-- Integration with swap providers (currently being migrated to 1inch for EVM chains)
+- **Send Operations**:
+  - Native token transfers using standard value transfers (21,000 gas)
+  - ERC20 token transfers using `transfer(address,uint256)` function (65,000 gas)
+  - No approvals required (single transaction)
+  - Currently supported: EVM chains
+  - Future support planned: BTC, Solana, XRP
+- **Swap Operations**:
+  - Automatic approval checking and transaction building for ERC20 tokens
+  - Integration with swap providers (currently being migrated to 1inch for EVM chains)
 
 ### Key Management
 
@@ -125,9 +142,11 @@ go test ./internal/dca/
 
 ### Policy Constraints
 
-- Fixed parameter constraints for swap amounts and token addresses
-- Dynamic deadline and slippage parameters
-- Rate limiting based on DCA frequency settings (maxTxsPerWindow: 2)
+- Fixed parameter constraints for operation amounts and token addresses
+- Dynamic deadline and slippage parameters (swap only)
+- Rate limiting based on DCA frequency and operation type:
+  - **Send**: maxTxsPerWindow = 1 (single transaction)
+  - **Swap**: maxTxsPerWindow varies by chain (EVM: 2, Solana: 8, XRP: 1)
 
 ### Error Handling
 
@@ -191,7 +210,18 @@ This design allows for easy addition of new chains by simply adding their config
 
 ## Recent Improvements
 
-### Migration to 1inch (Latest)
+### Send Operation Support (Latest)
+
+- **Added Send Operation** - Direct token transfers for same-chain, same-asset operations
+- **Official Interface Compliance** - Implements the official `*.send` interface: `{chain}.send (asset, from_address, amount, to_address, memo)`
+- **EVM Implementation** - Full support for native and ERC20 token transfers across all EVM chains
+- **Automatic Detection** - System automatically detects send vs swap based on configuration parameters
+- **Dynamic Policy Generation** - Send resources (e.g., `ethereum.send`, `arbitrum.send`) auto-generated for all chains
+- **Memo Support** - Optional memo parameter ready for chains that support it (XRP, Solana)
+- **Future-Ready Architecture** - Designed for easy extension to BTC, Solana, and XRP
+- **Optimized Rate Limiting** - Send operations use maxTxsPerWindow=1 (no approvals needed)
+
+### Migration to 1inch
 
 - **Removed Uniswap V2 support** - Preparing for migration to 1inch as the DEX aggregator for EVM chains
 - **Cleaned up configuration** - Removed all Uniswap-specific router addresses and environment variables
