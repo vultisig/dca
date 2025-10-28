@@ -530,7 +530,7 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 				FunctionId: "",
 				Full:       chainNameLower + ".send",
 			},
-			Target: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
+			Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
 			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
 				{
 					ParameterName:  "asset",
