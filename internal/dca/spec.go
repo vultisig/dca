@@ -8,6 +8,7 @@ import (
 	"github.com/kaptinlin/jsonschema"
 	"github.com/vultisig/dca/internal/util"
 	rjsonschema "github.com/vultisig/recipes/jsonschema"
+	evmsdk "github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
@@ -339,6 +340,11 @@ func (s *Spec) createSendMetaRule(cfg map[string]any, fromChainTyped common.Chai
 
 	fromAssetTokenStr := util.GetStr(fromAssetMap, "token")
 
+	target := fromAssetTokenStr
+	if target == "" {
+		target = evmsdk.ZeroAddress.Hex()
+	}
+
 	return &rtypes.Rule{
 		Resource: fromChainLowercase + ".send",
 		Effect:   rtypes.Effect_EFFECT_ALLOW,
@@ -392,7 +398,10 @@ func (s *Spec) createSendMetaRule(cfg map[string]any, fromChainTyped common.Chai
 			},
 		},
 		Target: &rtypes.Target{
-			TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
+			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: &rtypes.Target_Address{
+				Address: target,
+			},
 		},
 	}, nil
 }
