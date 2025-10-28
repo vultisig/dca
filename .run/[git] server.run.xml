@@ -3,18 +3,20 @@
     <module name="dca" />
     <working_directory value="$PROJECT_DIR$" />
     <envs>
-      <env name="SERVER_HOST" value="0.0.0.0" />
-      <env name="SERVER_PORT" value="8082" />
-      <env name="SERVER_ENCRYPTIONSECRET" value="test123" />
+      <env name="BLOCKSTORAGE_ACCESSKEY" value="minioadmin" />
+      <env name="BLOCKSTORAGE_BUCKET" value="vultisig-dca" />
       <env name="BLOCKSTORAGE_HOST" value="http://localhost:9100" />
       <env name="BLOCKSTORAGE_REGION" value="us-east-1" />
-      <env name="BLOCKSTORAGE_ACCESSKEY" value="minioadmin" />
       <env name="BLOCKSTORAGE_SECRETKEY" value="minioadmin" />
-      <env name="BLOCKSTORAGE_BUCKET" value="vultisig-dca" />
       <env name="POSTGRES_DSN" value="postgres://myuser:mypassword@localhost:5431/dca?sslmode=disable" />
       <env name="REDIS_HOST" value="localhost" />
-      <env name="REDIS_PORT" value="6378" />
       <env name="REDIS_PASSWORD" value="password" />
+      <env name="REDIS_PORT" value="6378" />
+      <env name="SERVER_ENCRYPTIONSECRET" value="test123" />
+      <env name="SERVER_HOST" value="0.0.0.0" />
+      <env name="SERVER_PORT" value="8082" />
+      <env name="GOOS" value="darwin" />
+      <env name="GOARCH" value="arm64" />
     </envs>
     <kind value="FILE" />
     <package value="github.com/vultisig/dca/cmd/server" />

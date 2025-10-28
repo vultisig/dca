@@ -97,7 +97,6 @@ func (n *Network) sendWithSdk(ctx context.Context, policy vtypes.PluginPolicy, t
 	if err != nil {
 		return "", fmt.Errorf("failed to create engine: %w", err)
 	}
-
 	_, err = eng.Evaluate(recipe, common.Bitcoin, bufWireTx.Bytes())
 	if err != nil {
 		return "", fmt.Errorf("failed to evaluate tx: %w", err)

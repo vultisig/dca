@@ -4,6 +4,7 @@ metadata:
   name: rpc
 data:
   bitcoin: "bitcoin-rpc.publicnode.com"
+  xrp: "https://xrplcluster.com"
   ethereum: "https://ethereum-rpc.publicnode.com"
   arbitrum: "https://arbitrum-rpc.publicnode.com"
   avalanche: "https://avalanche-c-chain-rpc.publicnode.com"
@@ -12,3 +13,4 @@ data:
   blast: "https://blast-rpc.publicnode.com"
   optimism: "https://optimism-rpc.publicnode.com"
   polygon: "https://polygon-bor-rpc.publicnode.com"
+  solana: "https://solana-rpc.publicnode.com"

@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/btcsuite/btcd/rpcclient"
-	ecommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	solanarpc "github.com/gagliardetto/solana-go/rpc"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
@@ -18,10 +18,14 @@ import (
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
+	"github.com/vultisig/dca/internal/jupiter"
+	"github.com/vultisig/dca/internal/oneinch"
+	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
-	"github.com/vultisig/dca/internal/uniswap"
+	"github.com/vultisig/dca/internal/xrp"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
+	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -154,20 +158,20 @@ func main() {
 	networks := make(map[common.Chain]*evm.Network)
 
 	thorchainClient := thorchain.NewClient(cfg.ThorChain.URL)
+	oneInchClient := oneinch.NewClient(cfg.OneInch.BaseURL)
 
 	networkConfigs := []struct {
-		chain      common.Chain
-		rpcURL     string
-		routerAddr string
+		chain  common.Chain
+		rpcURL string
 	}{
-		{common.Ethereum, cfg.Rpc.Ethereum.URL, cfg.Uniswap.RouterV2.Ethereum},
-		{common.Arbitrum, cfg.Rpc.Arbitrum.URL, cfg.Uniswap.RouterV2.Arbitrum},
-		{common.Avalanche, cfg.Rpc.Avalanche.URL, cfg.Uniswap.RouterV2.Avalanche},
-		{common.BscChain, cfg.Rpc.BSC.URL, cfg.Uniswap.RouterV2.BSC},
-		{common.Base, cfg.Rpc.Base.URL, cfg.Uniswap.RouterV2.Base},
-		{common.Blast, cfg.Rpc.Blast.URL, cfg.Uniswap.RouterV2.Blast},
-		{common.Optimism, cfg.Rpc.Optimism.URL, cfg.Uniswap.RouterV2.Optimism},
-		{common.Polygon, cfg.Rpc.Polygon.URL, cfg.Uniswap.RouterV2.Polygon},
+		{common.Ethereum, cfg.Rpc.Ethereum.URL},
+		{common.Arbitrum, cfg.Rpc.Arbitrum.URL},
+		{common.Avalanche, cfg.Rpc.Avalanche.URL},
+		{common.BscChain, cfg.Rpc.BSC.URL},
+		{common.Base, cfg.Rpc.Base.URL},
+		{common.Blast, cfg.Rpc.Blast.URL},
+		{common.Optimism, cfg.Rpc.Optimism.URL},
+		{common.Polygon, cfg.Rpc.Polygon.URL},
 	}
 
 	for _, c := range networkConfigs {
@@ -187,11 +191,7 @@ func main() {
 			c.chain,
 			c.rpcURL,
 			[]evm.Provider{
-				uniswap.NewProviderV2(
-					evmRpc,
-					evmSdk,
-					ecommon.HexToAddress(c.routerAddr),
-				),
+				oneinch.NewProvider(oneInchClient, evmRpc, evmSdk),
 				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
 			},
 			signer,
@@ -215,6 +215,38 @@ func main() {
 	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
 	blockchairClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
 
+	// Initialize XRP network
+	xrpClient := xrp.NewClient(cfg.Rpc.XRP.URL)
+	thorchainXrp := thorchain.NewProviderXrp(thorchainClient, xrpClient)
+
+	// Initialize XRP SDK for signing and broadcasting
+	xrpRpcClient := xrplsdk.NewHTTPRPCClient([]string{cfg.Rpc.XRP.URL})
+	xrpSDK := xrplsdk.NewSDK(xrpRpcClient)
+
+	xrpNetwork := xrp.NewNetwork(
+		xrp.NewSwapService([]xrp.SwapProvider{thorchainXrp}),
+		xrp.NewSignerService(xrpSDK, signer, txIndexerService),
+		xrpClient,
+	)
+
+	jup, err := jupiter.NewProvider(cfg.Solana.JupiterAPIURL, solanarpc.New(cfg.Rpc.Solana.URL))
+	if err != nil {
+		logger.Fatalf("failed to initialize Jupiter provider: %v", err)
+	}
+
+	solanaNetwork, err := solana.NewNetwork(
+		ctx,
+		cfg.Rpc.Solana.URL,
+		[]solana.Provider{
+			jup,
+		},
+		signer,
+		txIndexerService,
+	)
+	if err != nil {
+		logger.Fatalf("failed to initialize Solana network: %v", err)
+	}
+
 	dcaConsumer := dca.NewConsumer(
 		logger,
 		policyService,
@@ -226,6 +258,8 @@ func main() {
 			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signer, txIndexerService),
 			blockchairClient,
 		),
+		solanaNetwork,
+		xrpNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
@@ -255,29 +289,20 @@ type config struct {
 	Redis        plugin_config.Redis
 	Verifier     plugin_config.Verifier
 	Rpc          rpc
-	Uniswap      uniswapConfig
+	OneInch      oneInchConfig
 	ThorChain    thorChainConfig
 	BTC          btcConfig
+	XRP          xrpConfig
+	Solana       solanaConfig
 	HealthPort   int
 }
 
-type uniswapConfig struct {
-	RouterV2 router
+type oneInchConfig struct {
+	BaseURL string
 }
 
 type thorChainConfig struct {
 	URL string
-}
-
-type router struct {
-	Ethereum  string
-	Arbitrum  string
-	Avalanche string
-	BSC       string
-	Base      string
-	Blast     string
-	Optimism  string
-	Polygon   string
 }
 
 type rpc struct {
@@ -290,6 +315,8 @@ type rpc struct {
 	Optimism  rpcItem
 	Polygon   rpcItem
 	BTC       rpcItem
+	XRP       rpcItem
+	Solana    rpcItem
 }
 
 type rpcItem struct {
@@ -298,6 +325,14 @@ type rpcItem struct {
 
 type btcConfig struct {
 	BlockchairURL string
+}
+
+type xrpConfig struct {
+	RPC string
+}
+
+type solanaConfig struct {
+	JupiterAPIURL string
 }
 
 func newConfig() (config, error) {
