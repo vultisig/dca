@@ -47,6 +47,7 @@ const (
 const (
 	frequency = "frequency"
 
+	onetime  = "one-time"
 	minutely = "minutely"
 	hourly   = "hourly"
 	daily    = "daily"
@@ -127,6 +128,8 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	freq := cfg[frequency].(string)
 
 	switch freq {
+	case onetime:
+		rateLimitWindow = 60
 	case minutely:
 		rateLimitWindow = 60
 	case hourly:
@@ -297,6 +300,7 @@ func (s *Spec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			frequency: map[string]any{
 				"type": "string",
 				"enum": []any{
+					onetime,
 					minutely,
 					hourly,
 					daily,

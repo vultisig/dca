@@ -67,6 +67,7 @@ All services use environment-based configuration. Key configuration areas:
 
 ### Frequency Options
 
+- `one-time` (execute once, no recurrence)
 - `minutely` (60s), `hourly` (3600s), `daily` (86400s)
 - `weekly` (604800s), `bi-weekly` (1209600s), `monthly` (2592000s)
 
