@@ -577,6 +577,8 @@ func getNativeTokenAddress(chain common.Chain) string {
 	switch {
 	case chain.IsEvm():
 		return evmsdk.ZeroAddress.Hex()
+	case chain == common.XRP:
+		return "" // XRP uses empty string for native asset
 	// TODO add other chains during corresponding *.send tasks
 	default:
 		return ""

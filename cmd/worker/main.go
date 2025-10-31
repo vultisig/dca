@@ -225,6 +225,7 @@ func main() {
 
 	xrpNetwork := xrp.NewNetwork(
 		xrp.NewSwapService([]xrp.SwapProvider{thorchainXrp}),
+		xrp.NewSendService(xrpClient),
 		xrp.NewSignerService(xrpSDK, signer, txIndexerService),
 		xrpClient,
 	)
