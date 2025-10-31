@@ -340,11 +340,6 @@ func (s *Spec) createSendMetaRule(cfg map[string]any, fromChainTyped common.Chai
 
 	fromAssetTokenStr := util.GetStr(fromAssetMap, "token")
 
-	target := fromAssetTokenStr
-	if target == "" {
-		target = getNativeTokenAddress(fromChainTyped)
-	}
-
 	return &rtypes.Rule{
 		Resource: fromChainLowercase + ".send",
 		Effect:   rtypes.Effect_EFFECT_ALLOW,
@@ -398,10 +393,7 @@ func (s *Spec) createSendMetaRule(cfg map[string]any, fromChainTyped common.Chai
 			},
 		},
 		Target: &rtypes.Target{
-			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-			Target: &rtypes.Target_Address{
-				Address: target,
-			},
+			TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
 		},
 	}, nil
 }
