@@ -149,6 +149,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 			return nil
 		}
 
+		if fromChainTyped == common.XRP {
+			er := c.handleXrpSend(ctx, pol, fromAssetTokenStr, fromAmountStr, toAddressStr)
+			if er != nil {
+				return fmt.Errorf("failed to handle XRP send: %w", er)
+			}
+			return nil
+		}
+
 		c.logger.WithFields(logrus.Fields{
 			"chain":     fromChainStr,
 			"operation": "send",
@@ -295,6 +303,50 @@ func (c *Consumer) xrpPubToAddress(rootPub string) (string, string, error) {
 	return addr, childPub, nil
 }
 
+func (c *Consumer) handleXrpSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	fromAsset string,
+	fromAmount string,
+	toAddress string,
+) error {
+	fromAddressStr, childPubKey, err := c.xrpPubToAddress(pol.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get XRP address from policy PublicKey: %w", err)
+	}
+
+	fromAmountDrops, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	l := c.logger.WithFields(logrus.Fields{
+		"operation":   "send",
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"toAddress":   toAddress,
+		"amount":      fromAmountDrops,
+		"asset":       fromAsset,
+	})
+
+	l.Info("building XRP payment transaction")
+	sendTx, err := c.xrp.Send.BuildPayment(ctx, fromAddressStr, toAddress, fromAmountDrops, childPubKey)
+	if err != nil {
+		l.WithError(err).Error("failed to build XRP payment")
+		return fmt.Errorf("failed to build XRP payment: %w", err)
+	}
+	l.Debug("XRP payment tx built successfully")
+
+	txHash, err := c.xrp.Signer.SignAndBroadcast(ctx, *pol, sendTx)
+	if err != nil {
+		l.WithError(err).Error("failed to sign & broadcast XRP send tx")
+		return fmt.Errorf("failed to sign & broadcast XRP send: %w", err)
+	}
+
+	l.WithField("txHash", txHash).Info("XRP send tx signed & broadcasted successfully")
+	return nil
+}
+
 func (c *Consumer) handleXrpSwap(
 	ctx context.Context,
 	pol *types.PluginPolicy,
@@ -343,7 +395,7 @@ func (c *Consumer) handleXrpSwap(
 		"toAddress":   toAddress,
 	}).Info("handling XRP swap")
 
-	txHash, err := c.xrp.Swap(ctx, *pol, from, to)
+	txHash, err := c.xrp.SwapAssets(ctx, *pol, from, to)
 	if err != nil {
 		return fmt.Errorf("failed to execute XRP swap: %w", err)
 	}
