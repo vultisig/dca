@@ -310,6 +310,11 @@ func (c *Consumer) handleXrpSend(
 	fromAmount string,
 	toAddress string,
 ) error {
+	// Validate that only native XRP is supported
+	if fromAsset != "" {
+		return fmt.Errorf("XRP send only supports native XRP, got token: %q", fromAsset)
+	}
+
 	fromAddressStr, childPubKey, err := c.xrpPubToAddress(pol.PublicKey)
 	if err != nil {
 		return fmt.Errorf("failed to get XRP address from policy PublicKey: %w", err)
