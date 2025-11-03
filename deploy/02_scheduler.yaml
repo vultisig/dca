@@ -16,6 +16,8 @@ spec:
       labels:
         app: scheduler
     spec:
+      imagePullSecrets:
+        - name: ghcr
       containers:
         - name: scheduler
           image: busybox
