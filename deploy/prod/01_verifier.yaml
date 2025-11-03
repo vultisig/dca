@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: verifier
+data:
+  url: "https://store.vultisigplugin.app/api"
+  party-prefix: "verifier"

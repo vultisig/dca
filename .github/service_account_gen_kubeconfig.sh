@@ -1,4 +1,4 @@
-server=https://95.179.182.114:6443
+server=https://0.0.0.0:6443
 name=github-actions-token
 
 ca=$(kubectl get secret/$name -o jsonpath='{.data.ca\.crt}')
