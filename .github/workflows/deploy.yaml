@@ -20,13 +20,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Detect environment
+        id: env-detect
+        run: |
+          if [[ "${{ github.ref_name }}" == dev-* ]]; then
+            echo "ENVIRONMENT=dev" >> $GITHUB_OUTPUT
+          else
+            echo "ENVIRONMENT=prod" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
 
       - name: Set the Kubernetes context
         uses: azure/k8s-set-context@v4
         with:
-          kubeconfig: ${{ secrets.KUBECONFIG }}
+          kubeconfig: ${{ startsWith(github.ref_name, 'dev-') && secrets.KUBECONFIG || secrets.PROD_KUBECONFIG }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -81,9 +90,16 @@ jobs:
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${{ github.ref_name }}|g" deploy/02_worker.yaml
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tx-indexer:${{ github.ref_name }}|g" deploy/02_tx_indexer.yaml
 
-      - name: Deploy to Kubernetes
+      - name: Deploy ConfigMaps
         run: |
-          kubectl apply -f deploy/ -n ${{ env.NS }}
+          kubectl apply -f deploy/${{ steps.env-detect.outputs.ENVIRONMENT }}/ -n ${{ env.NS }}
+
+      - name: Deploy Services
+        run: |
+          kubectl apply -f deploy/02_server.yaml -n ${{ env.NS }}
+          kubectl apply -f deploy/02_scheduler.yaml -n ${{ env.NS }}
+          kubectl apply -f deploy/02_worker.yaml -n ${{ env.NS }}
+          kubectl apply -f deploy/02_tx_indexer.yaml -n ${{ env.NS }}
 
       - name: Wait for deployments
         run: |
