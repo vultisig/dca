@@ -14,8 +14,6 @@ spec:
       labels:
         app: tx-indexer
     spec:
-      imagePullSecrets:
-        - name: ghcr
       containers:
         - name: tx-indexer
           image: busybox

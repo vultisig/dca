@@ -30,8 +30,6 @@ spec:
       labels:
         app: server
     spec:
-      imagePullSecrets:
-        - name: ghcr
       containers:
         - name: server
           image: busybox

@@ -14,8 +14,6 @@ spec:
       labels:
         app: worker
     spec:
-      imagePullSecrets:
-        - name: ghcr
       containers:
         - name: worker
           image: busybox
