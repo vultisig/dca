@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: verifier
 data:
-  url: "https://verifier-server-dev.fly.dev"
+  url: "https://verifier.vultisig.com"
   party-prefix: "verifier"
