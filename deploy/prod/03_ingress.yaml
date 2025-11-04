@@ -6,7 +6,7 @@ metadata:
     kubernetes.io/ingress.class: traefik
 spec:
   rules:
-    - host: dca.nbitslabs.com
+    - host: dcaplugin.vultisig.com
       http:
         paths:
           - path: /
