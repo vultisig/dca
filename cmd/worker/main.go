@@ -22,6 +22,7 @@ import (
 	"github.com/vultisig/dca/internal/oneinch"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
+	"github.com/vultisig/dca/internal/thorchain_native"
 	"github.com/vultisig/dca/internal/xrp"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
@@ -230,6 +231,19 @@ func main() {
 		xrpClient,
 	)
 
+	// Initialize THORChain native network
+	thorchainNativeClient := thorchain_native.NewClient(cfg.Rpc.THORChain.URL)
+	thorchainSwapProvider := thorchain_native.NewProviderThorchainSwap(thorchainNativeClient)
+	
+	// TODO: Add THORChain SDK when available in recipes
+	// For now, we'll create a placeholder SDK interface
+	thorchainNativeNetwork := thorchain_native.NewNetwork(
+		thorchain_native.NewSwapService([]thorchain_native.SwapProvider{thorchainSwapProvider}),
+		thorchain_native.NewSendService(thorchainNativeClient),
+		thorchain_native.NewSignerService(nil, signer, txIndexerService), // SDK will be nil for now
+		thorchainNativeClient,
+	)
+
 	jup, err := jupiter.NewProvider(cfg.Solana.JupiterAPIURL, solanarpc.New(cfg.Rpc.Solana.URL))
 	if err != nil {
 		logger.Fatalf("failed to initialize Jupiter provider: %v", err)
@@ -261,6 +275,7 @@ func main() {
 		),
 		solanaNetwork,
 		xrpNetwork,
+		thorchainNativeNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
@@ -318,6 +333,7 @@ type rpc struct {
 	BTC       rpcItem
 	XRP       rpcItem
 	Solana    rpcItem
+	THORChain rpcItem
 }
 
 type rpcItem struct {

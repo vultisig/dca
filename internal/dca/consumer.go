@@ -19,6 +19,7 @@ import (
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/solana"
+	"github.com/vultisig/dca/internal/thorchain_native"
 	"github.com/vultisig/dca/internal/util"
 	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/mobile-tss-lib/tss"
@@ -42,6 +43,7 @@ type Consumer struct {
 	btc         *btc.Network
 	xrp         *xrp.Network
 	solana      *solana.Network
+	thorchain   *thorchain_native.Network
 	vault       vault.Storage
 	vaultSecret string
 }
@@ -53,6 +55,7 @@ func NewConsumer(
 	btc *btc.Network,
 	solana *solana.Network,
 	xrp *xrp.Network,
+	thorchain *thorchain_native.Network,
 	vault vault.Storage,
 	vaultSecret string,
 ) *Consumer {
@@ -63,6 +66,7 @@ func NewConsumer(
 		btc:         btc,
 		xrp:         xrp,
 		solana:      solana,
+		thorchain:   thorchain,
 		vault:       vault,
 		vaultSecret: vaultSecret,
 	}
