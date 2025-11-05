@@ -10,7 +10,6 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/vultisig/dca/internal/blockchair"
@@ -20,7 +19,6 @@ import (
 )
 
 type Network struct {
-	rpc    *rpcclient.Client
 	utxo   *blockchair.Client
 	fee    feeProvider
 	swap   *SwapService
@@ -28,14 +26,12 @@ type Network struct {
 }
 
 func NewNetwork(
-	rpc *rpcclient.Client,
 	fee feeProvider,
 	swap *SwapService,
 	signer *SignerService,
 	utxo *blockchair.Client,
 ) *Network {
 	return &Network{
-		rpc:    rpc,
 		utxo:   utxo,
 		fee:    fee,
 		swap:   swap,
@@ -114,7 +110,7 @@ func (n *Network) populatePsbtMeta(tx *psbt.Packet) error {
 	for i := range tx.Inputs {
 		prevOutPoint := tx.UnsignedTx.TxIn[i].PreviousOutPoint
 
-		prevTx, err := n.rpc.GetRawTransaction(&prevOutPoint.Hash)
+		prevTx, err := n.utxo.GetRawTransaction(&prevOutPoint.Hash)
 		if err != nil {
 			return fmt.Errorf("failed to get previous transaction %s: %w", prevOutPoint.Hash.String(), err)
 		}

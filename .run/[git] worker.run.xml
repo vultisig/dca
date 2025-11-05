@@ -14,6 +14,7 @@
       <env name="GOARCH" value="arm64" />
       <env name="GOOS" value="darwin" />
       <env name="HEALTHPORT" value="8184" />
+      <env name="ONEINCH_BASEURL" value="https://api.vultisig.com/1inch" />
       <env name="POSTGRES_DSN" value="postgres://myuser:mypassword@localhost:5431/dca?sslmode=disable" />
       <env name="REDIS_HOST" value="localhost" />
       <env name="REDIS_PASSWORD" value="password" />
@@ -23,14 +24,12 @@
       <env name="RPC_BASE_URL" value="https://base-rpc.publicnode.com" />
       <env name="RPC_BLAST_URL" value="https://blast-rpc.publicnode.com" />
       <env name="RPC_BSC_URL" value="https://bsc-rpc.publicnode.com" />
-      <env name="RPC_BTC_URL" value="bitcoin-rpc.publicnode.com" />
       <env name="RPC_ETHEREUM_URL" value="https://ethereum-rpc.publicnode.com" />
       <env name="RPC_OPTIMISM_URL" value="https://optimism-rpc.publicnode.com" />
       <env name="RPC_POLYGON_URL" value="https://polygon-bor-rpc.publicnode.com" />
       <env name="RPC_SOLANA_URL" value="https://solana-rpc.publicnode.com" />
-      <env name="SOLANA_JUPITERAPIURL" value="https://api.vultisig.com/jup" />
       <env name="RPC_XRP_URL" value="https://xrplcluster.com" />
-      <env name="ONEINCH_BASEURL" value="https://api.vultisig.com/1inch" />
+      <env name="SOLANA_JUPITERAPIURL" value="https://api.vultisig.com/jup" />
       <env name="THORCHAIN_URL" value="https://thornode.ninerealms.com" />
       <env name="VAULTSERVICE_DOSETUPMSG" value="true" />
       <env name="VAULTSERVICE_ENCRYPTIONSECRET" value="test123" />
