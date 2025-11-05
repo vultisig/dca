@@ -557,9 +557,6 @@ func (c *Consumer) handleEvmSwap(
 	fromChain common.Chain,
 	fromAsset, fromAmount, toAsset, toAddress string,
 ) error {
-	fromAsset = util.IfEmptyElse(fromAsset, evmsdk.ZeroAddress.String())
-	toAsset = util.IfEmptyElse(toAsset, evmsdk.ZeroAddress.String())
-
 	fromAssetTyped := ecommon.HexToAddress(fromAsset)
 	fromAddressTyped, err := c.evmPubToAddress(fromChain, pol.PublicKey)
 	if err != nil {
@@ -656,12 +653,12 @@ func (c *Consumer) handleEvmSwap(
 	}
 	l.Debug("swap route found, tx=", base64.StdEncoding.EncodeToString(swapTx))
 
-	_, err = network.Signer.SignAndBroadcast(ctx, fromChain, *pol, swapTx)
+	txHash, err := network.Signer.SignAndBroadcast(ctx, fromChain, *pol, swapTx)
 	if err != nil {
 		return fmt.Errorf("failed to sign & broadcast swap: %w", err)
 	}
 
-	l.Info("tx signed & broadcasted")
+	l.WithField("txHash", txHash).Info("tx signed & broadcasted")
 	return nil
 }
 

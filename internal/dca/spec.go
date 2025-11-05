@@ -31,14 +31,10 @@ var supportedChains = []common.Chain{
 }
 
 const (
-	fromChain   = "fromChain"
-	fromAsset   = "fromAsset"
-	fromAmount  = "fromAmount"
-	fromAddress = "fromAddress"
+	fromAsset  = "from"
+	fromAmount = "fromAmount"
 
-	toChain   = "toChain"
-	toAsset   = "toAsset"
-	toAddress = "toAddress"
+	toAsset = "to"
 )
 
 const (
@@ -340,11 +336,6 @@ func (s *Spec) createSendMetaRule(cfg map[string]any, fromChainTyped common.Chai
 
 	fromAssetTokenStr := util.GetStr(fromAssetMap, "token")
 
-	target := fromAssetTokenStr
-	if target == "" {
-		target = getNativeTokenAddress(fromChainTyped)
-	}
-
 	return &rtypes.Rule{
 		Resource: fromChainLowercase + ".send",
 		Effect:   rtypes.Effect_EFFECT_ALLOW,
@@ -398,10 +389,7 @@ func (s *Spec) createSendMetaRule(cfg map[string]any, fromChainTyped common.Chai
 			},
 		},
 		Target: &rtypes.Target{
-			TargetType: rtypes.TargetType_TARGET_TYPE_ADDRESS,
-			Target: &rtypes.Target_Address{
-				Address: target,
-			},
+			TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
 		},
 	}, nil
 }
@@ -530,7 +518,7 @@ func (s *Spec) buildSupportedResources() []*rtypes.ResourcePattern {
 				FunctionId: "",
 				Full:       chainNameLower + ".send",
 			},
-			Target: rtypes.TargetType_TARGET_TYPE_ADDRESS,
+			Target: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
 			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
 				{
 					ParameterName:  "asset",
