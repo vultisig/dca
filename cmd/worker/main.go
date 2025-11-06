@@ -233,12 +233,14 @@ func main() {
 
 	// Initialize THORChain native network
 	thorchainNativeClient := thorchain_native.NewClient(cfg.Rpc.THORChain.URL)
-	thorchainSwapProvider := thorchain_native.NewProviderThorchainSwap(thorchainNativeClient)
-	
+
+	// Create THORChain native provider (uses THORChain API for quotes + native tx building)
+	thorchainNativeProvider := thorchain.NewProviderThorchainNative(thorchainClient, thorchainNativeClient)
+
 	// TODO: Add THORChain SDK when available in recipes
 	// For now, we'll create a placeholder SDK interface
 	thorchainNativeNetwork := thorchain_native.NewNetwork(
-		thorchain_native.NewSwapService([]thorchain_native.SwapProvider{thorchainSwapProvider}),
+		thorchain_native.NewSwapService([]thorchain_native.SwapProvider{thorchainNativeProvider}),
 		thorchain_native.NewSendService(thorchainNativeClient),
 		thorchain_native.NewSignerService(nil, signer, txIndexerService), // SDK will be nil for now
 		thorchainNativeClient,
