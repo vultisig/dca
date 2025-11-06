@@ -232,7 +232,7 @@ func main() {
 	)
 
 	// Initialize THORChain native network
-	thorchainNativeClient := thorchain_native.NewClient(cfg.Rpc.THORChain.URL)
+	thorchainNativeClient := thorchain_native.NewClient(cfg.Cosmos.RpcURL, cfg.Thorchain.RpcURL)
 
 	// Create THORChain native provider (uses THORChain API for quotes + native tx building)
 	thorchainNativeProvider := thorchain.NewProviderThorchainNative(thorchainClient, thorchainNativeClient)
@@ -312,6 +312,8 @@ type config struct {
 	BTC          btcConfig
 	XRP          xrpConfig
 	Solana       solanaConfig
+	Cosmos       cosmosConfig
+	Thorchain    thorchainConfig
 	HealthPort   int
 }
 
@@ -352,6 +354,14 @@ type xrpConfig struct {
 
 type solanaConfig struct {
 	JupiterAPIURL string
+}
+
+type cosmosConfig struct {
+	RpcURL string
+}
+
+type thorchainConfig struct {
+	RpcURL string
 }
 
 func newConfig() (config, error) {

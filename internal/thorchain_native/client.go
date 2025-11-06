@@ -17,16 +17,18 @@ type AccountInfoProvider interface {
 	GetBaseFee(ctx context.Context) (fee uint64, err error)
 }
 
-// Client implements AccountInfoProvider using THORChain Tendermint JSON-RPC
+// Client implements AccountInfoProvider using THORChain APIs
 type Client struct {
-	rpcURL     string
-	httpClient *http.Client
+	cosmosRpcURL    string // Tendermint RPC endpoint for block queries
+	thorchainApiURL string // THORChain API endpoint for account and network queries
+	httpClient      *http.Client
 }
 
-// NewClient creates a new THORChain client with the given RPC URL
-func NewClient(rpcURL string) *Client {
+// NewClient creates a new THORChain client with both Cosmos RPC and THORChain API URLs
+func NewClient(cosmosRpcURL, thorchainApiURL string) *Client {
 	return &Client{
-		rpcURL: rpcURL,
+		cosmosRpcURL:    cosmosRpcURL,
+		thorchainApiURL: thorchainApiURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -92,7 +94,7 @@ func (c *Client) makeRequest(ctx context.Context, method string, params []interf
 		return nil, fmt.Errorf("thorchain: failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.rpcURL, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.cosmosRpcURL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("thorchain: failed to create request: %w", err)
 	}
@@ -123,50 +125,84 @@ func (c *Client) makeRequest(ctx context.Context, method string, params []interf
 
 // GetAccountInfo fetches account sequence number from THORChain
 func (c *Client) GetAccountInfo(ctx context.Context, address string) (uint64, error) {
-	// Query account info using abci_query
-	path := fmt.Sprintf("account/%s", address)
-	params := []interface{}{path, "", "0", false}
+	// Use Cosmos REST API endpoint for account info
+	// THORChain follows standard Cosmos SDK patterns
+	url := fmt.Sprintf("%s/cosmos/auth/v1beta1/accounts/%s", c.thorchainApiURL, address)
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("thorchain: failed to create account request: %w", err)
+	}
 
-	resp, err := c.makeRequest(ctx, "abci_query", params)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("thorchain: failed to query account info: %w", err)
 	}
+	defer resp.Body.Close()
 
-	var queryResp abciQueryResponse
-	if err := json.Unmarshal(resp.Result, &queryResp); err != nil {
-		return 0, fmt.Errorf("thorchain: failed to unmarshal account query response: %w", err)
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("thorchain: unexpected status code: %d", resp.StatusCode)
 	}
 
-	if queryResp.Response.Code != 0 {
-		return 0, fmt.Errorf("thorchain: account query failed: %s", queryResp.Response.Log)
+	var accountResp struct {
+		Account struct {
+			Sequence string `json:"sequence"`
+		} `json:"account"`
 	}
 
-	// TODO: Parse account data from queryResp.Response.Value (base64 encoded protobuf)
-	// For now, return a default sequence number
-	// In a real implementation, you would:
-	// 1. Base64 decode queryResp.Response.Value
-	// 2. Protobuf decode the account data using Cosmos SDK types
-	// 3. Extract the sequence number from the account
-	return 0, nil
+	if err := json.NewDecoder(resp.Body).Decode(&accountResp); err != nil {
+		return 0, fmt.Errorf("thorchain: failed to decode account response: %w", err)
+	}
+
+	sequence, err := strconv.ParseUint(accountResp.Account.Sequence, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("thorchain: failed to parse sequence: %w", err)
+	}
+
+	return sequence, nil
 }
 
 // GetLatestBlock fetches current block height from THORChain
 func (c *Client) GetLatestBlock(ctx context.Context) (uint64, error) {
-	resp, err := c.makeRequest(ctx, "block", []interface{}{})
+	// Use Tendermint RPC status endpoint to get latest block height
+	url := fmt.Sprintf("%s/status", c.cosmosRpcURL)
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("thorchain: failed to create block request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("thorchain: failed to get latest block: %w", err)
 	}
+	defer resp.Body.Close()
 
-	var blockResp blockResponse
-	if err := json.Unmarshal(resp.Result, &blockResp); err != nil {
-		return 0, fmt.Errorf("thorchain: failed to unmarshal block response: %w", err)
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("thorchain: unexpected status code: %d", resp.StatusCode)
 	}
 
-	heightStr := blockResp.Block.Header.Height
-	height, err := strconv.ParseUint(heightStr, 10, 64)
+	var statusResp struct {
+		Result struct {
+			SyncInfo struct {
+				LatestBlockHeight   string `json:"latest_block_height"`
+				EarliestBlockHeight string `json:"earliest_block_height"`
+			} `json:"sync_info"`
+		} `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&statusResp); err != nil {
+		return 0, fmt.Errorf("thorchain: failed to decode status response: %w", err)
+	}
+
+	// Parse block height from string
+	height, err := strconv.ParseUint(statusResp.Result.SyncInfo.LatestBlockHeight, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("thorchain: failed to parse block height: %w", err)
 	}
+
+	fmt.Printf("DEBUG THORCHAIN STATUS RESPONSE:\n")
+	fmt.Printf("  Latest Block Height: %s (%d)\n", statusResp.Result.SyncInfo.LatestBlockHeight, height)
 
 	return height, nil
 }
