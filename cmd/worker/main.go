@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/ethereum/go-ethereum/ethclient"
 	solanarpc "github.com/gagliardetto/solana-go/rpc"
 	"github.com/hibiken/asynq"
@@ -203,15 +202,6 @@ func main() {
 		networks[c.chain] = network
 	}
 
-	btcRpcClient, err := rpcclient.New(&rpcclient.ConnConfig{
-		Host:         cfg.Rpc.BTC.URL,
-		HTTPPostMode: true,
-		Pass:         "pass",
-	}, nil)
-	if err != nil {
-		logger.Fatalf("failed to initialize BTC RPC client: %v", err)
-	}
-
 	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
 	blockchairClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
 
@@ -253,7 +243,6 @@ func main() {
 		policyService,
 		evm.NewManager(networks),
 		btc.NewNetwork(
-			btcRpcClient,
 			thorchainBtc,
 			btc.NewSwapService([]btc.SwapProvider{thorchainBtc}),
 			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signer, txIndexerService),
@@ -315,7 +304,6 @@ type rpc struct {
 	Blast     rpcItem
 	Optimism  rpcItem
 	Polygon   rpcItem
-	BTC       rpcItem
 	XRP       rpcItem
 	Solana    rpcItem
 }

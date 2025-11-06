@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/vultisig/verifier/plugin/libhttp"
@@ -27,6 +29,44 @@ type PushResponse struct {
 	Data struct {
 		TransactionHash string `json:"transaction_hash"`
 	} `json:"data"`
+}
+
+func (c *Client) GetRawTransaction(txHash *chainhash.Hash) (*btcutil.Tx, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	type dataItem struct {
+		RawTx string `json:"raw_transaction"`
+	}
+
+	type res struct {
+		Data map[string]dataItem `json:"data"`
+	}
+
+	r, err := libhttp.Call[res](
+		ctx,
+		http.MethodGet,
+		c.url+"/bitcoin/raw/transaction/"+txHash.String(),
+		map[string]string{
+			"Content-Type": "application/json",
+		},
+		map[string]string{},
+		map[string]string{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get raw tx: %w", err)
+	}
+
+	data, ok := r.Data[txHash.String()]
+	if !ok {
+		return nil, fmt.Errorf("failed to get tx from response, hash=%s", txHash.String())
+	}
+
+	tx, err := btcutil.NewTxFromReader(hex.NewDecoder(strings.NewReader(data.RawTx)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize raw tx: %w", err)
+	}
+	return tx, nil
 }
 
 func (c *Client) SendRawTransaction(tx *wire.MsgTx, _ bool) (*chainhash.Hash, error) {
