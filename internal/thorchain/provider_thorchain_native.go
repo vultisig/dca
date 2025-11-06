@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/cosmos/cosmos-sdk/codec"
+	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/tx"
 	thorchain_native "github.com/vultisig/dca/internal/thorchain_native"
+	recipestypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/vultisig-go/common"
 )
 
@@ -122,33 +127,72 @@ func buildUnsignedThorchainSwapTx(
 	from thorchain_native.From,
 	to thorchain_native.To,
 	quote quoteSwapResponse,
-	sequence uint64,
-	feeRune uint64,
-	timeoutHeight uint64,
+	_ uint64, // sequence - not needed for MsgDeposit, handled by THORChain SDK
+	_ uint64, // feeRune - not needed for MsgDeposit, THORChain handles fees differently
+	_ uint64, // timeoutHeight - not needed for MsgDeposit
 ) ([]byte, error) {
-	// TODO: Implement actual Cosmos SDK transaction building for THORChain
-	// This would involve:
-	// 1. Creating appropriate THORChain swap message (MsgSwap or MsgSend to vault)
-	// 2. Building Cosmos SDK transaction with proper fee, sequence, timeout
-	// 3. Serializing to protobuf bytes for signing
-	
-	// Determine swap type based on destination
-	var swapType string
+	// Build THORChain memo for the swap
 	var memo string
-	
 	if to.Chain == common.THORChain {
 		// Native THORChain swap (e.g., RUNE to synthetic asset)
-		swapType = "native-swap"
 		memo = fmt.Sprintf("=:%s:%s", quote.Memo, to.Address)
 	} else {
 		// Cross-chain swap (e.g., RUNE to external chain)
-		swapType = "cross-chain-swap" 
 		memo = quote.Memo
 	}
 	
-	// For now, return a structured placeholder that indicates the transaction details
-	placeholder := fmt.Sprintf("thorchain-tx:type=%s:from=%s:to=%s:amount=%d:sequence=%d:fee=%d:timeout=%d:memo=%s:pubkey=%s",
-		swapType, from.Address, to.Address, from.Amount, sequence, feeRune, timeoutHeight, memo, from.PubKey)
+	// Create the deposit coin - for THORChain swaps, we deposit RUNE or other native assets
+	coin := &recipestypes.Coin{
+		Denom:  getRUNEDenom(from.AssetID), // Convert asset ID to proper denom
+		Amount: fmt.Sprintf("%d", from.Amount),
+	}
 	
-	return []byte(placeholder), nil
+	// Build MsgDeposit (without memo - it goes in transaction body)
+	msgDeposit := &recipestypes.MsgDeposit{
+		Coins:  []*recipestypes.Coin{coin},
+		Signer: from.Address,
+		// Memo is removed from here - it goes in the transaction body
+	}
+	
+	// Pack MsgDeposit into Any for Cosmos SDK transaction
+	msgAny, err := codectypes.NewAnyWithValue(msgDeposit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack MsgDeposit into Any: %w", err)
+	}
+	
+	// Create complete Cosmos SDK transaction structure
+	txData := &tx.Tx{
+		Body: &tx.TxBody{
+			Messages: []*codectypes.Any{msgAny},
+			Memo:     memo, // Memo goes at transaction level for THORChain
+		},
+		AuthInfo: &tx.AuthInfo{
+			// Empty for unsigned transaction
+		},
+		Signatures: [][]byte{}, // Empty for unsigned transaction
+	}
+	
+	// Create codec interface registry and register types
+	ir := codectypes.NewInterfaceRegistry()
+	// Register the MsgDeposit as implementing sdk.Msg interface (like in recipes)
+	ir.RegisterImplementations((*sdk.Msg)(nil), &recipestypes.MsgDeposit{})
+	cdc := codec.NewProtoCodec(ir)
+	
+	// Marshal the complete transaction
+	txBytes, err := cdc.Marshal(txData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal complete transaction: %w", err)
+	}
+	
+	return txBytes, nil
+}
+
+// getRUNEDenom converts asset ID to proper THORChain denomination
+func getRUNEDenom(assetID string) string {
+	if assetID == "" || assetID == "RUNE" {
+		return "rune" // Native RUNE
+	}
+	// For other assets, they would typically be in the format like "ETH.ETH-0x..."
+	// but for THORChain deposits, we're usually depositing RUNE
+	return "rune"
 }
