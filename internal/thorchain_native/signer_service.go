@@ -24,7 +24,7 @@ type SignerService struct {
 
 // ThorchainSDK interface for THORChain Cosmos SDK operations
 type ThorchainSDK interface {
-	Sign(txData []byte, signatures map[string]tss.KeysignResponse, pubKey []byte) ([]byte, error)
+	Sign(txData []byte, signatures map[string]tss.KeysignResponse) ([]byte, error)
 	Broadcast(ctx context.Context, signedTxBytes []byte) error
 }
 
@@ -61,17 +61,9 @@ func (s *SignerService) SignAndBroadcast(
 		return "", fmt.Errorf("thorchain: failed to get signature: %w", err)
 	}
 
-	// Get the child public key from the unsigned transaction
-	pubKey, err := s.extractPublicKeyFromTx(txData)
-	if err != nil {
-		return "", fmt.Errorf("thorchain: failed to extract public key: %w", err)
-	}
-
-	// TODO: Convert signatures map to proper format for THORChain SDK
-	// The signatures from keysign are map[string]tss.KeysignResponse
-	// but THORChain SDK may expect a different format
-	// For now, pass signatures directly like XRP does
-	signedTxBytes, err := s.sdk.Sign(txData, signatures, pubKey)
+	// Sign the transaction using THORChain SDK
+	// The SDK handles public key extraction internally from the transaction
+	signedTxBytes, err := s.sdk.Sign(txData, signatures)
 	if err != nil {
 		return "", fmt.Errorf("thorchain: failed to sign transaction: %w", err)
 	}
@@ -147,23 +139,6 @@ func (s *SignerService) calculateCosmosHashToSign(txData []byte) ([]byte, error)
 	return hash[:], nil
 }
 
-func (s *SignerService) extractPublicKeyFromTx(txData []byte) ([]byte, error) {
-	// TODO: Parse the Cosmos SDK transaction to extract the public key
-	// This would typically involve protobuf decoding of the transaction
-	// For now, return a placeholder
-	
-	txString := string(txData)
-	if strings.Contains(txString, "pubkey=") {
-		// Extract pubkey from placeholder format
-		parts := strings.Split(txString, "pubkey=")
-		if len(parts) > 1 {
-			pubKeyHex := parts[1]
-			return hex.DecodeString(pubKeyHex)
-		}
-	}
-	
-	return nil, fmt.Errorf("thorchain: public key not found in transaction")
-}
 
 func (s *SignerService) extractTransactionHash(signedTxBytes []byte) (string, error) {
 	// For Cosmos SDK transactions, the transaction hash is typically:

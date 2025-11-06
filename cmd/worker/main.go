@@ -26,6 +26,7 @@ import (
 	"github.com/vultisig/dca/internal/xrp"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
+	thorchainSDK "github.com/vultisig/recipes/sdk/thorchain"
 	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
@@ -232,17 +233,27 @@ func main() {
 	)
 
 	// Initialize THORChain native network
+	logger.Infof("=== THORChain Client URLs ===")
+	logger.Infof("Cosmos RPC URL: %s", cfg.Cosmos.RpcURL)
+	logger.Infof("THORChain API URL: %s", cfg.Thorchain.RpcURL)
+	logger.Infof("=== END THORChain URLs ===")
 	thorchainNativeClient := thorchain_native.NewClient(cfg.Cosmos.RpcURL, cfg.Thorchain.RpcURL)
+
+	// Initialize THORChain SDK for signing and broadcasting
+	thorchainRpcClient, err := thorchainSDK.NewCometBFTRPCClient(cfg.Cosmos.RpcURL)
+	if err != nil {
+		logger.Fatalf("failed to initialize THORChain RPC client: %v", err)
+	}
+	thorchainSDKInstance := thorchainSDK.NewSDK(thorchainRpcClient)
 
 	// Create THORChain native provider (uses THORChain API for quotes + native tx building)
 	thorchainNativeProvider := thorchain.NewProviderThorchainNative(thorchainClient, thorchainNativeClient)
 
-	// TODO: Add THORChain SDK when available in recipes
-	// For now, we'll create a placeholder SDK interface
+	// Create THORChain native network with SDK
 	thorchainNativeNetwork := thorchain_native.NewNetwork(
 		thorchain_native.NewSwapService([]thorchain_native.SwapProvider{thorchainNativeProvider}),
 		thorchain_native.NewSendService(thorchainNativeClient),
-		thorchain_native.NewSignerService(nil, signer, txIndexerService), // SDK will be nil for now
+		thorchain_native.NewSignerService(thorchainSDKInstance, signer, txIndexerService),
 		thorchainNativeClient,
 	)
 
