@@ -157,6 +157,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 			return nil
 		}
 
+		if fromChainTyped == common.Bitcoin {
+			er := c.handleBtcSend(ctx, pol, fromAmountStr, toAddressStr)
+			if er != nil {
+				return fmt.Errorf("failed to handle BTC send: %w", er)
+			}
+			return nil
+		}
+
 		c.logger.WithFields(logrus.Fields{
 			"chain":     fromChainStr,
 			"operation": "send",
@@ -489,6 +497,49 @@ func (c *Consumer) handleBtcSwap(
 	}
 
 	c.logger.WithField("txHash", txHash).Info("BTC swap executed successfully")
+	return nil
+}
+
+func (c *Consumer) handleBtcSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	fromAmount string,
+	toAddress string,
+) error {
+	fromAddressTyped, childPub, err := c.btcPubToAddress(pol.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get BTC address from policy PublicKey: %w", err)
+	}
+
+	fromAmountInt, ok := new(big.Int).SetString(fromAmount, 10)
+	if !ok {
+		return fmt.Errorf("failed to parse fromAmount: %s", fromAmount)
+	}
+	if !fromAmountInt.IsUint64() {
+		return fmt.Errorf("fromAmount too large for uint64: %s", fromAmount)
+	}
+	fromAmountSats := fromAmountInt.Uint64()
+
+	from := btc.From{
+		PubKey:  childPub,
+		Address: fromAddressTyped,
+		Amount:  fromAmountSats,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"operation":   "send",
+		"fromAddress": fromAddressTyped.String(),
+		"toAddress":   toAddress,
+		"amount":      fromAmountSats,
+	}).Info("handling BTC send")
+
+	txHash, err := c.btc.Send(ctx, *pol, from, toAddress, fromAmountSats)
+	if err != nil {
+		return fmt.Errorf("failed to execute BTC send: %w", err)
+	}
+
+	c.logger.WithField("txHash", txHash).Info("BTC send executed successfully")
 	return nil
 }
 

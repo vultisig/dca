@@ -27,6 +27,7 @@ The system consists of four main services that can be run independently:
 
 - **`internal/dca/`** - Core DCA logic including policy specs, scheduling, and transaction consumption
 - **`internal/evm/`** - EVM blockchain abstraction layer with network management, approval, send, and swap services
+- **`internal/btc/`** - Bitcoin blockchain abstraction layer with UTXO management, send, and swap services
 - **`internal/graceful/`** - Graceful shutdown handling
 
 ### Plugin System Integration
@@ -125,11 +126,12 @@ go test ./internal/dca/
 ### Transaction Building
 
 - **Send Operations**:
-  - Native token transfers using standard value transfers (21,000 gas)
+  - Native token transfers using standard value transfers (21,000 gas for EVM)
   - ERC20 token transfers using `transfer(address,uint256)` function (65,000 gas)
+  - Bitcoin transfers with UTXO selection following bitcoin.btc.transfer metarule (output ordering: recipient, change)
   - No approvals required (single transaction)
-  - Currently supported: EVM chains
-  - Future support planned: BTC, Solana, XRP
+  - Currently supported: EVM chains, Bitcoin, XRP
+  - Future support planned: Solana
 - **Swap Operations**:
   - Automatic approval checking and transaction building for ERC20 tokens
   - Integration with swap providers (currently being migrated to 1inch for EVM chains)
@@ -214,11 +216,15 @@ This design allows for easy addition of new chains by simply adding their config
 
 - **Added Send Operation** - Direct token transfers for same-chain, same-asset operations
 - **Official Interface Compliance** - Implements the official `*.send` interface: `{chain}.send (asset, from_address, amount, to_address, memo)`
-- **EVM Implementation** - Full support for native and ERC20 token transfers across all EVM chains
+- **Multi-Chain Implementation** - Full support for:
+  - **EVM chains**: Native and ERC20 token transfers across all EVM chains
+  - **Bitcoin**: Native BTC transfers with proper UTXO selection and change handling
+  - **XRP**: Native XRP transfers
 - **Automatic Detection** - System automatically detects send vs swap based on configuration parameters
-- **Dynamic Policy Generation** - Send resources (e.g., `ethereum.send`, `arbitrum.send`) auto-generated for all chains
+- **Dynamic Policy Generation** - Send resources (e.g., `ethereum.send`, `bitcoin.send`, `arbitrum.send`) auto-generated for all chains
+- **Bitcoin UTXO Management** - Efficient UTXO selection and change calculation following bitcoin.btc.transfer metarule format
 - **Memo Support** - Optional memo parameter ready for chains that support it (XRP, Solana)
-- **Future-Ready Architecture** - Designed for easy extension to BTC, Solana, and XRP
+- **Future-Ready Architecture** - Designed for easy extension to Solana
 - **Optimized Rate Limiting** - Send operations use maxTxsPerWindow=1 (no approvals needed)
 
 ### Migration to 1inch
