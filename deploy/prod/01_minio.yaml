@@ -3,6 +3,6 @@ kind: ConfigMap
 metadata:
   name: minio
 data:
-  host: "https://sgp1.vultrobjects.com"
+  host: "https://sgp1.digitaloceanspaces.com"
   region: "us-east-1"
-  bucket: "keyshares"
+  bucket: "vs-dca-1"
