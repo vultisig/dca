@@ -51,7 +51,8 @@ func main() {
 	redisTLS := os.Getenv("REDIS_TLS")
 	if redisTLS == "true" {
 		asynqClientOpt.TLSConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true,
 		}
 	}
 
