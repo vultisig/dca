@@ -20,8 +20,6 @@ jobs:
       registry: ghcr.io
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
-    secrets:
-      gh_ci_token: ${{ secrets.GH_CI_TOKEN }}
 
   build-scheduler:
     uses: ./.github/workflows/build-push-image.yaml
@@ -33,8 +31,6 @@ jobs:
       registry: ghcr.io
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
-    secrets:
-      gh_ci_token: ${{ secrets.GH_CI_TOKEN }}
 
   build-worker:
     uses: ./.github/workflows/build-push-image.yaml
@@ -46,8 +42,6 @@ jobs:
       registry: ghcr.io
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
-    secrets:
-      gh_ci_token: ${{ secrets.GH_CI_TOKEN }}
 
   build-tx-indexer:
     uses: ./.github/workflows/build-push-image.yaml
@@ -59,8 +53,6 @@ jobs:
       registry: ghcr.io
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
-    secrets:
-      gh_ci_token: ${{ secrets.GH_CI_TOKEN }}
 
   deploy:
     needs: [build-server, build-scheduler, build-worker, build-tx-indexer]
