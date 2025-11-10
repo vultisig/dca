@@ -12,6 +12,9 @@ env:
 jobs:
   build-server:
     uses: ./.github/workflows/build-push-image.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       service: server
       registry: ghcr.io
@@ -22,6 +25,9 @@ jobs:
 
   build-scheduler:
     uses: ./.github/workflows/build-push-image.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       service: scheduler
       registry: ghcr.io
@@ -32,6 +38,9 @@ jobs:
 
   build-worker:
     uses: ./.github/workflows/build-push-image.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       service: worker
       registry: ghcr.io
@@ -42,6 +51,9 @@ jobs:
 
   build-tx-indexer:
     uses: ./.github/workflows/build-push-image.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       service: tx_indexer
       registry: ghcr.io
