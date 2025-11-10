@@ -8,7 +8,6 @@ import (
 	"github.com/kaptinlin/jsonschema"
 	"github.com/vultisig/dca/internal/util"
 	rjsonschema "github.com/vultisig/recipes/jsonschema"
-	evmsdk "github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
@@ -563,16 +562,4 @@ func (s *Spec) ValidatePluginPolicy(pol types.PluginPolicy) error {
 		return fmt.Errorf("failed to get recipe spec: %w", err)
 	}
 	return plugin.ValidatePluginPolicy(pol, spec)
-}
-
-func getNativeTokenAddress(chain common.Chain) string {
-	switch {
-	case chain.IsEvm():
-		return evmsdk.ZeroAddress.Hex()
-	case chain == common.XRP:
-		return "" // XRP uses empty string for native asset
-	// TODO add other chains during corresponding *.send tasks
-	default:
-		return ""
-	}
 }

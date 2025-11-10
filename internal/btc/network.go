@@ -22,12 +22,14 @@ type Network struct {
 	utxo   *blockchair.Client
 	fee    feeProvider
 	swap   *SwapService
+	send   *SendService
 	signer *SignerService
 }
 
 func NewNetwork(
 	fee feeProvider,
 	swap *SwapService,
+	send *SendService,
 	signer *SignerService,
 	utxo *blockchair.Client,
 ) *Network {
@@ -35,6 +37,7 @@ func NewNetwork(
 		utxo:   utxo,
 		fee:    fee,
 		swap:   swap,
+		send:   send,
 		signer: signer,
 	}
 }
@@ -47,6 +50,40 @@ func (n *Network) Swap(ctx context.Context, policy vtypes.PluginPolicy, from Fro
 	changeOutputIndex, _, outputs, err := n.swap.FindBestAmountOut(ctx, from, to)
 	if err != nil {
 		return "", fmt.Errorf("find best amount out: %w", err)
+	}
+
+	msgTx, err := n.buildMsgTx(ctx, from, outputs, changeOutputIndex)
+	if err != nil {
+		return "", fmt.Errorf("failed to build tx: %w", err)
+	}
+
+	psbtTx, err := toPsbt(msgTx, from.PubKey.PubKey().SerializeCompressed())
+	if err != nil {
+		return "", fmt.Errorf("failed to convert tx to psbt: %w", err)
+	}
+
+	err = n.populatePsbtMeta(psbtTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to populate psbt metadata: %w", err)
+	}
+
+	txHash, err := n.sendWithSdk(ctx, policy, psbtTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to send tx: %w", err)
+	}
+	return txHash, nil
+}
+
+func (n *Network) Send(
+	ctx context.Context,
+	policy vtypes.PluginPolicy,
+	from From,
+	toAddress string,
+	amount uint64,
+) (string, error) {
+	outputs, changeOutputIndex, err := n.send.BuildTransfer(toAddress, from.Address, amount)
+	if err != nil {
+		return "", fmt.Errorf("failed to build transfer outputs: %w", err)
 	}
 
 	msgTx, err := n.buildMsgTx(ctx, from, outputs, changeOutputIndex)

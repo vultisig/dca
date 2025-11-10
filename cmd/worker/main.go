@@ -245,6 +245,7 @@ func main() {
 		btc.NewNetwork(
 			thorchainBtc,
 			btc.NewSwapService([]btc.SwapProvider{thorchainBtc}),
+			btc.NewSendService(),
 			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signer, txIndexerService),
 			blockchairClient,
 		),
