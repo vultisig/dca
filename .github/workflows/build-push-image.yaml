@@ -19,10 +19,6 @@ on:
         required: true
         type: string
         description: Image tag
-    secrets:
-      gh_ci_token:
-        required: true
-        description: GitHub token for pushing to container registry
 
 jobs:
   build-and-push:
@@ -41,7 +37,7 @@ jobs:
         with:
           registry: ${{ inputs.registry }}
           username: ${{ github.actor }}
-          password: ${{ secrets.gh_ci_token }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
         uses: docker/build-push-action@v5
