@@ -78,7 +78,7 @@ jobs:
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/server:${TAG}|" deploy/02_server.yaml
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/scheduler:${TAG}|" deploy/02_scheduler.yaml
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${TAG}|" deploy/02_worker.yaml
-          sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tx-indexer:${TAG}|" deploy/02_tx_indexer.yaml
+          sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tx_indexer:${TAG}|" deploy/02_tx_indexer.yaml
 
       - name: Deploy to Kubernetes
         run: |
@@ -90,4 +90,4 @@ jobs:
           kubectl -n ${{ env.NS }} rollout status deployment/server --timeout=300s
           kubectl -n ${{ env.NS }} rollout status deployment/scheduler --timeout=300s
           kubectl -n ${{ env.NS }} rollout status deployment/worker --timeout=300s
-          kubectl -n ${{ env.NS }} rollout status deployment/tx-indexer --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/tx_indexer --timeout=300s
