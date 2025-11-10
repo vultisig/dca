@@ -3,4 +3,4 @@ kind: ConfigMap
 metadata:
   name: relay
 data:
-  url: "https://api.vultisig.com/router"
+  url: "http://10.104.0.8:9090/router"
