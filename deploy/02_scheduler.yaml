@@ -47,7 +47,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: redis
-                  key: redis-password
+                  key: password
           resources:
             requests:
               memory: "32Mi"
