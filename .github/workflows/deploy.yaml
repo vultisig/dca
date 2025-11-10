@@ -7,6 +7,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  CLUSTER: do-sgp1-plugins-prod-cluster
   NS: plugin-dca
 
 jobs:
@@ -17,7 +18,7 @@ jobs:
       packages: write
     with:
       service: server
-      registry: ghcr.io
+      registry: ${{ env.REGISTRY }}
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
 
@@ -28,7 +29,7 @@ jobs:
       packages: write
     with:
       service: scheduler
-      registry: ghcr.io
+      registry: ${{ env.REGISTRY }}
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
 
@@ -39,7 +40,7 @@ jobs:
       packages: write
     with:
       service: worker
-      registry: ghcr.io
+      registry: ${{ env.REGISTRY }}
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
 
@@ -50,7 +51,7 @@ jobs:
       packages: write
     with:
       service: tx_indexer
-      registry: ghcr.io
+      registry: ${{ env.REGISTRY }}
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
 
@@ -69,7 +70,7 @@ jobs:
           token: ${{ secrets.DIGITALOCEAN_CI_TOKEN }}
 
       - name: Save DigitalOcean kubeconfig
-        run: doctl kubernetes cluster kubeconfig save k8s
+        run: doctl kubernetes cluster kubeconfig save ${{ env.CLUSTER }}
 
       - name: Update deployment files
         run: |
