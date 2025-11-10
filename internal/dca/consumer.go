@@ -14,6 +14,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	ecommon "github.com/ethereum/go-ethereum/common"
+	solanasdk "github.com/gagliardetto/solana-go"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/btc"
@@ -153,6 +154,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 			er := c.handleXrpSend(ctx, pol, fromAssetTokenStr, fromAmountStr, toAddressStr)
 			if er != nil {
 				return fmt.Errorf("failed to handle XRP send: %w", er)
+			}
+			return nil
+		}
+
+		if fromChainTyped == common.Solana {
+			er := c.handleSolanaSend(ctx, pol, fromAssetTokenStr, fromAmountStr, toAddressStr)
+			if er != nil {
+				return fmt.Errorf("failed to handle Solana send: %w", er)
 			}
 			return nil
 		}
@@ -596,6 +605,58 @@ func (c *Consumer) handleSolanaSwap(
 	}
 
 	c.logger.WithField("txHash", txHash).Info("Solana swap executed successfully")
+	return nil
+}
+
+func (c *Consumer) handleSolanaSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	fromAsset string,
+	fromAmount string,
+	toAddress string,
+) error {
+	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get Solana address from policy PublicKey: %w", err)
+	}
+
+	fromAmountTyped, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	fromPubKey, err := solanasdk.PublicKeyFromBase58(fromAddressTyped)
+	if err != nil {
+		return fmt.Errorf("failed to parse from address: %w", err)
+	}
+
+	toPubKey, err := solanasdk.PublicKeyFromBase58(toAddress)
+	if err != nil {
+		return fmt.Errorf("failed to parse to address: %w", err)
+	}
+
+	isNative := fromAsset == ""
+
+	l := c.logger.WithFields(logrus.Fields{
+		"operation":   "send",
+		"policyID":    pol.ID.String(),
+		"chain":       "solana",
+		"fromAddress": fromAddressTyped,
+		"toAddress":   toAddress,
+		"asset":       fromAsset,
+		"amount":      fromAmountTyped,
+		"isNative":    isNative,
+	})
+
+	l.Info("handling Solana send")
+
+	txHash, err := c.solana.Send(ctx, *pol, fromPubKey, toPubKey, fromAsset, fromAmountTyped)
+	if err != nil {
+		l.WithError(err).Error("failed to execute Solana send")
+		return fmt.Errorf("failed to execute Solana send: %w", err)
+	}
+
+	l.WithField("txHash", txHash).Info("Solana send executed successfully")
 	return nil
 }
 

@@ -177,7 +177,11 @@ func (s *Spec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 
 	var maxTxsPerWindow uint32
 	if isSend {
-		maxTxsPerWindow = 1
+		if fromChainTyped == common.Solana && fromAssetTokenStr != "" {
+			maxTxsPerWindow = 2 // +1 for possible dst ATA create
+		} else {
+			maxTxsPerWindow = 1
+		}
 	} else {
 		switch {
 		case fromChainTyped == common.Solana:
