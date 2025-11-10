@@ -17,8 +17,8 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20251107161337-cacbff7b2f7f
-	github.com/vultisig/verifier v0.0.0-20251105164312-3b8d2f3a510a
+	github.com/vultisig/recipes v0.0.0-20251110144225-8d92cf257944
+	github.com/vultisig/verifier v0.0.0-20251110144836-6f714737d1bd
 	github.com/vultisig/vultisig-go v0.0.0-20251004125942-60b3b1898d15
 	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
 	golang.org/x/sync v0.14.0
