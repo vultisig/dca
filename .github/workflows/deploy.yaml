@@ -18,7 +18,7 @@ jobs:
       packages: write
     with:
       service: server
-      registry: ${{ env.REGISTRY }}
+      registry: ghcr.io
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
 
@@ -29,7 +29,7 @@ jobs:
       packages: write
     with:
       service: scheduler
-      registry: ${{ env.REGISTRY }}
+      registry: ghcr.io
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
 
@@ -40,7 +40,7 @@ jobs:
       packages: write
     with:
       service: worker
-      registry: ${{ env.REGISTRY }}
+      registry: ghcr.io
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
 
@@ -51,7 +51,7 @@ jobs:
       packages: write
     with:
       service: tx_indexer
-      registry: ${{ env.REGISTRY }}
+      registry: ghcr.io
       image_name: ${{ github.repository }}
       tag: ${{ github.event.release.tag_name }}
 
