@@ -94,6 +94,8 @@ spec:
                 secretKeyRef:
                   name: redis
                   key: password
+            - name: REDIS_TLS
+              value: "true"
           resources:
             requests:
               memory: "32Mi"

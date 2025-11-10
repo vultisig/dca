@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -33,11 +34,20 @@ func main() {
 		logger.Fatalf("failed to load config: %v", err)
 	}
 
-	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
+	redisOpts := asynq.RedisClientOpt{
 		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
-	})
+	}
+
+	redisTLS := os.Getenv("REDIS_TLS")
+	if redisTLS == "true" {
+		redisOpts.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+	}
+
+	asynqClient := asynq.NewClient(redisOpts)
 
 	pgPool, err := pgxpool.New(ctx, cfg.Postgres.DSN)
 	if err != nil {
