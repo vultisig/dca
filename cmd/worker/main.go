@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -62,6 +63,13 @@ func main() {
 		Username: cfg.Redis.User,
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
+	}
+
+	redisTLS := os.Getenv("REDIS_TLS")
+	if redisTLS == "true" {
+		redisOptions.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
 	}
 
 	client := asynq.NewClient(redisOptions)
