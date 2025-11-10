@@ -89,6 +89,11 @@ spec:
                 configMapKeyRef:
                   name: redis
                   key: port
+            - name: REDIS_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: redis
+                  key: user
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:

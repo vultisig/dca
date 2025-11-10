@@ -44,6 +44,7 @@ func main() {
 
 	asynqClientOpt := asynq.RedisClientOpt{
 		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
+		Username: cfg.Redis.User,
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	}
@@ -51,8 +52,7 @@ func main() {
 	redisTLS := os.Getenv("REDIS_TLS")
 	if redisTLS == "true" {
 		asynqClientOpt.TLSConfig = &tls.Config{
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true,
+			MinVersion: tls.VersionTLS12,
 		}
 	}
 

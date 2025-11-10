@@ -68,8 +68,7 @@ func main() {
 	redisTLS := os.Getenv("REDIS_TLS")
 	if redisTLS == "true" {
 		redisOptions.TLSConfig = &tls.Config{
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true,
+			MinVersion: tls.VersionTLS12,
 		}
 	}
 
