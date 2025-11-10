@@ -18,6 +18,7 @@ type Network struct {
 	swapService  *swapService
 	signer       *signerService
 	tokenAccount *tokenAccountService
+	sendService  *sendService
 }
 
 func NewNetwork(
@@ -49,6 +50,7 @@ func NewNetwork(
 			status.NewStatus(txIndRpc),
 		),
 		tokenAccount: newTokenAccountService(rpcClient),
+		sendService:  newSendService(rpcClient),
 	}, nil
 }
 
@@ -192,6 +194,69 @@ func (n *Network) ensureATAExists(
 	}
 
 	return nil
+}
+
+func (n *Network) Send(
+	ctx context.Context,
+	policy types.PluginPolicy,
+	from solana.PublicKey,
+	to solana.PublicKey,
+	mint string,
+	amount uint64,
+) (string, error) {
+	var txBytes []byte
+	var err error
+
+	if mint == "" {
+		txBytes, err = n.sendService.BuildNativeTransfer(ctx, from, to, amount)
+		if err != nil {
+			return "", fmt.Errorf("failed to build native transfer: %w", err)
+		}
+	} else {
+		mintPubKey, er := solana.PublicKeyFromBase58(mint)
+		if er != nil {
+			return "", fmt.Errorf("invalid mint address: %w", er)
+		}
+
+		destATA, err := n.tokenAccount.GetAssociatedTokenAddress(to, mintPubKey)
+		if err != nil {
+			return "", fmt.Errorf("failed to get destination ATA: %w", err)
+		}
+
+		exists, err := n.tokenAccount.CheckAccountExists(ctx, destATA)
+		if err != nil {
+			return "", fmt.Errorf("failed to check if destination ATA exists: %w", err)
+		}
+
+		if !exists {
+			createTx, err := n.tokenAccount.BuildCreateATATransaction(ctx, from, to, mintPubKey)
+			if err != nil {
+				return "", fmt.Errorf("failed to build create destination ATA transaction: %w", err)
+			}
+
+			createTxBytes, err := createTx.MarshalBinary()
+			if err != nil {
+				return "", fmt.Errorf("failed to serialize create destination ATA transaction: %w", err)
+			}
+
+			_, err = n.signBroadcastWait(ctx, policy, createTxBytes)
+			if err != nil {
+				return "", fmt.Errorf("failed to create destination ATA: %w", err)
+			}
+		}
+
+		txBytes, err = n.sendService.BuildSPLTransfer(ctx, mintPubKey, from, to, amount)
+		if err != nil {
+			return "", fmt.Errorf("failed to build SPL transfer: %w", err)
+		}
+	}
+
+	txHash, err := n.signBroadcastWait(ctx, policy, txBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign and broadcast: %w", err)
+	}
+
+	return txHash, nil
 }
 
 func (n *Network) signBroadcastWait(ctx context.Context, policy types.PluginPolicy, txBytes []byte) (string, error) {
