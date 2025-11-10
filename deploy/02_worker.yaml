@@ -95,11 +95,6 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: polygon
-            - name: RPC_BTC_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: rpc
-                  key: bitcoin
             - name: RPC_XRP_URL
               valueFrom:
                 configMapKeyRef:
