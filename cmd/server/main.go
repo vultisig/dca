@@ -44,6 +44,7 @@ func main() {
 
 	asynqClientOpt := asynq.RedisClientOpt{
 		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
+		Username: cfg.Redis.User,
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	}

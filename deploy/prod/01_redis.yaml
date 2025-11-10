@@ -3,5 +3,6 @@ kind: ConfigMap
 metadata:
   name: redis
 data:
+  user: "default"
   host: "private-redis-plugins-do-user-28607901-0.m.db.ondigitalocean.com"
   port: "25061"
