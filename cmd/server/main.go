@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -41,16 +42,21 @@ func main() {
 		logger.Fatalf("failed to initialize Redis client: %v", err)
 	}
 
-	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
+	asynqClientOpt := asynq.RedisClientOpt{
 		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
-	})
-	asynqInspector := asynq.NewInspector(asynq.RedisClientOpt{
-		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-	})
+	}
+
+	redisTLS := os.Getenv("REDIS_TLS")
+	if redisTLS == "true" {
+		asynqClientOpt.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+	}
+
+	asynqClient := asynq.NewClient(asynqClientOpt)
+	asynqInspector := asynq.NewInspector(asynqClientOpt)
 
 	vaultStorage, err := vault.NewBlockStorageImp(cfg.BlockStorage)
 	if err != nil {
