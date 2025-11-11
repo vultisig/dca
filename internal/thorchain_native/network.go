@@ -31,6 +31,12 @@ func NewNetwork(
 }
 
 func (n *Network) SendPayment(ctx context.Context, policy types.PluginPolicy, fromAddress, toAddress string, amountRune uint64, pubKey string) (string, error) {
+	// Get account information for signing
+	accountInfo, err := n.client.GetAccountInfoComplete(ctx, fromAddress)
+	if err != nil {
+		return "", fmt.Errorf("thorchain: failed to get account info: %w", err)
+	}
+
 	// Build payment transaction using send service
 	txData, err := n.Send.BuildPayment(ctx, fromAddress, toAddress, amountRune, pubKey)
 	if err != nil {
@@ -38,7 +44,7 @@ func (n *Network) SendPayment(ctx context.Context, policy types.PluginPolicy, fr
 	}
 
 	// Sign and broadcast transaction
-	txHash, err := n.Signer.SignAndBroadcast(ctx, policy, txData)
+	txHash, err := n.Signer.SignAndBroadcast(ctx, policy, txData, accountInfo.AccountNumber, accountInfo.Sequence)
 	if err != nil {
 		return "", fmt.Errorf("thorchain: failed to sign and broadcast: %w", err)
 	}
@@ -51,14 +57,15 @@ func (n *Network) SwapAssets(ctx context.Context, policy types.PluginPolicy, fro
 		return "", errors.New("thorchain: can't swap same asset on THORChain")
 	}
 
-	// Fetch dynamic THORChain network data
-	sequence, err := n.client.GetAccountInfo(ctx, from.Address)
+	// Fetch dynamic THORChain network data (account number and sequence)
+	accountInfo, err := n.client.GetAccountInfoComplete(ctx, from.Address)
 	if err != nil {
-		return "", fmt.Errorf("thorchain: failed to get account sequence: %w", err)
+		return "", fmt.Errorf("thorchain: failed to get account info: %w", err)
 	}
 
-	// Update from struct with fetched sequence
-	from.Sequence = sequence
+	// Update from struct with fetched account info
+	from.Sequence = accountInfo.Sequence
+	from.AccountNumber = accountInfo.AccountNumber
 
 	// Find best swap route
 	txData, _, err := n.Swap.FindBestAmountOut(ctx, from, to)
@@ -67,7 +74,7 @@ func (n *Network) SwapAssets(ctx context.Context, policy types.PluginPolicy, fro
 	}
 
 	// Sign and broadcast transaction
-	txHash, err := n.Signer.SignAndBroadcast(ctx, policy, txData)
+	txHash, err := n.Signer.SignAndBroadcast(ctx, policy, txData, from.AccountNumber, from.Sequence)
 	if err != nil {
 		return "", fmt.Errorf("thorchain: failed to sign and broadcast: %w", err)
 	}

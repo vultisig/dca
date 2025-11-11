@@ -1,7 +1,6 @@
 package thorchain_native
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,9 +9,16 @@ import (
 	"time"
 )
 
+// AccountInfo represents complete account information from THORChain
+type AccountInfo struct {
+	AccountNumber uint64
+	Sequence      uint64
+}
+
 // AccountInfoProvider interface defines methods for fetching THORChain account and network data
 type AccountInfoProvider interface {
 	GetAccountInfo(ctx context.Context, address string) (sequence uint64, err error)
+	GetAccountInfoComplete(ctx context.Context, address string) (AccountInfo, error)
 	GetLatestBlock(ctx context.Context) (height uint64, err error)
 	GetBaseFee(ctx context.Context) (fee uint64, err error)
 }
@@ -35,100 +41,12 @@ func NewClient(cosmosRpcURL, thorchainApiURL string) *Client {
 	}
 }
 
-// Tendermint JSON-RPC request/response structures
-type tendermintRequest struct {
-	Method  string        `json:"method"`
-	Params  []interface{} `json:"params"`
-	ID      int           `json:"id"`
-	JSONRPC string        `json:"jsonrpc"`
-}
-
-type tendermintResponse struct {
-	Result json.RawMessage `json:"result"`
-	Error  *rpcError       `json:"error,omitempty"`
-	ID     int             `json:"id"`
-}
-
-type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Data    string `json:"data,omitempty"`
-}
-
-type abciQueryResponse struct {
-	Response abciResponse `json:"response"`
-}
-
-type abciResponse struct {
-	Code  int    `json:"code"`
-	Log   string `json:"log"`
-	Info  string `json:"info"`
-	Index string `json:"index"`
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-type blockResponse struct {
-	Block blockData `json:"block"`
-}
-
-type blockData struct {
-	Header blockHeader `json:"header"`
-}
-
-type blockHeader struct {
-	Height string `json:"height"`
-}
-
-// makeRequest performs a Tendermint JSON-RPC request
-func (c *Client) makeRequest(ctx context.Context, method string, params []interface{}) (*tendermintResponse, error) {
-	reqBody := tendermintRequest{
-		Method:  method,
-		Params:  params,
-		ID:      1,
-		JSONRPC: "2.0",
-	}
-
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("thorchain: failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.cosmosRpcURL, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("thorchain: failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("thorchain: failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("thorchain: unexpected status code: %d", resp.StatusCode)
-	}
-
-	var tmResp tendermintResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tmResp); err != nil {
-		return nil, fmt.Errorf("thorchain: failed to decode response: %w", err)
-	}
-
-	if tmResp.Error != nil {
-		return nil, fmt.Errorf("thorchain: RPC error: %s", tmResp.Error.Message)
-	}
-
-	return &tmResp, nil
-}
-
 // GetAccountInfo fetches account sequence number from THORChain
 func (c *Client) GetAccountInfo(ctx context.Context, address string) (uint64, error) {
 	// Use Cosmos REST API endpoint for account info
 	// THORChain follows standard Cosmos SDK patterns
 	url := fmt.Sprintf("%s/cosmos/auth/v1beta1/accounts/%s", c.thorchainApiURL, address)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return 0, fmt.Errorf("thorchain: failed to create account request: %w", err)
@@ -146,7 +64,8 @@ func (c *Client) GetAccountInfo(ctx context.Context, address string) (uint64, er
 
 	var accountResp struct {
 		Account struct {
-			Sequence string `json:"sequence"`
+			AccountNumber string `json:"account_number"`
+			Sequence      string `json:"sequence"`
 		} `json:"account"`
 	}
 
@@ -162,11 +81,59 @@ func (c *Client) GetAccountInfo(ctx context.Context, address string) (uint64, er
 	return sequence, nil
 }
 
+// GetAccountInfoComplete fetches complete account information (number and sequence) from THORChain
+func (c *Client) GetAccountInfoComplete(ctx context.Context, address string) (AccountInfo, error) {
+	// Use Cosmos REST API endpoint for account info
+	// THORChain follows standard Cosmos SDK patterns
+	url := fmt.Sprintf("%s/cosmos/auth/v1beta1/accounts/%s", c.thorchainApiURL, address)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return AccountInfo{}, fmt.Errorf("thorchain: failed to create account request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return AccountInfo{}, fmt.Errorf("thorchain: failed to query account info: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return AccountInfo{}, fmt.Errorf("thorchain: unexpected status code: %d", resp.StatusCode)
+	}
+
+	var accountResp struct {
+		Account struct {
+			AccountNumber string `json:"account_number"`
+			Sequence      string `json:"sequence"`
+		} `json:"account"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&accountResp); err != nil {
+		return AccountInfo{}, fmt.Errorf("thorchain: failed to decode account response: %w", err)
+	}
+
+	accountNumber, err := strconv.ParseUint(accountResp.Account.AccountNumber, 10, 64)
+	if err != nil {
+		return AccountInfo{}, fmt.Errorf("thorchain: failed to parse account number: %w", err)
+	}
+
+	sequence, err := strconv.ParseUint(accountResp.Account.Sequence, 10, 64)
+	if err != nil {
+		return AccountInfo{}, fmt.Errorf("thorchain: failed to parse sequence: %w", err)
+	}
+
+	return AccountInfo{
+		AccountNumber: accountNumber,
+		Sequence:      sequence,
+	}, nil
+}
+
 // GetLatestBlock fetches current block height from THORChain
 func (c *Client) GetLatestBlock(ctx context.Context) (uint64, error) {
 	// Use Tendermint RPC status endpoint to get latest block height
 	url := fmt.Sprintf("%s/status", c.cosmosRpcURL)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return 0, fmt.Errorf("thorchain: failed to create block request: %w", err)

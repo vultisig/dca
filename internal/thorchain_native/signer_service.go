@@ -24,6 +24,7 @@ type SignerService struct {
 
 // ThorchainSDK interface for THORChain Cosmos SDK operations
 type ThorchainSDK interface {
+	MessageHash(txData []byte, accountNumber uint64, sequence uint64) ([]byte, error) // Calculate proper Cosmos SDK SignDoc hash
 	Sign(txData []byte, signatures map[string]tss.KeysignResponse) ([]byte, error)
 	Broadcast(ctx context.Context, signedTxBytes []byte) error
 }
@@ -44,14 +45,14 @@ func (s *SignerService) SignAndBroadcast(
 	ctx context.Context,
 	policy types.PluginPolicy,
 	txData []byte,
+	accountNumber uint64,
+	sequence uint64,
 ) (string, error) {
-	// TODO: Implement proper THORChain signing and broadcasting
-	// This requires the THORChain SDK from recipes to be available
 	if s.sdk == nil {
 		return "", fmt.Errorf("thorchain: SDK not available - THORChain signing not yet implemented")
 	}
 
-	keysignRequest, err := s.buildKeysignRequest(ctx, policy, txData)
+	keysignRequest, err := s.buildKeysignRequest(ctx, policy, txData, accountNumber, sequence)
 	if err != nil {
 		return "", fmt.Errorf("thorchain: failed to build keysign request: %w", err)
 	}
@@ -86,11 +87,12 @@ func (s *SignerService) buildKeysignRequest(
 	ctx context.Context,
 	policy types.PluginPolicy,
 	txData []byte,
+	accountNumber uint64,
+	sequence uint64,
 ) (types.PluginKeysignRequest, error) {
-	// Calculate hash-to-sign for THORChain Cosmos SDK transaction
-	hashToSign, err := s.calculateCosmosHashToSign(txData)
+	hashToSign, err := s.sdk.MessageHash(txData, accountNumber, sequence)
 	if err != nil {
-		return types.PluginKeysignRequest{}, fmt.Errorf("thorchain: failed to calculate hash to sign: %w", err)
+		return types.PluginKeysignRequest{}, fmt.Errorf("thorchain: failed to calculate SignDoc hash: %w", err)
 	}
 
 	// Create tx tracking entry
@@ -130,22 +132,8 @@ func (s *SignerService) buildKeysignRequest(
 	}, nil
 }
 
-func (s *SignerService) calculateCosmosHashToSign(txData []byte) ([]byte, error) {
-	// For Cosmos SDK transactions, the hash to sign is typically:
-	// SHA256(sign_doc) where sign_doc contains the transaction data
-	// This is a simplified implementation - real Cosmos SDK signing is more complex
-	
-	hash := sha256.Sum256(txData)
-	return hash[:], nil
-}
-
-
 func (s *SignerService) extractTransactionHash(signedTxBytes []byte) (string, error) {
-	// For Cosmos SDK transactions, the transaction hash is typically:
-	// SHA256(signed_transaction_bytes)
-	
 	hash := sha256.Sum256(signedTxBytes)
 	txHash := hex.EncodeToString(hash[:])
-	
 	return strings.ToUpper(txHash), nil
 }
