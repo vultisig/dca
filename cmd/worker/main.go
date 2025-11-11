@@ -233,14 +233,10 @@ func main() {
 	)
 
 	// Initialize THORChain native network
-	logger.Infof("=== THORChain Client URLs ===")
-	logger.Infof("Cosmos RPC URL: %s", cfg.Cosmos.RpcURL)
-	logger.Infof("THORChain API URL: %s", cfg.Thorchain.RpcURL)
-	logger.Infof("=== END THORChain URLs ===")
-	thorchainNativeClient := thorchain_native.NewClient(cfg.Cosmos.RpcURL, cfg.Thorchain.RpcURL)
+	thorchainNativeClient := thorchain_native.NewClient(cfg.ThorChain.TendermintURL, cfg.ThorChain.URL)
 
 	// Initialize THORChain SDK for signing and broadcasting
-	thorchainRpcClient, err := thorchainSDK.NewCometBFTRPCClient(cfg.Cosmos.RpcURL)
+	thorchainRpcClient, err := thorchainSDK.NewCometBFTRPCClient(cfg.ThorChain.TendermintURL)
 	if err != nil {
 		logger.Fatalf("failed to initialize THORChain RPC client: %v", err)
 	}
@@ -323,8 +319,6 @@ type config struct {
 	BTC          btcConfig
 	XRP          xrpConfig
 	Solana       solanaConfig
-	Cosmos       cosmosConfig
-	Thorchain    thorchainConfig
 	HealthPort   int
 }
 
@@ -333,7 +327,8 @@ type oneInchConfig struct {
 }
 
 type thorChainConfig struct {
-	URL string
+	URL           string `envconfig:"THORCHAIN_URL"`           // THORChain application API (thornode.ninerealms.com) - for business logic, quotes, pools
+	TendermintURL string `envconfig:"THORCHAIN_TENDERMINTURL"` // Tendermint RPC endpoint (rpc.ninerealms.com) - for blockchain operations, broadcasting
 }
 
 type rpc struct {
@@ -365,14 +360,6 @@ type xrpConfig struct {
 
 type solanaConfig struct {
 	JupiterAPIURL string
-}
-
-type cosmosConfig struct {
-	RpcURL string
-}
-
-type thorchainConfig struct {
-	RpcURL string
 }
 
 func newConfig() (config, error) {
