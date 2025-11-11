@@ -16,9 +16,7 @@
       <env name="HEALTHPORT" value="8184" />
       <env name="ONEINCH_BASEURL" value="https://api.vultisig.com/1inch" />
       <env name="POSTGRES_DSN" value="postgres://myuser:mypassword@localhost:5431/dca?sslmode=disable" />
-      <env name="REDIS_HOST" value="localhost" />
-      <env name="REDIS_PASSWORD" value="password" />
-      <env name="REDIS_PORT" value="6378" />
+      <env name="REDIS_URI" value="redis://:password@localhost:6378" />
       <env name="RPC_ARBITRUM_URL" value="https://arbitrum-rpc.publicnode.com" />
       <env name="RPC_AVALANCHE_URL" value="https://avalanche-c-chain-rpc.publicnode.com" />
       <env name="RPC_BASE_URL" value="https://base-rpc.publicnode.com" />

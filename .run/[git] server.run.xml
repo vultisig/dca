@@ -9,9 +9,7 @@
       <env name="BLOCKSTORAGE_REGION" value="us-east-1" />
       <env name="BLOCKSTORAGE_SECRETKEY" value="minioadmin" />
       <env name="POSTGRES_DSN" value="postgres://myuser:mypassword@localhost:5431/dca?sslmode=disable" />
-      <env name="REDIS_HOST" value="localhost" />
-      <env name="REDIS_PASSWORD" value="password" />
-      <env name="REDIS_PORT" value="6378" />
+      <env name="REDIS_URI" value="redis://:password@localhost:6378" />
       <env name="SERVER_ENCRYPTIONSECRET" value="test123" />
       <env name="SERVER_HOST" value="0.0.0.0" />
       <env name="SERVER_PORT" value="8082" />

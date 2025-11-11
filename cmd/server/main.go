@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net"
 	"os"
 
 	"github.com/hibiken/asynq"
@@ -42,23 +40,13 @@ func main() {
 		logger.Fatalf("failed to initialize Redis client: %v", err)
 	}
 
-	asynqClientOpt := asynq.RedisClientOpt{
-		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
-		Username: cfg.Redis.User,
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
+	asynqConnOpt, err := asynq.ParseRedisURI(cfg.Redis.URI)
+	if err != nil {
+		logger.Fatalf("failed to parse redis URI: %v", err)
 	}
 
-	redisTLS := os.Getenv("REDIS_TLS")
-	if redisTLS == "true" {
-		asynqClientOpt.TLSConfig = &tls.Config{
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true,
-		}
-	}
-
-	asynqClient := asynq.NewClient(asynqClientOpt)
-	asynqInspector := asynq.NewInspector(asynqClientOpt)
+	asynqClient := asynq.NewClient(asynqConnOpt)
+	asynqInspector := asynq.NewInspector(asynqConnOpt)
 
 	vaultStorage, err := vault.NewBlockStorageImp(cfg.BlockStorage)
 	if err != nil {
