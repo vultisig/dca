@@ -90,4 +90,4 @@ jobs:
           kubectl -n ${{ env.NS }} rollout status deployment/server --timeout=300s
           kubectl -n ${{ env.NS }} rollout status deployment/scheduler --timeout=300s
           kubectl -n ${{ env.NS }} rollout status deployment/worker --timeout=300s
-          kubectl -n ${{ env.NS }} rollout status deployment/tx_indexer --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/tx-indexer --timeout=300s
