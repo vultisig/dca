@@ -6,10 +6,10 @@ import (
 )
 
 type SendService struct {
-	client AccountInfoProvider
+	client *Client
 }
 
-func NewSendService(client AccountInfoProvider) *SendService {
+func NewSendService(client *Client) *SendService {
 	return &SendService{
 		client: client,
 	}
@@ -23,10 +23,11 @@ func (s *SendService) BuildPayment(
 	signingPubKey string,
 ) ([]byte, error) {
 	// Get dynamic THORChain network data
-	sequence, err := s.client.GetAccountInfo(ctx, from)
+	accountInfo, err := s.client.GetAccountInfo(ctx, from)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get account sequence: %w", err)
+		return nil, fmt.Errorf("failed to get account info: %w", err)
 	}
+	sequence := accountInfo.Sequence
 
 	currentHeight, err := s.client.GetLatestBlock(ctx)
 	if err != nil {
@@ -70,10 +71,10 @@ func buildUnsignedCosmosSDKSendTx(
 	// 2. Wrapping in a transaction with fee, sequence, timeout
 	// 3. Serializing to protobuf bytes for signing
 	// 4. Use cosmos-sdk-go or equivalent library
-	
+
 	// For now, return a placeholder that indicates the structure needed
 	placeholder := fmt.Sprintf("cosmos-tx:bank-send:from=%s:to=%s:amount=%d:sequence=%d:fee=%d:timeout=%d:pubkey=%s",
 		from, to, amountRune, sequence, feeRune, timeoutHeight, signingPubKey)
-	
+
 	return []byte(placeholder), nil
 }

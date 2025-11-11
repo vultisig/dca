@@ -15,74 +15,28 @@ type AccountInfo struct {
 	Sequence      uint64
 }
 
-// AccountInfoProvider interface defines methods for fetching THORChain account and network data
-type AccountInfoProvider interface {
-	GetAccountInfo(ctx context.Context, address string) (sequence uint64, err error)
-	GetAccountInfoComplete(ctx context.Context, address string) (AccountInfo, error)
-	GetLatestBlock(ctx context.Context) (height uint64, err error)
-	GetBaseFee(ctx context.Context) (fee uint64, err error)
-}
 
-// Client implements AccountInfoProvider using THORChain APIs
+// Client provides THORChain account and network data access
 type Client struct {
-	cosmosRpcURL    string // Tendermint RPC endpoint for block queries
-	thorchainApiURL string // THORChain API endpoint for account and network queries
-	httpClient      *http.Client
+	tendermintRpcURL string // Tendermint RPC endpoint for blockchain operations (rpc.ninerealms.com)
+	thorchainApiURL  string // THORChain API endpoint for account queries (thornode.ninerealms.com)
+	httpClient       *http.Client
 }
 
-// NewClient creates a new THORChain client with both Cosmos RPC and THORChain API URLs
-func NewClient(cosmosRpcURL, thorchainApiURL string) *Client {
+// NewClient creates a new THORChain client with both RPC endpoints
+func NewClient(tendermintRpcURL, thorchainApiURL string) *Client {
 	return &Client{
-		cosmosRpcURL:    cosmosRpcURL,
-		thorchainApiURL: thorchainApiURL,
+		tendermintRpcURL: tendermintRpcURL,
+		thorchainApiURL:  thorchainApiURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
 }
 
-// GetAccountInfo fetches account sequence number from THORChain
-func (c *Client) GetAccountInfo(ctx context.Context, address string) (uint64, error) {
-	// Use Cosmos REST API endpoint for account info
-	// THORChain follows standard Cosmos SDK patterns
-	url := fmt.Sprintf("%s/cosmos/auth/v1beta1/accounts/%s", c.thorchainApiURL, address)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return 0, fmt.Errorf("thorchain: failed to create account request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("thorchain: failed to query account info: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("thorchain: unexpected status code: %d", resp.StatusCode)
-	}
-
-	var accountResp struct {
-		Account struct {
-			AccountNumber string `json:"account_number"`
-			Sequence      string `json:"sequence"`
-		} `json:"account"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&accountResp); err != nil {
-		return 0, fmt.Errorf("thorchain: failed to decode account response: %w", err)
-	}
-
-	sequence, err := strconv.ParseUint(accountResp.Account.Sequence, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("thorchain: failed to parse sequence: %w", err)
-	}
-
-	return sequence, nil
-}
-
-// GetAccountInfoComplete fetches complete account information (number and sequence) from THORChain
-func (c *Client) GetAccountInfoComplete(ctx context.Context, address string) (AccountInfo, error) {
+// GetAccountInfo fetches account information (number and sequence) from THORChain
+func (c *Client) GetAccountInfo(ctx context.Context, address string) (AccountInfo, error) {
 	// Use Cosmos REST API endpoint for account info
 	// THORChain follows standard Cosmos SDK patterns
 	url := fmt.Sprintf("%s/cosmos/auth/v1beta1/accounts/%s", c.thorchainApiURL, address)
@@ -131,8 +85,8 @@ func (c *Client) GetAccountInfoComplete(ctx context.Context, address string) (Ac
 
 // GetLatestBlock fetches current block height from THORChain
 func (c *Client) GetLatestBlock(ctx context.Context) (uint64, error) {
-	// Use Tendermint RPC status endpoint to get latest block height
-	url := fmt.Sprintf("%s/status", c.cosmosRpcURL)
+	// Use Tendermint RPC endpoint to get latest block height
+	url := fmt.Sprintf("%s/status", c.tendermintRpcURL)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -152,8 +106,7 @@ func (c *Client) GetLatestBlock(ctx context.Context) (uint64, error) {
 	var statusResp struct {
 		Result struct {
 			SyncInfo struct {
-				LatestBlockHeight   string `json:"latest_block_height"`
-				EarliestBlockHeight string `json:"earliest_block_height"`
+				LatestBlockHeight string `json:"latest_block_height"`
 			} `json:"sync_info"`
 		} `json:"result"`
 	}
@@ -168,16 +121,36 @@ func (c *Client) GetLatestBlock(ctx context.Context) (uint64, error) {
 		return 0, fmt.Errorf("thorchain: failed to parse block height: %w", err)
 	}
 
-	fmt.Printf("DEBUG THORCHAIN STATUS RESPONSE:\n")
-	fmt.Printf("  Latest Block Height: %s (%d)\n", statusResp.Result.SyncInfo.LatestBlockHeight, height)
-
 	return height, nil
 }
 
 // GetBaseFee fetches current base fee from THORChain network
 func (c *Client) GetBaseFee(ctx context.Context) (uint64, error) {
-	// THORChain uses a fixed gas price model
-	// Default gas price is typically 0.02 RUNE per gas unit
-	// For now, return a reasonable default
-	return 200000000, nil // 2 RUNE in base units (1e8)
+	// Query THORChain constants for current native transaction fee
+	url := fmt.Sprintf("%s/thorchain/constants", c.thorchainApiURL)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("thorchain: failed to create constants request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("thorchain: failed to query constants: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("thorchain: unexpected status code: %d", resp.StatusCode)
+	}
+
+	var constantsResp struct {
+		NativeTransactionFee uint64 `json:"NativeTransactionFee"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&constantsResp); err != nil {
+		return 0, fmt.Errorf("thorchain: failed to decode constants response: %w", err)
+	}
+
+	return constantsResp.NativeTransactionFee, nil
 }

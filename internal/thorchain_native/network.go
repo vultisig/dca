@@ -13,14 +13,14 @@ type Network struct {
 	Swap   *SwapService
 	Send   *SendService
 	Signer *SignerService
-	client AccountInfoProvider
+	client *Client
 }
 
 func NewNetwork(
 	swap *SwapService,
 	send *SendService,
 	signer *SignerService,
-	client AccountInfoProvider,
+	client *Client,
 ) *Network {
 	return &Network{
 		Swap:   swap,
@@ -32,7 +32,7 @@ func NewNetwork(
 
 func (n *Network) SendPayment(ctx context.Context, policy types.PluginPolicy, fromAddress, toAddress string, amountRune uint64, pubKey string) (string, error) {
 	// Get account information for signing
-	accountInfo, err := n.client.GetAccountInfoComplete(ctx, fromAddress)
+	accountInfo, err := n.client.GetAccountInfo(ctx, fromAddress)
 	if err != nil {
 		return "", fmt.Errorf("thorchain: failed to get account info: %w", err)
 	}
@@ -58,7 +58,7 @@ func (n *Network) SwapAssets(ctx context.Context, policy types.PluginPolicy, fro
 	}
 
 	// Fetch dynamic THORChain network data (account number and sequence)
-	accountInfo, err := n.client.GetAccountInfoComplete(ctx, from.Address)
+	accountInfo, err := n.client.GetAccountInfo(ctx, from.Address)
 	if err != nil {
 		return "", fmt.Errorf("thorchain: failed to get account info: %w", err)
 	}

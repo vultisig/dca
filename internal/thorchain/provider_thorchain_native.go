@@ -23,13 +23,13 @@ import (
 // It uses THORChain API for quotes and builds native THORChain transactions
 type ProviderThorchainNative struct {
 	client          *Client
-	thorchainClient thorchain_native.AccountInfoProvider
+	thorchainClient *thorchain_native.Client
 }
 
 // Ensure ProviderThorchainNative implements thorchain_native.SwapProvider
 var _ thorchain_native.SwapProvider = (*ProviderThorchainNative)(nil)
 
-func NewProviderThorchainNative(client *Client, thorchainClient thorchain_native.AccountInfoProvider) *ProviderThorchainNative {
+func NewProviderThorchainNative(client *Client, thorchainClient *thorchain_native.Client) *ProviderThorchainNative {
 	return &ProviderThorchainNative{
 		client:          client,
 		thorchainClient: thorchainClient,
@@ -113,7 +113,7 @@ func (p *ProviderThorchainNative) MakeTransaction(
 	}
 
 	// Get complete account information (number and sequence) from the from address
-	accountInfo, err := p.thorchainClient.GetAccountInfoComplete(ctx, from.Address)
+	accountInfo, err := p.thorchainClient.GetAccountInfo(ctx, from.Address)
 	if err != nil {
 		return nil, 0, fmt.Errorf("[THORChain] failed to get account info: %w", err)
 	}
@@ -121,7 +121,6 @@ func (p *ProviderThorchainNative) MakeTransaction(
 	// Build THORChain native swap transaction
 	txBytes, err := buildUnsignedThorchainSwapTx(
 		from,
-		to,
 		quote,
 		accountInfo,
 		baseFee,
@@ -137,10 +136,9 @@ func (p *ProviderThorchainNative) MakeTransaction(
 // buildUnsignedThorchainSwapTx creates an unsigned THORChain swap transaction
 func buildUnsignedThorchainSwapTx(
 	from thorchain_native.From,
-	to thorchain_native.To,
 	quote quoteSwapResponse,
 	accountInfo thorchain_native.AccountInfo, // Account number and sequence are needed for proper SignDoc
-	_ uint64, // feeRune - not needed for MsgDeposit, THORChain handles fees differently
+	feeRune uint64, // Base fee in RUNE (from GetBaseFee)
 	_ uint64, // timeoutHeight - not needed for MsgDeposit
 ) ([]byte, error) {
 	// Build THORChain memo for cross-chain swap
@@ -195,12 +193,10 @@ func buildUnsignedThorchainSwapTx(
 		return nil, fmt.Errorf("failed to pack public key into Any: %w", err)
 	}
 
-	// TODO: Implement dynamic fee fetching from THORChain network
-	// Currently using fixed values - should fetch current network fees dynamically
-
-	// Create fee amount (using RUNE as fee currency with base denomination)
-	feeAmount := sdk.NewCoins(sdk.NewCoin("rune", math.NewInt(2000000))) // 0.02 RUNE fee (2M base units)
-	gasLimit := uint64(500000)                                           // 500k gas limit
+	// Create fee amount using dynamic fee from THORChain network
+	feeAmount := sdk.NewCoins(sdk.NewCoin("rune", math.NewInt(int64(feeRune))))
+	// TODO consider fetching dynamically
+	gasLimit := uint64(500000) // 500k gas limit
 
 	// Create complete Cosmos SDK transaction structure with proper gas and fees
 	// For MsgDeposit, memo goes in the message, not transaction body
