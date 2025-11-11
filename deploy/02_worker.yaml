@@ -26,6 +26,11 @@ spec:
           env:
             - name: HEALTHPORT
               value: "80"
+            - name: HTTP_PROXY
+              valueFrom:
+                configMapKeyRef:
+                  name: egress
+                  key: proxy
             - name: VAULTSERVICE_RELAY_SERVER
               valueFrom:
                 configMapKeyRef:
