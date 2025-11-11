@@ -2,13 +2,18 @@ package thorchain
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
+	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
+	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/tx"
+	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	thorchain_native "github.com/vultisig/dca/internal/thorchain_native"
 	recipestypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/vultisig-go/common"
@@ -17,8 +22,8 @@ import (
 // ProviderThorchainNative implements thorchain_native.SwapProvider interface
 // It uses THORChain API for quotes and builds native THORChain transactions
 type ProviderThorchainNative struct {
-	client           *Client
-	thorchainClient  thorchain_native.AccountInfoProvider
+	client          *Client
+	thorchainClient thorchain_native.AccountInfoProvider
 }
 
 // Ensure ProviderThorchainNative implements thorchain_native.SwapProvider
@@ -38,6 +43,11 @@ func (p *ProviderThorchainNative) validateThorchainNative(from thorchain_native.
 
 	if to.Address == "" {
 		return fmt.Errorf("[THORChain] to address cannot be empty")
+	}
+
+	// Only allow cross-chain swaps for now (reject same-chain THORChain swaps)
+	if to.Chain == common.THORChain {
+		return fmt.Errorf("[THORChain] same-chain swaps not supported - only cross-chain swaps allowed (THORChain to external chains)")
 	}
 
 	// Validate destination chain is supported
@@ -70,7 +80,7 @@ func (p *ProviderThorchainNative) MakeTransaction(
 	}
 
 	// Get quote from THORChain for the swap
-	quote, err := p.client.getQuote(ctx, quoteSwapRequest{
+	quoteRequest := quoteSwapRequest{
 		FromAsset:         fromAsset,
 		ToAsset:           toAsset,
 		Amount:            fmt.Sprintf("%d", from.Amount),
@@ -78,7 +88,9 @@ func (p *ProviderThorchainNative) MakeTransaction(
 		StreamingInterval: defaultStreamingInterval,
 		StreamingQuantity: defaultStreamingQuantity,
 		ToleranceBps:      defaultToleranceBps,
-	})
+	}
+
+	quote, err := p.client.getQuote(ctx, quoteRequest)
 	if err != nil {
 		return nil, 0, fmt.Errorf("[THORChain] failed to get quote: %w", err)
 	}
@@ -100,10 +112,10 @@ func (p *ProviderThorchainNative) MakeTransaction(
 		return nil, 0, fmt.Errorf("[THORChain] failed to get base fee: %w", err)
 	}
 
-	// Get account sequence for the from address
-	sequence, err := p.thorchainClient.GetAccountInfo(ctx, from.Address)
+	// Get complete account information (number and sequence) from the from address
+	accountInfo, err := p.thorchainClient.GetAccountInfoComplete(ctx, from.Address)
 	if err != nil {
-		return nil, 0, fmt.Errorf("[THORChain] failed to get account sequence: %w", err)
+		return nil, 0, fmt.Errorf("[THORChain] failed to get account info: %w", err)
 	}
 
 	// Build THORChain native swap transaction
@@ -111,7 +123,7 @@ func (p *ProviderThorchainNative) MakeTransaction(
 		from,
 		to,
 		quote,
-		sequence,
+		accountInfo,
 		baseFee,
 		currentHeight+100, // 100 block buffer
 	)
@@ -127,72 +139,111 @@ func buildUnsignedThorchainSwapTx(
 	from thorchain_native.From,
 	to thorchain_native.To,
 	quote quoteSwapResponse,
-	_ uint64, // sequence - not needed for MsgDeposit, handled by THORChain SDK
+	accountInfo thorchain_native.AccountInfo, // Account number and sequence are needed for proper SignDoc
 	_ uint64, // feeRune - not needed for MsgDeposit, THORChain handles fees differently
 	_ uint64, // timeoutHeight - not needed for MsgDeposit
 ) ([]byte, error) {
-	// Build THORChain memo for the swap
-	var memo string
-	if to.Chain == common.THORChain {
-		// Native THORChain swap (e.g., RUNE to synthetic asset)
-		memo = fmt.Sprintf("=:%s:%s", quote.Memo, to.Address)
-	} else {
-		// Cross-chain swap (e.g., RUNE to external chain)
-		memo = quote.Memo
+	// Build THORChain memo for cross-chain swap
+	// Since we only support cross-chain swaps, use the quote memo directly
+	memo := quote.Memo
+
+	// Create the RUNE asset using the new Asset structure
+	runeAsset := &recipestypes.Asset{
+		Chain:   "THOR",
+		Symbol:  "RUNE",
+		Ticker:  "RUNE",
+		Synth:   false,
+		Trade:   false,
+		Secured: false,
 	}
-	
-	// Create the deposit coin - for THORChain swaps, we deposit RUNE or other native assets
+
+	// Create the deposit coin using the new Coin structure (no denom field)
 	coin := &recipestypes.Coin{
-		Denom:  getRUNEDenom(from.AssetID), // Convert asset ID to proper denom
-		Amount: fmt.Sprintf("%d", from.Amount),
+		Asset:    runeAsset,
+		Amount:   fmt.Sprintf("%d", from.Amount),
+		Decimals: 8, // RUNE has 8 decimals
 	}
-	
-	// Build MsgDeposit (without memo - it goes in transaction body)
+
+	// Decode bech32 address to raw address bytes (not ASCII bytes)
+	signerBytes, err := sdk.GetFromBech32(from.Address, "thor")
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode bech32 address %s: %w", from.Address, err)
+	}
+
+	// Build MsgDeposit with memo in the message (correct for cross-chain swaps)
 	msgDeposit := &recipestypes.MsgDeposit{
 		Coins:  []*recipestypes.Coin{coin},
-		Signer: from.Address,
-		// Memo is removed from here - it goes in the transaction body
+		Memo:   memo,        // Memo goes in MsgDeposit for cross-chain swaps
+		Signer: signerBytes, // Signer as bytes instead of string
 	}
-	
+
 	// Pack MsgDeposit into Any for Cosmos SDK transaction
 	msgAny, err := codectypes.NewAnyWithValue(msgDeposit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pack MsgDeposit into Any: %w", err)
 	}
-	
-	// Create complete Cosmos SDK transaction structure
+
+	// Convert public key hex string to secp256k1.PubKey (now properly registered)
+	pubKeyBytes, err := hex.DecodeString(from.PubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode public key hex: %w", err)
+	}
+
+	pubKey := &secp256k1.PubKey{Key: pubKeyBytes}
+	pubKeyAny, err := codectypes.NewAnyWithValue(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack public key into Any: %w", err)
+	}
+
+	// TODO: Implement dynamic fee fetching from THORChain network
+	// Currently using fixed values - should fetch current network fees dynamically
+
+	// Create fee amount (using RUNE as fee currency with base denomination)
+	feeAmount := sdk.NewCoins(sdk.NewCoin("rune", math.NewInt(2000000))) // 0.02 RUNE fee (2M base units)
+	gasLimit := uint64(500000)                                           // 500k gas limit
+
+	// Create complete Cosmos SDK transaction structure with proper gas and fees
+	// For MsgDeposit, memo goes in the message, not transaction body
 	txData := &tx.Tx{
 		Body: &tx.TxBody{
 			Messages: []*codectypes.Any{msgAny},
-			Memo:     memo, // Memo goes at transaction level for THORChain
+			Memo:     "", // Empty for MsgDeposit - memo is in the message
 		},
 		AuthInfo: &tx.AuthInfo{
-			// Empty for unsigned transaction
+			SignerInfos: []*tx.SignerInfo{
+				{
+					PublicKey: pubKeyAny,
+					ModeInfo: &tx.ModeInfo{
+						Sum: &tx.ModeInfo_Single_{
+							Single: &tx.ModeInfo_Single{
+								Mode: signing.SignMode_SIGN_MODE_DIRECT,
+							},
+						},
+					},
+					Sequence: accountInfo.Sequence, // Use actual account sequence from chain
+				},
+			},
+			Fee: &tx.Fee{
+				Amount:   feeAmount,
+				GasLimit: gasLimit,
+			},
 		},
-		Signatures: [][]byte{}, // Empty for unsigned transaction
+		Signatures: [][]byte{{}}, // Empty signature placeholder for unsigned transaction
 	}
-	
+
 	// Create codec interface registry and register types
 	ir := codectypes.NewInterfaceRegistry()
+	// Register crypto types (including secp256k1 public keys)
+	cryptocodec.RegisterInterfaces(ir)
 	// Register the MsgDeposit as implementing sdk.Msg interface (like in recipes)
 	ir.RegisterImplementations((*sdk.Msg)(nil), &recipestypes.MsgDeposit{})
 	cdc := codec.NewProtoCodec(ir)
-	
+
 	// Marshal the complete transaction
 	txBytes, err := cdc.Marshal(txData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal complete transaction: %w", err)
 	}
-	
-	return txBytes, nil
-}
 
-// getRUNEDenom converts asset ID to proper THORChain denomination
-func getRUNEDenom(assetID string) string {
-	if assetID == "" || assetID == "RUNE" {
-		return "rune" // Native RUNE
-	}
-	// For other assets, they would typically be in the format like "ETH.ETH-0x..."
-	// but for THORChain deposits, we're usually depositing RUNE
-	return "rune"
+	return txBytes, nil
 }
