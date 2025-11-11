@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net"
 	"os"
 
 	"github.com/hibiken/asynq"
@@ -34,22 +32,12 @@ func main() {
 		logger.Fatalf("failed to load config: %v", err)
 	}
 
-	redisOpts := asynq.RedisClientOpt{
-		Addr:     net.JoinHostPort(cfg.Redis.Host, cfg.Redis.Port),
-		Username: cfg.Redis.User,
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
+	redisConnOpt, err := asynq.ParseRedisURI(cfg.Redis.URI)
+	if err != nil {
+		logger.Fatalf("failed to parse redis URI: %v", err)
 	}
 
-	redisTLS := os.Getenv("REDIS_TLS")
-	if redisTLS == "true" {
-		redisOpts.TLSConfig = &tls.Config{
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true,
-		}
-	}
-
-	asynqClient := asynq.NewClient(redisOpts)
+	asynqClient := asynq.NewClient(redisConnOpt)
 
 	pgPool, err := pgxpool.New(ctx, cfg.Postgres.DSN)
 	if err != nil {

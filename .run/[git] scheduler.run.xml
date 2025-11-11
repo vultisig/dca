@@ -4,9 +4,7 @@
     <working_directory value="$PROJECT_DIR$" />
     <envs>
       <env name="POSTGRES_DSN" value="postgres://myuser:mypassword@localhost:5431/dca?sslmode=disable" />
-      <env name="REDIS_HOST" value="localhost" />
-      <env name="REDIS_PORT" value="6378" />
-      <env name="REDIS_PASSWORD" value="password" />
+      <env name="REDIS_URI" value="redis://:password@localhost:6378" />
       <env name="DATADOG_HOST" value="localhost" />
       <env name="DATADOG_PORT" value="8125" />
       <env name="HEALTHPORT" value="8181" />
