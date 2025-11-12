@@ -1032,6 +1032,8 @@ github.com/vultisig/verifier v0.0.0-20251111133423-b7cceb644d38 h1:F3OYsf9qHCnRc
 github.com/vultisig/verifier v0.0.0-20251111133423-b7cceb644d38/go.mod h1:uxHjOhhjWbnxV5++NCN7eT0pEkKJRhHRWQ3/h774Dik=
 github.com/vultisig/verifier v0.0.0-20251111134704-d569973e2bbb h1:rRQ+OJ4XkVaivT5wGAUn1fuz+LVa7KnWQ/NFIrqVmt0=
 github.com/vultisig/verifier v0.0.0-20251111134704-d569973e2bbb/go.mod h1:uxHjOhhjWbnxV5++NCN7eT0pEkKJRhHRWQ3/h774Dik=
+github.com/vultisig/verifier v0.0.0-20251112101200-94cd64fdad66 h1:7hSZzrvVa5M/IJ0fiI4t54dZDvUCxlNNsYRSj/z36Lg=
+github.com/vultisig/verifier v0.0.0-20251112101200-94cd64fdad66/go.mod h1:uxHjOhhjWbnxV5++NCN7eT0pEkKJRhHRWQ3/h774Dik=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 h1:7WDQ92FAdu08Byjgm3RNS8Sok49sK521PzPcbRpbzCE=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/vultisig/vultisig-go v0.0.0-20251004125942-60b3b1898d15 h1:wdRFnDMLdbaWXExUR/88WBAZ9sY9i9ldzurrYJWQeuw=
