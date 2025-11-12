@@ -4,3 +4,4 @@ metadata:
   name: thorchain
 data:
   url: "https://thornode.ninerealms.com"
+  tendermint-url: "https://rpc.ninerealms.com"

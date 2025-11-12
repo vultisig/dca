@@ -120,6 +120,11 @@ spec:
                 configMapKeyRef:
                   name: thorchain
                   key: url
+            - name: THORCHAIN_TENDERMINTURL
+              valueFrom:
+                configMapKeyRef:
+                  name: thorchain
+                  key: tendermint-url
             - name: BTC_BLOCKCHAIRURL
               valueFrom:
                 configMapKeyRef:
