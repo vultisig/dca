@@ -145,21 +145,39 @@ func buildUnsignedThorchainSwapTx(
 	// Since we only support cross-chain swaps, use the quote memo directly
 	memo := quote.Memo
 
-	// Create the RUNE asset using the new Asset structure
-	runeAsset := &recipestypes.Asset{
-		Chain:   "THOR",
-		Symbol:  "RUNE",
-		Ticker:  "RUNE",
-		Synth:   false,
-		Trade:   false,
-		Secured: false,
+	// Create the asset based on the from.AssetID
+	var asset *recipestypes.Asset
+	var decimals int64
+	
+	if from.AssetID == "" {
+		// Native RUNE
+		asset = &recipestypes.Asset{
+			Chain:   "THOR",
+			Symbol:  "RUNE",
+			Ticker:  "RUNE",
+			Synth:   false,
+			Trade:   false,
+			Secured: false,
+		}
+		decimals = 8 // RUNE has 8 decimals
+	} else {
+		// Other THORChain assets (e.g., tokens)
+		asset = &recipestypes.Asset{
+			Chain:   "THOR",
+			Symbol:  from.AssetID,
+			Ticker:  from.AssetID,
+			Synth:   false,
+			Trade:   false,
+			Secured: false,
+		}
+		decimals = 8 // Default to 8 decimals for THORChain assets
 	}
 
 	// Create the deposit coin using the new Coin structure (no denom field)
 	coin := &recipestypes.Coin{
-		Asset:    runeAsset,
+		Asset:    asset,
 		Amount:   fmt.Sprintf("%d", from.Amount),
-		Decimals: 8, // RUNE has 8 decimals
+		Decimals: decimals,
 	}
 
 	// Decode bech32 address to raw address bytes (not ASCII bytes)
