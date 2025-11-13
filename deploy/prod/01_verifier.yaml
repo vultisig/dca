@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: verifier
 data:
-  url: "http://10.104.0.4:8080"
+  url: "https://verifier.vultisig.com"
   party-prefix: "verifier"
