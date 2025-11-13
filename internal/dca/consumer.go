@@ -223,8 +223,8 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	return nil
 }
 
-func (c *Consumer) Handle(ctx context.Context, t *asynq.Task) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+func (c *Consumer) Handle(_ context.Context, t *asynq.Task) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	err := c.handle(ctx, t)
