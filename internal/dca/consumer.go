@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/big"
 	"strconv"
 	"time"
@@ -715,7 +714,7 @@ func (c *Consumer) handleEvmSwap(
 		fromAssetTyped,
 		fromAddressTyped,
 		spender,
-		new(big.Int).SetUint64(math.MaxUint64),
+		fromAmountTyped,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to check allowance & build approve: %w", err)
