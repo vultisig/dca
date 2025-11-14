@@ -9,13 +9,13 @@ import (
 	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	thorchain_native "github.com/vultisig/dca/internal/thorchain_native"
 	recipestypes "github.com/vultisig/recipes/types"
+	thorchainSDK "github.com/vultisig/recipes/sdk/thorchain"
 	"github.com/vultisig/vultisig-go/common"
 )
 
@@ -24,6 +24,7 @@ import (
 type ProviderThorchainNative struct {
 	client          *Client
 	thorchainClient *thorchain_native.Client
+	codec           codec.Codec
 }
 
 // Ensure ProviderThorchainNative implements thorchain_native.SwapProvider
@@ -33,6 +34,7 @@ func NewProviderThorchainNative(client *Client, thorchainClient *thorchain_nativ
 	return &ProviderThorchainNative{
 		client:          client,
 		thorchainClient: thorchainClient,
+		codec:           thorchainSDK.MakeCodec(),
 	}
 }
 
@@ -119,7 +121,7 @@ func (p *ProviderThorchainNative) MakeTransaction(
 	}
 
 	// Build THORChain native swap transaction
-	txBytes, err := buildUnsignedThorchainSwapTx(
+	txBytes, err := p.buildUnsignedThorchainSwapTx(
 		from,
 		quote,
 		accountInfo,
@@ -134,7 +136,7 @@ func (p *ProviderThorchainNative) MakeTransaction(
 }
 
 // buildUnsignedThorchainSwapTx creates an unsigned THORChain swap transaction
-func buildUnsignedThorchainSwapTx(
+func (p *ProviderThorchainNative) buildUnsignedThorchainSwapTx(
 	from thorchain_native.From,
 	quote quoteSwapResponse,
 	accountInfo thorchain_native.AccountInfo, // Account number and sequence are needed for proper SignDoc
@@ -245,16 +247,8 @@ func buildUnsignedThorchainSwapTx(
 		Signatures: [][]byte{{}}, // Empty signature placeholder for unsigned transaction
 	}
 
-	// Create codec interface registry and register types
-	ir := codectypes.NewInterfaceRegistry()
-	// Register crypto types (including secp256k1 public keys)
-	cryptocodec.RegisterInterfaces(ir)
-	// Register the MsgDeposit as implementing sdk.Msg interface (like in recipes)
-	ir.RegisterImplementations((*sdk.Msg)(nil), &recipestypes.MsgDeposit{})
-	cdc := codec.NewProtoCodec(ir)
-
-	// Marshal the complete transaction
-	txBytes, err := cdc.Marshal(txData)
+	// Marshal the complete transaction using provider's codec
+	txBytes, err := p.codec.Marshal(txData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal complete transaction: %w", err)
 	}
