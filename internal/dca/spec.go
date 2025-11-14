@@ -27,6 +27,7 @@ var supportedChains = []common.Chain{
 	common.Bitcoin,
 	common.Solana,
 	common.XRP,
+	common.THORChain,
 }
 
 const (

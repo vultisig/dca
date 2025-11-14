@@ -20,6 +20,7 @@ import (
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/solana"
+	"github.com/vultisig/dca/internal/thorchain_native"
 	"github.com/vultisig/dca/internal/util"
 	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/mobile-tss-lib/tss"
@@ -43,6 +44,7 @@ type Consumer struct {
 	btc         *btc.Network
 	xrp         *xrp.Network
 	solana      *solana.Network
+	thorchain   *thorchain_native.Network
 	vault       vault.Storage
 	vaultSecret string
 }
@@ -54,6 +56,7 @@ func NewConsumer(
 	btc *btc.Network,
 	solana *solana.Network,
 	xrp *xrp.Network,
+	thorchain *thorchain_native.Network,
 	vault vault.Storage,
 	vaultSecret string,
 ) *Consumer {
@@ -64,6 +67,7 @@ func NewConsumer(
 		btc:         btc,
 		xrp:         xrp,
 		solana:      solana,
+		thorchain:   thorchain,
 		vault:       vault,
 		vaultSecret: vaultSecret,
 	}
@@ -201,6 +205,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		er := c.handleSolanaSwap(ctx, pol, toAssetMap, fromAmountStr, fromAssetTokenStr, toAssetTokenStr, toAddressStr)
 		if er != nil {
 			return fmt.Errorf("failed to handle Solana swap: %w", er)
+		}
+		return nil
+	}
+
+	if fromChainTyped == common.THORChain {
+		er := c.handleThorchainSwap(ctx, pol, toAssetMap, fromAmountStr, fromAssetTokenStr, toAssetTokenStr, toAddressStr)
+		if er != nil {
+			return fmt.Errorf("failed to handle THORChain swap: %w", er)
 		}
 		return nil
 	}
@@ -885,4 +897,97 @@ func findSpender(chain common.Chain, rawRules []*rtypes.Rule) (ecommon.Address, 
 		}
 	}
 	return ecommon.Address{}, fmt.Errorf("rule not found")
+}
+
+func (c *Consumer) handleThorchainSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	toAssetMap map[string]any,
+	fromAmountStr string,
+	fromAssetTokenStr string,
+	toAssetTokenStr string,
+	toAddressStr string,
+) error {
+	// Get THORChain address from policy public key
+	fromAddressStr, childPubKey, err := c.thorchainPubToAddress(pol.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get THORChain address from policy PublicKey: %w", err)
+	}
+
+	// Parse amount
+	fromAmountRune, err := parseUint64(fromAmountStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	// Parse destination chain
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
+	}
+
+	// Create THORChain native From and To structs
+	from := thorchain_native.From{
+		Address:  fromAddressStr,
+		AssetID:  fromAssetTokenStr,
+		Amount:   fromAmountRune,
+		PubKey:   childPubKey,
+		// Sequence will be auto-fetched by network
+	}
+
+	to := thorchain_native.To{
+		Chain:   toChainTyped,
+		AssetID: toAssetTokenStr,
+		Address: toAddressStr,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"fromAmount":  fromAmountRune,
+		"fromAsset":   fromAssetTokenStr,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAssetTokenStr,
+		"toAddress":   toAddressStr,
+	}).Info("handling THORChain swap")
+
+	// Execute the swap using THORChain native network
+	txHash, err := c.thorchain.SwapAssets(ctx, *pol, from, to)
+	if err != nil {
+		return fmt.Errorf("failed to execute THORChain swap: %w", err)
+	}
+
+	c.logger.WithField("txHash", txHash).Info("THORChain swap signed & broadcasted successfully")
+	return nil
+}
+
+func (c *Consumer) thorchainPubToAddress(rootPub string) (string, string, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, string(types.PluginVultisigDCA_0000)))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	// Get THORChain-specific child key derivation
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.THORChain.GetDerivePath(), false)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get derived pubkey: %w", err)
+	}
+
+	// Convert child public key to THORChain address (bech32 format with "thor" prefix)
+	addr, err := address.GetBech32Address(childPub, "thor")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get THORChain address: %w", err)
+	}
+
+	return addr, childPub, nil
 }

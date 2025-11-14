@@ -20,9 +20,11 @@ import (
 	"github.com/vultisig/dca/internal/oneinch"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
+	"github.com/vultisig/dca/internal/thorchain_native"
 	"github.com/vultisig/dca/internal/xrp"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
+	thorchainSDK "github.com/vultisig/recipes/sdk/thorchain"
 	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
@@ -217,6 +219,27 @@ func main() {
 		xrpClient,
 	)
 
+	// Initialize THORChain native network
+	thorchainNativeClient := thorchain_native.NewClient(cfg.ThorChain.TendermintURL, cfg.ThorChain.URL)
+
+	// Initialize THORChain SDK for signing and broadcasting
+	thorchainRpcClient, err := thorchainSDK.NewCometBFTRPCClient(cfg.ThorChain.TendermintURL)
+	if err != nil {
+		logger.Fatalf("failed to initialize THORChain RPC client: %v", err)
+	}
+	thorchainSDKInstance := thorchainSDK.NewSDK(thorchainRpcClient)
+
+	// Create THORChain native provider (uses THORChain API for quotes + native tx building)
+	thorchainNativeProvider := thorchain.NewProviderThorchainNative(thorchainClient, thorchainNativeClient)
+
+	// Create THORChain native network with SDK
+	thorchainNativeNetwork := thorchain_native.NewNetwork(
+		thorchain_native.NewSwapService([]thorchain_native.SwapProvider{thorchainNativeProvider}),
+		thorchain_native.NewSendService(thorchainNativeClient),
+		thorchain_native.NewSignerService(thorchainSDKInstance, signer, txIndexerService),
+		thorchainNativeClient,
+	)
+
 	jup, err := jupiter.NewProvider(cfg.Solana.JupiterAPIURL, solanarpc.New(cfg.Rpc.Solana.URL))
 	if err != nil {
 		logger.Fatalf("failed to initialize Jupiter provider: %v", err)
@@ -248,6 +271,7 @@ func main() {
 		),
 		solanaNetwork,
 		xrpNetwork,
+		thorchainNativeNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
@@ -290,7 +314,8 @@ type oneInchConfig struct {
 }
 
 type thorChainConfig struct {
-	URL string
+	URL           string `envconfig:"THORCHAIN_URL"`           // THORChain application API (thornode.ninerealms.com) - for business logic, quotes, pools
+	TendermintURL string `envconfig:"THORCHAIN_TENDERMINTURL"` // Tendermint RPC endpoint (rpc.ninerealms.com) - for blockchain operations, broadcasting
 }
 
 type rpc struct {
@@ -304,6 +329,7 @@ type rpc struct {
 	Polygon   rpcItem
 	XRP       rpcItem
 	Solana    rpcItem
+	THORChain rpcItem
 }
 
 type rpcItem struct {

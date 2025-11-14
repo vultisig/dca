@@ -29,6 +29,7 @@
       <env name="RPC_XRP_URL" value="https://xrplcluster.com" />
       <env name="SOLANA_JUPITERAPIURL" value="https://api.vultisig.com/jup" />
       <env name="THORCHAIN_URL" value="https://thornode.ninerealms.com" />
+      <env name="THORCHAIN_TENDERMINTURL" value="https://rpc.ninerealms.com" />
       <env name="VAULTSERVICE_DOSETUPMSG" value="true" />
       <env name="VAULTSERVICE_ENCRYPTIONSECRET" value="test123" />
       <env name="VAULTSERVICE_LOCALPARTYPREFIX" value="vultisig-dca-0000" />
