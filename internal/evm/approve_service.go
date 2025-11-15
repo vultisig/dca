@@ -59,7 +59,7 @@ func (a *approveService) CheckAllowance(
 		owner,
 		tokenAddress,
 		big.NewInt(0),
-		erc20Contract.PackApprove(spender, big.NewInt(math.MaxUint64)),
+		erc20Contract.PackApprove(spender, big.NewInt(math.MaxInt64)),
 	)
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to make approve tx: %w", err)
