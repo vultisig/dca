@@ -19,7 +19,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Enabled: true,
-		Port:    "88",
+		Port:    "8088", // Use unprivileged port
 	}
 }
 
@@ -32,10 +32,10 @@ type Server struct {
 // NewServer creates a new metrics server
 func NewServer(addr string, logger *logrus.Logger) *Server {
 	mux := http.NewServeMux()
-	
+
 	// Register the Prometheus metrics handler
 	mux.Handle("/metrics", promhttp.Handler())
-	
+
 	// Add a health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -43,8 +43,8 @@ func NewServer(addr string, logger *logrus.Logger) *Server {
 	})
 
 	server := &http.Server{
-		Addr:    ":" + addr,
-		Handler: mux,
+		Addr:         ":" + addr,
+		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
@@ -73,11 +73,16 @@ func (s *Server) Stop(ctx context.Context) error {
 }
 
 // StartMetricsServer is a convenience function to start the metrics server
-func StartMetricsServer(addr string, services []string, logger *logrus.Logger) *Server {
+func StartMetricsServer(cfg Config, services []string, logger *logrus.Logger) *Server {
+	if !cfg.Enabled {
+		logger.Info("Metrics server disabled")
+		return nil
+	}
+
 	// Register metrics for the specified services
 	RegisterMetrics(services, logger)
 
-	server := NewServer(addr, logger)
+	server := NewServer(cfg.Port, logger)
 	server.Start()
 	return server
 }

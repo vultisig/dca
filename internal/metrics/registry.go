@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"errors"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/sirupsen/logrus"
@@ -32,7 +34,14 @@ func RegisterMetrics(services []string, logger *logrus.Logger) {
 // registerIfNotExists registers a collector if it's not already registered
 func registerIfNotExists(collector prometheus.Collector, name string, logger *logrus.Logger) {
 	if err := prometheus.Register(collector); err != nil {
-		logger.Debugf("%s already registered: %v", name, err)
+		var alreadyRegErr prometheus.AlreadyRegisteredError
+		if errors.As(err, &alreadyRegErr) {
+			// This is expected on restart/reload - just debug log
+			logger.Debugf("%s already registered", name)
+		} else {
+			// This is a real problem (descriptor mismatch, etc.) - fatal error
+			logger.Errorf("Failed to register %s: %v", name, err)
+		}
 	}
 }
 

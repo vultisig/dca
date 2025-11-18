@@ -37,10 +37,12 @@ func main() {
 	}
 
 	// Start metrics server with HTTP metrics for server
-	metricsServer := metrics.StartMetricsServer("88", []string{"http"}, logger)
+	metricsServer := metrics.StartMetricsServer(cfg.Metrics, []string{"http"}, logger)
 	defer func() {
-		if err := metricsServer.Stop(ctx); err != nil {
-			logger.Errorf("failed to stop metrics server: %v", err)
+		if metricsServer != nil {
+			if err := metricsServer.Stop(ctx); err != nil {
+				logger.Errorf("failed to stop metrics server: %v", err)
+			}
 		}
 	}()
 
@@ -127,6 +129,7 @@ type config struct {
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database
 	Redis        plugin_config.Redis
+	Metrics      metrics.Config
 }
 
 func newConfig() (config, error) {

@@ -55,34 +55,37 @@ func HTTPMiddleware() echo.MiddlewareFunc {
 			// Execute the request
 			err := next(c)
 
-			// Calculate duration
-			duration := time.Since(start).Seconds()
+			// Use Echo's response hook to capture final status after error handling
+			c.Response().After(func() {
+				// Calculate duration
+				duration := time.Since(start).Seconds()
 
-			// Get response status
-			status := strconv.Itoa(c.Response().Status)
+				// Get final response status (after Echo error handling)
+				status := strconv.Itoa(c.Response().Status)
 
-			// Record metrics
-			httpRequestsTotal.WithLabelValues(method, path, status).Inc()
-			httpRequestDuration.WithLabelValues(method, path).Observe(duration)
+				// Record metrics
+				httpRequestsTotal.WithLabelValues(method, path, status).Inc()
+				httpRequestDuration.WithLabelValues(method, path).Observe(duration)
 
-			// Record errors for 5xx status codes
-			if c.Response().Status >= 500 {
-				httpErrorsTotal.WithLabelValues(method, path, status).Inc()
-			}
+				// Record errors for 5xx status codes
+				if c.Response().Status >= 500 {
+					httpErrorsTotal.WithLabelValues(method, path, status).Inc()
+				}
+			})
 
 			return err
 		}
 	}
 }
 
-// normalizePath normalizes Echo route paths to avoid high cardinality metrics
-// Replaces dynamic segments with placeholders
+// normalizePath returns the Echo route pattern to avoid high cardinality metrics
+// Echo's c.Path() already provides the route pattern (e.g., "/users/:id") 
+// rather than actual request paths (e.g., "/users/123"), so no transformation needed
 func normalizePath(path string) string {
 	if path == "" {
 		return "unknown"
 	}
 
-	// Echo already provides the route pattern (e.g., "/users/:id")
-	// which is perfect for metrics as it avoids high cardinality
+	// Return the Echo route pattern as-is since it already contains placeholders
 	return path
 }
