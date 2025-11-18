@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/graceful"
+	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/policy"
@@ -34,6 +35,14 @@ func main() {
 	if err != nil {
 		logger.Fatalf("failed to load config: %v", err)
 	}
+
+	// Start metrics server
+	metricsServer := metrics.StartMetricsServer("88", logger)
+	defer func() {
+		if err := metricsServer.Stop(ctx); err != nil {
+			logger.Errorf("failed to stop metrics server: %v", err)
+		}
+	}()
 
 	redisClient, err := redis.NewRedis(cfg.Redis)
 	if err != nil {
@@ -87,6 +96,9 @@ func main() {
 		logger.Fatalf("failed to initialize policy service: %v", err)
 	}
 
+	// Add metrics middleware to default middlewares
+	middlewares := append(server.DefaultMiddlewares(), metrics.HTTPMiddleware())
+
 	srv := server.NewServer(
 		cfg.Server,
 		policyService,
@@ -95,7 +107,7 @@ func main() {
 		asynqClient,
 		asynqInspector,
 		dca.NewSpec(),
-		server.DefaultMiddlewares(),
+		middlewares,
 	)
 
 	go func() {
