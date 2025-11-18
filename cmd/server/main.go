@@ -36,8 +36,8 @@ func main() {
 		logger.Fatalf("failed to load config: %v", err)
 	}
 
-	// Start metrics server
-	metricsServer := metrics.StartMetricsServer("88", logger)
+	// Start metrics server with HTTP metrics for server
+	metricsServer := metrics.StartMetricsServer("88", []string{"http"}, logger)
 	defer func() {
 		if err := metricsServer.Stop(ctx); err != nil {
 			logger.Errorf("failed to stop metrics server: %v", err)

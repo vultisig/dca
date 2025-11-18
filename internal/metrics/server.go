@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
@@ -75,14 +73,9 @@ func (s *Server) Stop(ctx context.Context) error {
 }
 
 // StartMetricsServer is a convenience function to start the metrics server
-func StartMetricsServer(addr string, logger *logrus.Logger) *Server {
-	// Register default Go runtime and process metrics only if not already registered
-	if err := prometheus.Register(collectors.NewGoCollector()); err != nil {
-		logger.Debugf("Go collector already registered: %v", err)
-	}
-	if err := prometheus.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})); err != nil {
-		logger.Debugf("Process collector already registered: %v", err)
-	}
+func StartMetricsServer(addr string, services []string, logger *logrus.Logger) *Server {
+	// Register metrics for the specified services
+	RegisterMetrics(services, logger)
 
 	server := NewServer(addr, logger)
 	server.Start()
