@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/evm"
+	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/util"
 	"github.com/vultisig/dca/internal/xrp"
@@ -44,6 +45,7 @@ type Consumer struct {
 	solana      *solana.Network
 	vault       vault.Storage
 	vaultSecret string
+	metrics     *metrics.WorkerMetrics
 }
 
 func NewConsumer(
@@ -65,6 +67,7 @@ func NewConsumer(
 		solana:      solana,
 		vault:       vault,
 		vaultSecret: vaultSecret,
+		metrics:     metrics.NewWorkerMetrics(),
 	}
 }
 
@@ -226,9 +229,24 @@ func (c *Consumer) Handle(_ context.Context, t *asynq.Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
+	start := time.Now()
 	err := c.handle(ctx, t)
+	duration := time.Since(start)
+
+	// Extract policy ID for metrics
+	var trigger scheduler.Scheduler
+	policyID := "unknown"
+	if unmarshalErr := json.Unmarshal(t.Payload(), &trigger); unmarshalErr == nil {
+		policyID = trigger.PolicyID.String()
+	}
+
+	// Record policy execution metrics
+	success := err == nil
+	c.metrics.RecordPolicyExecution(policyID, success, duration)
+
 	if err != nil {
 		c.logger.WithError(err).Error("failed to handle trigger")
+		c.metrics.RecordError(metrics.ErrorTypeExecution)
 		return asynq.SkipRetry
 	}
 	return nil
@@ -418,9 +436,14 @@ func (c *Consumer) handleXrpSwap(
 
 	txHash, err := c.xrp.SwapAssets(ctx, *pol, from, to)
 	if err != nil {
+		// Record failed swap transaction
+		c.metrics.RecordSwapTransaction("XRP", toAsset, toChainTyped.String(), false)
+		c.metrics.RecordError(metrics.ErrorTypeExecution)
 		return fmt.Errorf("failed to execute XRP swap: %w", err)
 	}
 
+	// Record successful swap transaction
+	c.metrics.RecordSwapTransaction("XRP", toAsset, toChainTyped.String(), true)
 	c.logger.WithField("txHash", txHash).Info("XRP swap executed successfully")
 	return nil
 }
@@ -501,9 +524,14 @@ func (c *Consumer) handleBtcSwap(
 
 	txHash, err := c.btc.Swap(ctx, *pol, from, to)
 	if err != nil {
+		// Record failed swap transaction
+		c.metrics.RecordSwapTransaction("BTC", toAsset, toChainTyped.String(), false)
+		c.metrics.RecordError(metrics.ErrorTypeExecution)
 		return fmt.Errorf("failed to execute BTC swap: %w", err)
 	}
 
+	// Record successful swap transaction
+	c.metrics.RecordSwapTransaction("BTC", toAsset, toChainTyped.String(), true)
 	c.logger.WithField("txHash", txHash).Info("BTC swap executed successfully")
 	return nil
 }
@@ -600,9 +628,14 @@ func (c *Consumer) handleSolanaSwap(
 
 	txHash, err := c.solana.Swap(ctx, *pol, from, to)
 	if err != nil {
+		// Record failed swap transaction
+		c.metrics.RecordSwapTransaction(fromAsset, toAsset, toChainTyped.String(), false)
+		c.metrics.RecordError(metrics.ErrorTypeExecution)
 		return fmt.Errorf("failed to execute Solana swap: %w", err)
 	}
 
+	// Record successful swap transaction
+	c.metrics.RecordSwapTransaction(fromAsset, toAsset, toChainTyped.String(), true)
 	c.logger.WithField("txHash", txHash).Info("Solana swap executed successfully")
 	return nil
 }
@@ -766,9 +799,14 @@ func (c *Consumer) handleEvmSwap(
 
 	txHash, err := network.Signer.SignAndBroadcast(ctx, fromChain, *pol, swapTx)
 	if err != nil {
+		// Record failed swap transaction
+		c.metrics.RecordSwapTransaction(fromAssetTyped.String(), toAsset, fromChain.String(), false)
+		c.metrics.RecordError(metrics.ErrorTypeSigning)
 		return fmt.Errorf("failed to sign & broadcast swap: %w", err)
 	}
 
+	// Record successful swap transaction
+	c.metrics.RecordSwapTransaction(fromAssetTyped.String(), toAsset, fromChain.String(), true)
 	l.WithField("txHash", txHash).Info("tx signed & broadcasted")
 	return nil
 }
