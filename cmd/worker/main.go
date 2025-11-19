@@ -17,6 +17,7 @@ import (
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/jupiter"
+	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/oneinch"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
@@ -50,6 +51,16 @@ func main() {
 	if err != nil {
 		logger.Fatalf("failed to load config: %v", err)
 	}
+
+	// Start metrics server for worker
+	metricsServer := metrics.StartMetricsServer(cfg.Metrics, []string{metrics.ServiceWorker}, logger)
+	defer func() {
+		if metricsServer != nil {
+			if err := metricsServer.Stop(ctx); err != nil {
+				logger.Errorf("failed to stop metrics server: %v", err)
+			}
+		}
+	}()
 
 	vaultStorage, err := vault.NewBlockStorageImp(cfg.BlockStorage)
 	if err != nil {
@@ -283,6 +294,7 @@ type config struct {
 	XRP          xrpConfig
 	Solana       solanaConfig
 	HealthPort   int
+	Metrics      metrics.Config
 }
 
 type oneInchConfig struct {
