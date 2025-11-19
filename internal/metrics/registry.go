@@ -54,8 +54,11 @@ func registerHTTPMetrics(logger *logrus.Logger) {
 
 // registerSchedulerMetrics registers scheduler-related metrics
 func registerSchedulerMetrics(logger *logrus.Logger) {
-	// Will implement when we add scheduler metrics
-	logger.Debug("Scheduler metrics registration not yet implemented")
+	registerIfNotExists(schedulerActivePoliciesTotal, "scheduler_active_policies_total", logger)
+	registerIfNotExists(schedulerStuckPoliciesTotal, "scheduler_stuck_policies_total", logger)
+	registerIfNotExists(schedulerExecutionDuration, "scheduler_execution_duration", logger)
+	registerIfNotExists(schedulerPoliciesScheduledTotal, "scheduler_policies_scheduled_total", logger)
+	registerIfNotExists(schedulerLastExecutionTimestamp, "scheduler_last_execution_timestamp", logger)
 }
 
 // registerWorkerMetrics registers worker-related metrics
