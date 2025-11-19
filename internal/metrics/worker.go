@@ -37,7 +37,7 @@ var (
 			Name:      "swap_transactions_total",
 			Help:      "Total number of swap transactions",
 		},
-		[]string{"from_asset", "to_asset", "chain", "status"}, // success, error
+		[]string{"from_asset", "to_asset", "source_chain", "dest_chain", "status"}, // success, error
 	)
 
 	// Last execution timestamp
@@ -110,13 +110,13 @@ func (wm *WorkerMetrics) RecordPolicyExecution(policyID string, success bool, du
 }
 
 // RecordSwapTransaction records a swap transaction
-func (wm *WorkerMetrics) RecordSwapTransaction(fromAsset, toAsset, chain string, success bool) {
+func (wm *WorkerMetrics) RecordSwapTransaction(fromAsset, toAsset, sourceChain, destChain string, success bool) {
 	status := "success"
 	if !success {
 		status = "error"
 	}
 	
-	workerSwapTransactionsTotal.WithLabelValues(fromAsset, toAsset, chain, status).Inc()
+	workerSwapTransactionsTotal.WithLabelValues(fromAsset, toAsset, sourceChain, destChain, status).Inc()
 }
 
 // RecordError records different types of worker errors
