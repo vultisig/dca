@@ -9,6 +9,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/health"
+	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/config"
@@ -26,6 +27,16 @@ func main() {
 	if err != nil {
 		logger.Fatalf("failed to load config: %v", err)
 	}
+
+	// Start metrics server for tx_indexer
+	metricsServer := metrics.StartMetricsServer(cfg.Metrics, []string{metrics.ServiceTxIndexer}, logger)
+	defer func() {
+		if metricsServer != nil {
+			if err := metricsServer.Stop(ctx); err != nil {
+				logger.Errorf("failed to stop metrics server: %v", err)
+			}
+		}
+	}()
 
 	pgPool, err := pgxpool.New(ctx, cfg.Base.Database.DSN)
 	if err != nil {
@@ -46,6 +57,7 @@ func main() {
 	if err != nil {
 		logger.Fatalf("failed to initialize RPCs: %v", err)
 	}
+	txMetrics := metrics.NewTxIndexerMetrics()
 
 	worker := tx_indexer.NewWorker(
 		logger,
@@ -55,6 +67,7 @@ func main() {
 		cfg.Base.Concurrency,
 		txStorage,
 		rpcs,
+		txMetrics,
 	)
 
 	healthServer := health.New(cfg.HealthPort)
@@ -74,6 +87,7 @@ func main() {
 type Config struct {
 	Base       config.Config
 	HealthPort int
+	Metrics    metrics.Config
 }
 
 func newConfig() (Config, error) {

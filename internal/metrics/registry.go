@@ -79,6 +79,7 @@ func registerWorkerMetrics(logger *logrus.Logger) {
 
 // registerTxIndexerMetrics registers tx_indexer-related metrics
 func registerTxIndexerMetrics(logger *logrus.Logger) {
-	// Will implement when we add tx_indexer metrics
-	logger.Debug("TX indexer metrics registration not yet implemented")
+	txMetrics := NewTxIndexerMetrics()
+	txMetrics.Register(prometheus.DefaultRegisterer)
+	logger.Debug("TX indexer metrics registered")
 }

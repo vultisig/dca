@@ -1,75 +1,98 @@
 package metrics
 
 import (
-	"context"
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/vultisig/verifier/plugin/metrics"
+	"github.com/vultisig/vultisig-go/common"
 )
 
 var (
-	// On-chain status distribution per chain
-	txIndexerOnchainStatusTotal = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	// Transaction status tracking (used by RecordTransactionStatus)
+	txIndexerTransactionStatus = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Namespace: "dca",
 			Subsystem: "tx_indexer",
-			Name:      "onchain_status_total",
-			Help:      "Total number of transactions by on-chain status per chain",
+			Name:      "transaction_status_total",
+			Help:      "Total number of transaction status changes by chain and status",
 		},
 		[]string{"chain", "status"}, // chain name, PENDING/SUCCESS/FAIL
 	)
 
-	// Transaction processing status distribution per chain
-	txIndexerTransactionsProcessedTotal = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	// Processing attempts (used by RecordProcessing)
+	txIndexerProcessingTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Namespace: "dca",
 			Subsystem: "tx_indexer",
-			Name:      "transactions_processed_total",
-			Help:      "Total number of transactions by processing status per chain",
+			Name:      "processing_total",
+			Help:      "Total number of processing attempts by chain",
 		},
-		[]string{"chain", "status"}, // chain name, PROPOSED/VERIFIED/SIGNED
+		[]string{"chain"},
 	)
 
-	// Lost transactions per chain
-	txIndexerLostTransactionsTotal = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "dca",
-			Subsystem: "tx_indexer",
-			Name:      "lost_transactions_total",
-			Help:      "Total number of lost transactions per chain",
-		},
-		[]string{"chain"}, // chain name
-	)
-
-	// Processing iteration metrics
-	txIndexerProcessingDuration = prometheus.NewHistogram(
+	// Iteration duration by chain (used by RecordIterationDuration)
+	txIndexerIterationDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "dca",
 			Subsystem: "tx_indexer",
-			Name:      "processing_duration_seconds",
-			Help:      "Duration of tx_indexer processing iterations",
+			Name:      "iteration_duration_seconds",
+			Help:      "Duration of processing iterations by chain",
 			Buckets:   prometheus.DefBuckets,
 		},
+		[]string{"chain"},
 	)
 
-	// Processing rate (transactions processed per iteration)
-	txIndexerTransactionsPerIteration = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "dca",
-			Subsystem: "tx_indexer",
-			Name:      "transactions_per_iteration",
-			Help:      "Number of transactions processed in last iteration",
-		},
-	)
-
-	// Last processing timestamp
+	// Last processing timestamp (used by SetLastProcessingTimestamp)
 	txIndexerLastProcessingTimestamp = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "dca",
 			Subsystem: "tx_indexer",
 			Name:      "last_processing_timestamp",
-			Help:      "Timestamp of last successful tx_indexer processing iteration",
+			Help:      "Timestamp of last processing iteration",
 		},
+	)
+
+	// Active transactions (used by SetActiveTransactions)
+	txIndexerActiveTransactions = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "dca",
+			Subsystem: "tx_indexer",
+			Name:      "active_transactions",
+			Help:      "Number of active transactions by chain and status",
+		},
+		[]string{"chain", "status"},
+	)
+
+	// Processing errors (used by RecordProcessingError)
+	txIndexerProcessingErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "dca",
+			Subsystem: "tx_indexer",
+			Name:      "processing_errors_total",
+			Help:      "Total number of processing errors by chain and type",
+		},
+		[]string{"chain", "error_type"},
+	)
+
+	// RPC errors (used by RecordRPCError)
+	txIndexerRPCErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "dca",
+			Subsystem: "tx_indexer",
+			Name:      "rpc_errors_total",
+			Help:      "Total number of RPC errors by chain",
+		},
+		[]string{"chain"},
+	)
+
+	// Chain height (used by SetChainHeight)
+	txIndexerChainHeight = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "dca",
+			Subsystem: "tx_indexer",
+			Name:      "chain_height",
+			Help:      "Current chain height by chain",
+		},
+		[]string{"chain"},
 	)
 )
 
@@ -81,31 +104,59 @@ func NewTxIndexerMetrics() *TxIndexerMetrics {
 	return &TxIndexerMetrics{}
 }
 
-// UpdateOnchainStatus updates the on-chain status counts per chain
-func (tim *TxIndexerMetrics) UpdateOnchainStatus(chain, status string, count int) {
-	txIndexerOnchainStatusTotal.WithLabelValues(chain, status).Set(float64(count))
+// Verifier interface implementation
+// Register registers all TX indexer metrics with the provided registry
+func (tim *TxIndexerMetrics) Register(registry metrics.Registry) {
+	if reg, ok := registry.(prometheus.Registerer); ok {
+		reg.MustRegister(
+			txIndexerTransactionStatus,
+			txIndexerProcessingTotal,
+			txIndexerIterationDuration,
+			txIndexerLastProcessingTimestamp,
+			txIndexerActiveTransactions,
+			txIndexerProcessingErrors,
+			txIndexerRPCErrors,
+			txIndexerChainHeight,
+		)
+	}
 }
 
-// UpdateProcessingStatus updates the processing status counts per chain
-func (tim *TxIndexerMetrics) UpdateProcessingStatus(chain, status string, count int) {
-	txIndexerTransactionsProcessedTotal.WithLabelValues(chain, status).Set(float64(count))
+// RecordTransactionStatus records a transaction status change
+func (tim *TxIndexerMetrics) RecordTransactionStatus(chain common.Chain, status string) {
+	txIndexerTransactionStatus.WithLabelValues(chain.String(), status).Inc()
 }
 
-// UpdateLostTransactions updates the lost transaction counts per chain
-func (tim *TxIndexerMetrics) UpdateLostTransactions(chain string, count int) {
-	txIndexerLostTransactionsTotal.WithLabelValues(chain).Set(float64(count))
+// RecordProcessing records a processing attempt
+func (tim *TxIndexerMetrics) RecordProcessing(chain common.Chain) {
+	txIndexerProcessingTotal.WithLabelValues(chain.String()).Inc()
 }
 
-// RecordProcessingIteration records metrics for a processing iteration
-func (tim *TxIndexerMetrics) RecordProcessingIteration(duration time.Duration, transactionCount int) {
-	txIndexerProcessingDuration.Observe(duration.Seconds())
-	txIndexerTransactionsPerIteration.Set(float64(transactionCount))
-	txIndexerLastProcessingTimestamp.Set(float64(time.Now().Unix()))
+// RecordIterationDuration records the duration of a processing iteration
+func (tim *TxIndexerMetrics) RecordIterationDuration(chain common.Chain, duration float64) {
+	txIndexerIterationDuration.WithLabelValues(chain.String()).Observe(duration)
 }
 
-// TxStatusCounter interface for querying transaction status counts
-type TxStatusCounter interface {
-	CountOnchainStatus(ctx context.Context) (map[string]map[string]int, error)      // chain -> status -> count
-	CountProcessingStatus(ctx context.Context) (map[string]map[string]int, error)   // chain -> status -> count
-	CountLostTransactions(ctx context.Context) (map[string]int, error)              // chain -> count
+// SetLastProcessingTimestamp sets the timestamp of the last processing iteration
+func (tim *TxIndexerMetrics) SetLastProcessingTimestamp(timestamp float64) {
+	txIndexerLastProcessingTimestamp.Set(timestamp)
+}
+
+// SetActiveTransactions sets the number of active transactions
+func (tim *TxIndexerMetrics) SetActiveTransactions(chain common.Chain, status string, count float64) {
+	txIndexerActiveTransactions.WithLabelValues(chain.String(), status).Set(count)
+}
+
+// RecordProcessingError records a processing error
+func (tim *TxIndexerMetrics) RecordProcessingError(chain common.Chain, errorType string) {
+	txIndexerProcessingErrors.WithLabelValues(chain.String(), errorType).Inc()
+}
+
+// RecordRPCError records an RPC error
+func (tim *TxIndexerMetrics) RecordRPCError(chain common.Chain) {
+	txIndexerRPCErrors.WithLabelValues(chain.String()).Inc()
+}
+
+// SetChainHeight sets the current chain height
+func (tim *TxIndexerMetrics) SetChainHeight(chain common.Chain, height float64) {
+	txIndexerChainHeight.WithLabelValues(chain.String()).Set(height)
 }
