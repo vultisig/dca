@@ -64,9 +64,7 @@ func registerHTTPMetrics(logger *logrus.Logger) {
 func registerSchedulerMetrics(logger *logrus.Logger) {
 	registerIfNotExists(schedulerActivePoliciesTotal, "scheduler_active_policies_total", logger)
 	registerIfNotExists(schedulerStuckPoliciesTotal, "scheduler_stuck_policies_total", logger)
-	registerIfNotExists(schedulerExecutionDuration, "scheduler_execution_duration", logger)
-	registerIfNotExists(schedulerPoliciesScheduledTotal, "scheduler_policies_scheduled_total", logger)
-	registerIfNotExists(schedulerLastExecutionTimestamp, "scheduler_last_execution_timestamp", logger)
+	logger.Debug("Scheduler metrics registered")
 }
 
 // registerWorkerMetrics registers worker-related metrics

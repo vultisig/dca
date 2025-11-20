@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
-
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
@@ -35,7 +33,7 @@ func main() {
 	}
 
 	// Start metrics server for scheduler
-	metricsServer := metrics.StartMetricsServer(cfg.Metrics, []string{"scheduler"}, logger)
+	metricsServer := metrics.StartMetricsServer(cfg.Metrics, []string{metrics.ServiceScheduler}, logger)
 	defer func() {
 		if metricsServer != nil {
 			if err := metricsServer.Stop(ctx); err != nil {
@@ -43,6 +41,7 @@ func main() {
 			}
 		}
 	}()
+
 
 	redisConnOpt, err := asynq.ParseRedisURI(cfg.Redis.URI)
 	if err != nil {
@@ -76,6 +75,7 @@ func main() {
 		logger.Fatalf("failed to initialize scheduler storage: %v", err)
 	}
 
+	schedulerMetrics := metrics.NewSchedulerMetrics()
 	worker := scheduler.NewWorker(
 		logger,
 		asynqClient,
@@ -84,26 +84,9 @@ func main() {
 		schedulerStorage,
 		dca.NewSchedulerInterval(),
 		policyStorage,
+		schedulerMetrics,
 	)
 
-	// Start scheduler metrics updater
-	schedulerMetrics := metrics.NewSchedulerMetrics()
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		
-		// Initial update
-		updateSchedulerMetrics(ctx, pgPool, schedulerMetrics, logger)
-		
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				updateSchedulerMetrics(ctx, pgPool, schedulerMetrics, logger)
-			}
-		}
-	}()
 
 	healthServer := health.New(cfg.HealthPort)
 	go func() {
@@ -135,29 +118,3 @@ func newConfig() (config, error) {
 	return cfg, nil
 }
 
-func updateSchedulerMetrics(ctx context.Context, pgPool *pgxpool.Pool, schedulerMetrics *metrics.SchedulerMetrics, logger *logrus.Logger) {
-	// Count active policies
-	var activeCount int
-	err := pgPool.QueryRow(ctx, "SELECT COUNT(*) FROM plugin_policies WHERE active = true").Scan(&activeCount)
-	if err != nil {
-		logger.Errorf("Failed to count active policies: %v", err)
-	} else {
-		schedulerMetrics.UpdateActivePolicies(activeCount)
-		logger.Debugf("Updated active policies count: %d", activeCount)
-	}
-
-	// Count stuck policies (policies with next_execution < now)
-	var stuckCount int
-	stuckQuery := `
-		SELECT COUNT(*) 
-		FROM scheduler s 
-		JOIN plugin_policies p ON s.policy_id = p.id 
-		WHERE p.active = true AND s.next_execution < NOW()`
-	err = pgPool.QueryRow(ctx, stuckQuery).Scan(&stuckCount)
-	if err != nil {
-		logger.Errorf("Failed to count stuck policies: %v", err)
-	} else {
-		schedulerMetrics.UpdateStuckPolicies(stuckCount)
-		logger.Debugf("Updated stuck policies count: %d", stuckCount)
-	}
-}
