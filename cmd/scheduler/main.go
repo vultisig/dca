@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/health"
+	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/policy/policy_pg"
@@ -31,6 +31,17 @@ func main() {
 	if err != nil {
 		logger.Fatalf("failed to load config: %v", err)
 	}
+
+	// Start metrics server for scheduler
+	metricsServer := metrics.StartMetricsServer(cfg.Metrics, []string{metrics.ServiceScheduler}, logger)
+	defer func() {
+		if metricsServer != nil {
+			if err := metricsServer.Stop(ctx); err != nil {
+				logger.Errorf("failed to stop metrics server: %v", err)
+			}
+		}
+	}()
+
 
 	redisConnOpt, err := asynq.ParseRedisURI(cfg.Redis.URI)
 	if err != nil {
@@ -64,6 +75,7 @@ func main() {
 		logger.Fatalf("failed to initialize scheduler storage: %v", err)
 	}
 
+	schedulerMetrics := metrics.NewSchedulerMetrics()
 	worker := scheduler.NewWorker(
 		logger,
 		asynqClient,
@@ -72,7 +84,9 @@ func main() {
 		schedulerStorage,
 		dca.NewSchedulerInterval(),
 		policyStorage,
+		schedulerMetrics,
 	)
+
 
 	healthServer := health.New(cfg.HealthPort)
 	go func() {
@@ -92,6 +106,7 @@ type config struct {
 	Postgres   plugin_config.Database
 	Redis      plugin_config.Redis
 	HealthPort int
+	Metrics    metrics.Config
 }
 
 func newConfig() (config, error) {
@@ -102,3 +117,4 @@ func newConfig() (config, error) {
 	}
 	return cfg, nil
 }
+
