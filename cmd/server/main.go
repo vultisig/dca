@@ -37,7 +37,7 @@ func main() {
 	}
 
 	// Start metrics server with HTTP metrics for server
-	metricsServer := metrics.StartMetricsServer(cfg.Metrics, []string{"http"}, logger)
+	metricsServer := metrics.StartMetricsServer(cfg.Metrics, []string{metrics.ServiceHTTP}, logger)
 	defer func() {
 		if metricsServer != nil {
 			if err := metricsServer.Stop(ctx); err != nil {
