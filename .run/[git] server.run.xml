@@ -15,6 +15,8 @@
       <env name="SERVER_PORT" value="8082" />
       <env name="GOOS" value="darwin" />
       <env name="GOARCH" value="arm64" />
+      <env name="METRICS_ENABLED" value="true" />
+      <env name="METRICS_PORT" value="8088" />
     </envs>
     <kind value="FILE" />
     <package value="github.com/vultisig/dca/cmd/server" />
