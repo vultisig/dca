@@ -5,13 +5,23 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: dca.lb-1.plugins-cluster.nbitslabs.com
+    - host: dca-send.lb-1.plugins-cluster.nbitslabs.com
       http:
         paths:
           - path: /
             pathType: ImplementationSpecific
             backend:
               service:
-                name: server
+                name: server-send
+                port:
+                  number: 80
+    - host: dca-swap.lb-1.plugins-cluster.nbitslabs.com
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: server-swap
                 port:
                   number: 80
