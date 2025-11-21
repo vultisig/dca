@@ -242,13 +242,28 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		return nil, fmt.Errorf("failed to build pb recipe config: %w", err)
 	}
 
+	cfgExample, err := plugin.RecipeConfiguration(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			fromAsset:  "USDC",
+			toAsset:    "BTC",
+			fromAmount: "1000",
+			endDate:    "2026-12-25",
+			frequency:  daily,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build pb recipe config example: %w", err)
+	}
+
 	return &rtypes.RecipeSchema{
-		Version:            1,
-		PluginId:           PluginRecurringSends,
-		PluginName:         "Recurring Sends",
-		PluginVersion:      1,
-		SupportedResources: s.buildSupportedResources(),
-		Configuration:      cfg,
+		Version:              1,
+		PluginId:             PluginRecurringSends,
+		PluginName:           "Recurring Sends",
+		PluginVersion:        1,
+		SupportedResources:   s.buildSupportedResources(),
+		Configuration:        cfg,
+		ConfigurationExample: cfgExample,
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
 			SupportedChains:    getSupportedChainStrings(),
