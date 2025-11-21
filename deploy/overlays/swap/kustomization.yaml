@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app: server-swap
+      mode: swap
+
+resources:
+  - ../../base/server
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /metadata/name
+        value: server-swap
+      - op: replace
+        path: /spec/selector/app
+        value: server-swap
+    target:
+      kind: Service
+      name: server
+  - patch: |-
+      - op: replace
+        path: /metadata/name
+        value: server-swap
+      - op: replace
+        path: /spec/selector/matchLabels/app
+        value: server-swap
+      - op: replace
+        path: /spec/template/metadata/labels/app
+        value: server-swap
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: MODE
+          value: "swap"
+    target:
+      kind: Deployment
+      name: server

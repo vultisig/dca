@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: oneinch
-data:
-  base-url: "https://api.vultisig.com/1inch"

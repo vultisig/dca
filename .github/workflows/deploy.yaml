@@ -75,7 +75,9 @@ jobs:
       - name: Update deployment files
         run: |
           TAG="${{ github.event.release.tag_name }}"
-          sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/server:${TAG}|" deploy/02_server.yaml
+
+          sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/server:${TAG}|" deploy/base/server/server.yaml
+
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/scheduler:${TAG}|" deploy/02_scheduler.yaml
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${TAG}|" deploy/02_worker.yaml
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tx_indexer:${TAG}|" deploy/02_tx_indexer.yaml
@@ -83,11 +85,16 @@ jobs:
       - name: Deploy to Kubernetes
         run: |
           kubectl -n ${{ env.NS }} apply -f deploy/prod
-          kubectl -n ${{ env.NS }} apply -f deploy/02_server.yaml
+
+          kubectl -n ${{ env.NS }} apply -k deploy/overlays/send
+          kubectl -n ${{ env.NS }} apply -k deploy/overlays/swap
+
           kubectl -n ${{ env.NS }} apply -f deploy/02_scheduler.yaml
           kubectl -n ${{ env.NS }} apply -f deploy/02_worker.yaml
           kubectl -n ${{ env.NS }} apply -f deploy/02_tx_indexer.yaml
-          kubectl -n ${{ env.NS }} rollout status deployment/server --timeout=300s
+
+          kubectl -n ${{ env.NS }} rollout status deployment/server-send --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/server-swap --timeout=300s
           kubectl -n ${{ env.NS }} rollout status deployment/scheduler --timeout=300s
           kubectl -n ${{ env.NS }} rollout status deployment/worker --timeout=300s
           kubectl -n ${{ env.NS }} rollout status deployment/tx-indexer --timeout=300s
