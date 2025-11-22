@@ -245,11 +245,15 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	cfgExample, err := plugin.RecipeConfiguration(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			fromAsset:  "USDC",
-			toAsset:    "BTC",
-			fromAmount: "1000",
-			endDate:    "2026-12-25",
-			frequency:  daily,
+			asset: map[string]any{
+				"chain": "bitcoin",
+				"token": "BTC",
+			},
+			amount:      "0.5",
+			endDate:     "2026-12-25T00:00:00Z",
+			fromAddress: "1A1z7agoat...",
+			toAddress:   "bc1qxy2...",
+			frequency:   daily,
 		},
 	})
 	if err != nil {
