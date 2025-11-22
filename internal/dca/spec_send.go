@@ -246,14 +246,12 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		"type": "object",
 		"properties": map[string]any{
 			asset: map[string]any{
-				"chain": "bitcoin",
-				"token": "BTC",
+				"chain": "Bitcoin",
+				"token": "",
 			},
-			amount:      "0.5",
-			endDate:     "2026-12-25T00:00:00Z",
-			fromAddress: "1A1z7agoat...",
-			toAddress:   "bc1qxy2...",
-			frequency:   daily,
+			amount:    "0.5",
+			endDate:   "2026-12-25T00:00:00Z",
+			frequency: daily,
 		},
 	})
 	if err != nil {
