@@ -250,13 +250,36 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		return nil, fmt.Errorf("failed to build pb recipe config: %w", err)
 	}
 
+	cfgExample, err := plugin.RecipeConfiguration(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			fromAsset: map[string]any{
+				"chain":   "Ethereum",
+				"token":   "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+				"address": "",
+			},
+			toAsset: map[string]any{
+				"chain":   "Ethereum",
+				"token":   "0xdac17f958d2ee523a2206206994597c13d831ec7",
+				"address": "",
+			},
+			fromAmount: "10000000",
+			endDate:    "2026-12-25T00:00:00Z",
+			frequency:  daily,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build pb recipe config example: %w", err)
+	}
+
 	return &rtypes.RecipeSchema{
-		Version:            1,
-		PluginId:           PluginRecurringSwaps,
-		PluginName:         "Recurring Swaps",
-		PluginVersion:      1,
-		SupportedResources: s.buildSupportedResources(),
-		Configuration:      cfg,
+		Version:              1,
+		PluginId:             PluginRecurringSwaps,
+		PluginName:           "Recurring Swaps",
+		PluginVersion:        1,
+		SupportedResources:   s.buildSupportedResources(),
+		Configuration:        cfg,
+		ConfigurationExample: cfgExample,
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
 			SupportedChains:    getSupportedChainStrings(),
