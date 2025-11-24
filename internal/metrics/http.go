@@ -48,30 +48,48 @@ func HTTPMiddleware() echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			start := time.Now()
 
-			// Get request info
 			method := c.Request().Method
-			path := normalizePath(c.Path()) // Normalize to avoid high cardinality
 
-			// Execute the request
+			// Prefer route pattern; fall back to raw path for unregistered routes
+			routePath := c.Path()
+			if routePath == "" {
+				routePath = c.Request().URL.Path
+			}
+			path := normalizePath(routePath)
+
+			// Execute handler
 			err := next(c)
 
-			// Use Echo's response hook to capture final status after error handling
-			c.Response().After(func() {
-				// Calculate duration
-				duration := time.Since(start).Seconds()
+			// Compute duration
+			duration := time.Since(start).Seconds()
 
-				// Get final response status (after Echo error handling)
-				status := strconv.Itoa(c.Response().Status)
+			// Derive final status code
+			status := c.Response().Status
 
-				// Record metrics
-				httpRequestsTotal.WithLabelValues(method, path, status).Inc()
-				httpRequestDuration.WithLabelValues(method, path).Observe(duration)
+			// If handler returned an error, prefer its code
+			if he, ok := err.(*echo.HTTPError); ok {
+				status = he.Code
+			}
 
-				// Record errors for 5xx status codes
-				if c.Response().Status >= 500 {
-					httpErrorsTotal.WithLabelValues(method, path, status).Inc()
+			// Fallbacks if still unset
+			if status == 0 {
+				if err != nil {
+					status = 500 // Internal server error
+				} else {
+					status = 200 // OK
 				}
-			})
+			}
+
+			statusStr := strconv.Itoa(status)
+
+			// Record metrics
+			httpRequestsTotal.WithLabelValues(method, path, statusStr).Inc()
+			httpRequestDuration.WithLabelValues(method, path).Observe(duration)
+
+			// Record errors for non-2xx status codes (4xx + 5xx + weird 1xx/3xx)
+			if status < 200 || status >= 300 {
+				httpErrorsTotal.WithLabelValues(method, path, statusStr).Inc()
+			}
 
 			return err
 		}
