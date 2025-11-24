@@ -625,20 +625,33 @@
         "type": "stat",
         "targets": [
           {
-            "expr": "dca_worker_last_execution_timestamp",
+            "expr": "dca_worker_last_execution_timestamp * 1000",
             "legendFormat": "Last Execution"
           }
         ],
         "fieldConfig": {
           "defaults": {
             "color": {
-              "mode": "palette-classic"
+              "mode": "fixed",
+              "fixedColor": "green"
             },
             "custom": {
               "displayMode": "basic",
               "orientation": "horizontal"
             },
-            "unit": "dateTimeFromNow"
+            "unit": "dateTimeFromNow",
+            "mappings": [
+              {
+                "type": "range",
+                "options": {
+                  "from": 0,
+                  "to": 1000000000000,
+                  "result": {
+                    "text": "No executions yet"
+                  }
+                }
+              }
+            ]
           }
         },
         "options": {
