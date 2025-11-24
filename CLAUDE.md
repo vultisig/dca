@@ -209,7 +209,6 @@ This design allows for easy addition of new chains by simply adding their config
 - Transaction indexing for audit and verification purposes
 - Health check endpoints available on `/healthz` for all services
 - Network-specific logging for multi-chain operations
-- Grafana dashboard for comprehensive DCA plugin monitoring (see `deploy/GRAFANA_DASHBOARD.md`)
 
 ### Prometheus Metrics
 
