@@ -524,7 +524,7 @@
         "targets": [
           {
             "expr": "rate(dca_worker_swap_transactions_total[5m])",
-            "legendFormat": "{{from_asset}} → {{to_asset}} ({{source_chain}}) - {{status}}"
+            "legendFormat": "{{from_asset}} → {{to_asset}} ({{source_chain}}→{{dest_chain}}) - {{status}}"
           }
         ],
         "fieldConfig": {
