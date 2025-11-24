@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/vultisig/vultisig-go/common"
+	evmsdk "github.com/vultisig/recipes/sdk/evm"
 )
 
 var (
@@ -127,6 +129,43 @@ func (wm *WorkerMetrics) RecordError(errorType string) {
 // RecordTransactionProcessing records transaction processing time
 func (wm *WorkerMetrics) RecordTransactionProcessing(chain, operation string, duration time.Duration) {
 	workerTransactionProcessingDuration.WithLabelValues(chain, operation).Observe(duration.Seconds())
+}
+
+// RecordSwapTransactionWithFallback records a swap transaction with native asset fallback
+func (wm *WorkerMetrics) RecordSwapTransactionWithFallback(fromAsset, toAsset, fromChain, toChain string, success bool) {
+	if wm == nil {
+		return
+	}
+
+	// Use native symbol if fromAsset is empty or zero address (means native token)
+	fromAssetForMetrics := fromAsset
+	if fromAssetForMetrics == "" || fromAssetForMetrics == evmsdk.ZeroAddress.String() {
+		if fromChainTyped, err := common.FromString(fromChain); err == nil {
+			if nativeSymbol, err := fromChainTyped.NativeSymbol(); err == nil {
+				fromAssetForMetrics = nativeSymbol
+			} else {
+				fromAssetForMetrics = fromChain
+			}
+		} else {
+			fromAssetForMetrics = fromChain
+		}
+	}
+
+	// Use native symbol if toAsset is empty or zero address (means native token)
+	toAssetForMetrics := toAsset
+	if toAssetForMetrics == "" || toAssetForMetrics == evmsdk.ZeroAddress.String() {
+		if toChainTyped, err := common.FromString(toChain); err == nil {
+			if nativeSymbol, err := toChainTyped.NativeSymbol(); err == nil {
+				toAssetForMetrics = nativeSymbol
+			} else {
+				toAssetForMetrics = toChain
+			}
+		} else {
+			toAssetForMetrics = toChain
+		}
+	}
+
+	wm.RecordSwapTransaction(fromAssetForMetrics, toAssetForMetrics, fromChain, toChain, success)
 }
 
 // Error type constants for consistent labeling
