@@ -209,10 +209,48 @@ This design allows for easy addition of new chains by simply adding their config
 - Transaction indexing for audit and verification purposes
 - Health check endpoints available on `/healthz` for all services
 - Network-specific logging for multi-chain operations
+- Grafana dashboard for comprehensive DCA plugin monitoring (see `deploy/GRAFANA_DASHBOARD.md`)
+
+### Prometheus Metrics
+
+All services expose Prometheus metrics at `/metrics` endpoint:
+
+**Server Metrics** (port 8081):
+- `dca_server_http_requests_total` - Total HTTP requests by method, path, and status
+- `dca_server_http_request_duration_seconds` - HTTP request latency histogram
+- `dca_server_http_errors_total` - Total HTTP errors (5xx)
+
+**Scheduler Metrics** (port 8082):
+- `dca_scheduler_active_policies_total` - Total number of active DCA policies
+- `dca_scheduler_stuck_policies_total` - Number of policies with next_execution < now
+
+**Worker Metrics** (port 8083):
+- `dca_worker_policy_executions_by_id_total` - Executions per policy ID
+- `dca_worker_policy_executions_total` - Total policy executions by status
+- `dca_worker_swap_transactions_total` - Swap transactions by asset and chain
+- `dca_worker_execution_duration_seconds` - Policy execution duration histogram
+- `dca_worker_errors_total` - Worker errors by type
+- `dca_worker_transaction_processing_duration_seconds` - Transaction processing time by chain
+
+**TX Indexer Metrics** (port 8084):
+- `dca_tx_indexer_transaction_status_total` - Transaction status changes by chain
+- `dca_tx_indexer_active_transactions` - Active transactions by chain and status
+- `dca_tx_indexer_chain_height` - Current blockchain height
+- `dca_tx_indexer_processing_errors_total` - Processing errors by type
+- `dca_tx_indexer_rpc_errors_total` - RPC errors by chain
 
 ## Recent Improvements
 
-### Send Operation Support (Latest)
+### Grafana Dashboard (Latest)
+
+- **Comprehensive Monitoring Dashboard** - Full-featured Grafana dashboard with 13 panels tracking all DCA metrics
+- **Automatic Deployment** - Kubernetes ConfigMap with auto-discovery via Grafana sidecar
+- **Multi-Service Coverage** - Monitors Server, Scheduler, Worker, and TX Indexer metrics
+- **Performance Insights** - Histogram-based latency tracking with p50, p95, p99 percentiles
+- **Chain-Level Visibility** - Per-chain transaction tracking and error monitoring
+- **Deployment Documentation** - Complete guide in `deploy/GRAFANA_DASHBOARD.md`
+
+### Send Operation Support
 
 - **Added Send Operation** - Direct token transfers for same-chain, same-asset operations
 - **Official Interface Compliance** - Implements the official `*.send` interface: `{chain}.send (asset, from_address, amount, to_address, memo)`
