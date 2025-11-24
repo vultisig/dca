@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: minio
-data:
-  host: "http://minio:9000"
-  region: "us-east-1"
-  bucket: "vault"

@@ -98,6 +98,18 @@ func main() {
 		logger.Fatalf("failed to initialize policy service: %v", err)
 	}
 
+	var spec plugin.Spec
+	switch cfg.Mode {
+	case "send":
+		spec = dca.NewSendSpec()
+		logger.Info("Starting server in SEND mode")
+	case "swap":
+		spec = dca.NewSwapSpec()
+		logger.Info("Starting server in SWAP mode")
+	default:
+		logger.Fatalf("invalid MODE: %s (must be 'send' or 'swap')", cfg.Mode)
+	}
+
 	// Add metrics middleware to default middlewares
 	middlewares := append(server.DefaultMiddlewares(), metrics.HTTPMiddleware())
 
@@ -108,7 +120,7 @@ func main() {
 		vaultStorage,
 		asynqClient,
 		asynqInspector,
-		dca.NewSpec(),
+		spec,
 		middlewares,
 	)
 
@@ -125,6 +137,7 @@ func main() {
 }
 
 type config struct {
+	Mode         string `envconfig:"MODE" required:"true"`
 	Server       server.Config
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database

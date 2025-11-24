@@ -36,6 +36,12 @@ import (
 	"github.com/vultisig/vultisig-go/common"
 )
 
+const (
+	fromAsset  = "from"
+	fromAmount = "fromAmount"
+	toAsset    = "to"
+)
+
 type Consumer struct {
 	logger      *logrus.Logger
 	policy      policy.Service
@@ -257,8 +263,8 @@ func (c *Consumer) Handle(_ context.Context, t *asynq.Task) error {
 	return nil
 }
 
-func (c *Consumer) evmPubToAddress(chain common.Chain, pub string) (ecommon.Address, error) {
-	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(pub, string(types.PluginVultisigDCA_0000)))
+func (c *Consumer) evmPubToAddress(chain common.Chain, pub string, pluginID string) (ecommon.Address, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(pub, pluginID))
 	if err != nil {
 		return ecommon.Address{}, fmt.Errorf("failed to get vault content: %w", err)
 	}
@@ -280,8 +286,8 @@ func (c *Consumer) evmPubToAddress(chain common.Chain, pub string) (ecommon.Addr
 	return ecommon.HexToAddress(addr), nil
 }
 
-func (c *Consumer) btcPubToAddress(rootPub string) (btcutil.Address, *btcutil.AddressPubKey, error) {
-	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, string(types.PluginVultisigDCA_0000)))
+func (c *Consumer) btcPubToAddress(rootPub string, pluginID string) (btcutil.Address, *btcutil.AddressPubKey, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get vault content: %w", err)
 	}
@@ -318,8 +324,8 @@ func (c *Consumer) btcPubToAddress(rootPub string) (btcutil.Address, *btcutil.Ad
 	return btcAddr, pub, nil
 }
 
-func (c *Consumer) xrpPubToAddress(rootPub string) (string, string, error) {
-	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, string(types.PluginVultisigDCA_0000)))
+func (c *Consumer) xrpPubToAddress(rootPub string, pluginID string) (string, string, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get vault content: %w", err)
 	}
@@ -354,7 +360,7 @@ func (c *Consumer) handleXrpSend(
 		return fmt.Errorf("XRP send only supports native XRP, got token: %q", fromAsset)
 	}
 
-	fromAddressStr, childPubKey, err := c.xrpPubToAddress(pol.PublicKey)
+	fromAddressStr, childPubKey, err := c.xrpPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get XRP address from policy PublicKey: %w", err)
 	}
@@ -397,7 +403,7 @@ func (c *Consumer) handleXrpSwap(
 	toAssetMap map[string]any,
 	fromAmount, toAsset, toAddress string,
 ) error {
-	fromAddressStr, childPubKey, err := c.xrpPubToAddress(pol.PublicKey)
+	fromAddressStr, childPubKey, err := c.xrpPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get XRP address from policy PublicKey: %w", err)
 	}
@@ -456,8 +462,8 @@ func parseUint64(s string) (uint64, error) {
 	return strconv.ParseUint(s, 10, 64)
 }
 
-func (c *Consumer) solanaPubToAddress(rootPub string) (string, error) {
-	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, string(types.PluginVultisigDCA_0000)))
+func (c *Consumer) solanaPubToAddress(rootPub string, pluginID string) (string, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
 		return "", fmt.Errorf("failed to get vault content: %w", err)
 	}
@@ -481,7 +487,7 @@ func (c *Consumer) handleBtcSwap(
 	toAssetMap map[string]any,
 	fromAmount, toAsset, toAddress string,
 ) error {
-	fromAddressTyped, childPub, err := c.btcPubToAddress(pol.PublicKey)
+	fromAddressTyped, childPub, err := c.btcPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get BTC address from policy PublicKey: %w", err)
 	}
@@ -545,7 +551,7 @@ func (c *Consumer) handleBtcSend(
 	fromAmount string,
 	toAddress string,
 ) error {
-	fromAddressTyped, childPub, err := c.btcPubToAddress(pol.PublicKey)
+	fromAddressTyped, childPub, err := c.btcPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get BTC address from policy PublicKey: %w", err)
 	}
@@ -588,7 +594,7 @@ func (c *Consumer) handleSolanaSwap(
 	toAssetMap map[string]any,
 	fromAmount, fromAsset, toAsset, toAddress string,
 ) error {
-	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey)
+	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get Solana address from policy PublicKey: %w", err)
 	}
@@ -649,7 +655,7 @@ func (c *Consumer) handleSolanaSend(
 	fromAmount string,
 	toAddress string,
 ) error {
-	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey)
+	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get Solana address from policy PublicKey: %w", err)
 	}
@@ -704,7 +710,7 @@ func (c *Consumer) handleEvmSwap(
 	fromAsset, fromAmount, toAsset, toAddress string,
 ) error {
 	fromAssetTyped := ecommon.HexToAddress(fromAsset)
-	fromAddressTyped, err := c.evmPubToAddress(fromChain, pol.PublicKey)
+	fromAddressTyped, err := c.evmPubToAddress(fromChain, pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to parse policy PublicKey: %w", err)
 	}
@@ -823,7 +829,7 @@ func (c *Consumer) handleEvmSend(
 	fromAsset = util.IfEmptyElse(fromAsset, evmsdk.ZeroAddress.String())
 
 	fromAssetTyped := ecommon.HexToAddress(fromAsset)
-	fromAddressTyped, err := c.evmPubToAddress(fromChain, pol.PublicKey)
+	fromAddressTyped, err := c.evmPubToAddress(fromChain, pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to parse policy PublicKey: %w", err)
 	}
