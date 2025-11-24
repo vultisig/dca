@@ -633,7 +633,7 @@
           "defaults": {
             "color": {
               "mode": "fixed",
-              "fixedColor": "green"
+              "fixedColor": "text"
             },
             "custom": {
               "displayMode": "basic",
@@ -660,7 +660,11 @@
             "calcs": ["lastNotNull"],
             "fields": ""
           },
-          "text": {}
+          "orientation": "auto",
+          "textMode": "auto", 
+          "colorMode": "none",
+          "graphMode": "none",
+          "justifyMode": "auto"
         },
         "pluginVersion": "8.0.0",
         "gridPos": {
