@@ -117,7 +117,7 @@
         "type": "stat",
         "targets": [
           {
-            "expr": "rate(dca_server_http_requests_total{status=~\"4..|5..\"}[5m]) / rate(dca_server_http_requests_total[5m]) * 100",
+            "expr": "sum(rate(dca_server_http_requests_total{status=~\"4..|5..\"}[5m])) / sum(rate(dca_server_http_requests_total[5m])) * 100",
             "legendFormat": "Error Rate %"
           }
         ],
