@@ -243,16 +243,13 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	}
 
 	cfgExample, err := plugin.RecipeConfiguration(map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			asset: map[string]any{
-				"chain": "Bitcoin",
-				"token": "",
-			},
-			amount:    "0.5",
-			endDate:   "2026-12-25T00:00:00Z",
-			frequency: daily,
+		asset: map[string]any{
+			"chain": "Bitcoin",
+			"token": "",
 		},
+		amount:    "0.5",
+		endDate:   "2026-12-25T00:00:00Z",
+		frequency: daily,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to build pb recipe config example: %w", err)
