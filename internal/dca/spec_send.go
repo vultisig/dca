@@ -247,7 +247,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"chain": "Bitcoin",
 			"token": "",
 		},
-		amount:    "0.5",
+		amount:    "5000000",
 		endDate:   "2026-12-25T00:00:00Z",
 		frequency: daily,
 	})
