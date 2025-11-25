@@ -78,9 +78,9 @@ jobs:
 
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/server:${TAG}|" deploy/base/server/server.yaml
 
-          sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/scheduler:${TAG}|" deploy/02_scheduler.yaml
-          sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${TAG}|" deploy/02_worker.yaml
-          sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tx_indexer:${TAG}|" deploy/02_tx_indexer.yaml
+          sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/scheduler:${TAG}|" deploy/01_scheduler.yaml
+          sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${TAG}|" deploy/01_worker.yaml
+          sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tx_indexer:${TAG}|" deploy/01_tx_indexer.yaml
 
       - name: Deploy to Kubernetes
         run: |
@@ -89,9 +89,11 @@ jobs:
           kubectl -n ${{ env.NS }} apply -k deploy/overlays/send
           kubectl -n ${{ env.NS }} apply -k deploy/overlays/swap
 
-          kubectl -n ${{ env.NS }} apply -f deploy/02_scheduler.yaml
-          kubectl -n ${{ env.NS }} apply -f deploy/02_worker.yaml
-          kubectl -n ${{ env.NS }} apply -f deploy/02_tx_indexer.yaml
+          kubectl -n ${{ env.NS }} apply -f deploy/01_scheduler.yaml
+          kubectl -n ${{ env.NS }} apply -f deploy/01_worker.yaml
+          kubectl -n ${{ env.NS }} apply -f deploy/01_tx_indexer.yaml
+
+          kubectl -n monitoring apply -f deploy/02_grafana_dashboard.yaml
 
           kubectl -n ${{ env.NS }} rollout status deployment/server-send --timeout=300s
           kubectl -n ${{ env.NS }} rollout status deployment/server-swap --timeout=300s
