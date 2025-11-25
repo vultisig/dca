@@ -77,6 +77,7 @@ func NewConsumer(
 	}
 }
 
+
 func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	var trigger scheduler.Scheduler
 	if err := json.Unmarshal(t.Payload(), &trigger); err != nil {
@@ -447,16 +448,12 @@ func (c *Consumer) handleXrpSwap(
 	txHash, err := c.xrp.SwapAssets(ctx, *pol, from, to)
 	if err != nil {
 		// Record failed swap transaction
-		if c.metrics != nil {
-			c.metrics.RecordSwapTransaction("XRP", toAsset, common.XRP.String(), toChainTyped.String(), false)
-		}
+		c.metrics.RecordSwapTransactionWithFallback("XRP", toAsset, common.XRP.String(), toChainTyped.String(), false)
 		return fmt.Errorf("failed to execute XRP swap: %w", err)
 	}
 
 	// Record successful swap transaction
-	if c.metrics != nil {
-		c.metrics.RecordSwapTransaction("XRP", toAsset, common.XRP.String(), toChainTyped.String(), true)
-	}
+	c.metrics.RecordSwapTransactionWithFallback("XRP", toAsset, common.XRP.String(), toChainTyped.String(), true)
 	c.logger.WithField("txHash", txHash).Info("XRP swap executed successfully")
 	return nil
 }
@@ -538,16 +535,12 @@ func (c *Consumer) handleBtcSwap(
 	txHash, err := c.btc.Swap(ctx, *pol, from, to)
 	if err != nil {
 		// Record failed swap transaction
-		if c.metrics != nil {
-			c.metrics.RecordSwapTransaction("BTC", toAsset, common.Bitcoin.String(), toChainTyped.String(), false)
-		}
+		c.metrics.RecordSwapTransactionWithFallback("BTC", toAsset, common.Bitcoin.String(), toChainTyped.String(), false)
 		return fmt.Errorf("failed to execute BTC swap: %w", err)
 	}
 
 	// Record successful swap transaction
-	if c.metrics != nil {
-		c.metrics.RecordSwapTransaction("BTC", toAsset, common.Bitcoin.String(), toChainTyped.String(), true)
-	}
+	c.metrics.RecordSwapTransactionWithFallback("BTC", toAsset, common.Bitcoin.String(), toChainTyped.String(), true)
 	c.logger.WithField("txHash", txHash).Info("BTC swap executed successfully")
 	return nil
 }
@@ -645,16 +638,12 @@ func (c *Consumer) handleSolanaSwap(
 	txHash, err := c.solana.Swap(ctx, *pol, from, to)
 	if err != nil {
 		// Record failed swap transaction
-		if c.metrics != nil {
-			c.metrics.RecordSwapTransaction(fromAsset, toAsset, common.Solana.String(), toChainTyped.String(), false)
-		}
+		c.metrics.RecordSwapTransactionWithFallback(fromAsset, toAsset, common.Solana.String(), toChainTyped.String(), false)
 		return fmt.Errorf("failed to execute Solana swap: %w", err)
 	}
 
 	// Record successful swap transaction
-	if c.metrics != nil {
-		c.metrics.RecordSwapTransaction(fromAsset, toAsset, common.Solana.String(), toChainTyped.String(), true)
-	}
+	c.metrics.RecordSwapTransactionWithFallback(fromAsset, toAsset, common.Solana.String(), toChainTyped.String(), true)
 	c.logger.WithField("txHash", txHash).Info("Solana swap executed successfully")
 	return nil
 }
@@ -819,16 +808,12 @@ func (c *Consumer) handleEvmSwap(
 	txHash, err := network.Signer.SignAndBroadcast(ctx, fromChain, *pol, swapTx)
 	if err != nil {
 		// Record failed swap transaction
-		if c.metrics != nil {
-			c.metrics.RecordSwapTransaction(fromAssetTyped.String(), toAsset, fromChain.String(), toChainTyped.String(), false)
-		}
+		c.metrics.RecordSwapTransactionWithFallback(fromAssetTyped.String(), toAsset, fromChain.String(), toChainTyped.String(), false)
 		return fmt.Errorf("failed to sign & broadcast swap: %w", err)
 	}
 
 	// Record successful swap transaction
-	if c.metrics != nil {
-		c.metrics.RecordSwapTransaction(fromAssetTyped.String(), toAsset, fromChain.String(), toChainTyped.String(), true)
-	}
+	c.metrics.RecordSwapTransactionWithFallback(fromAssetTyped.String(), toAsset, fromChain.String(), toChainTyped.String(), true)
 	l.WithField("txHash", txHash).Info("tx signed & broadcasted")
 	return nil
 }

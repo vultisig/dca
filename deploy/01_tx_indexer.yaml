@@ -13,6 +13,10 @@ spec:
     metadata:
       labels:
         app: tx-indexer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8088"
+        prometheus.io/path: "/metrics"
     spec:
       imagePullSecrets:
         - name: ghcr
@@ -23,6 +27,8 @@ spec:
           ports:
             - containerPort: 80
               name: health
+            - containerPort: 8088
+              name: metrics
           env:
             - name: HEALTHPORT
               value: "80"
@@ -84,6 +90,10 @@ spec:
                 secretKeyRef:
                   name: postgres
                   key: dsn
+            - name: METRICS_ENABLED
+              value: "true"
+            - name: METRICS_PORT
+              value: "8088"
           resources:
             requests:
               memory: "32Mi"

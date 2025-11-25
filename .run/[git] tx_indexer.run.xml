@@ -20,6 +20,8 @@
       <env name="BASE_MARKLOSTAFTER" value="2h" />
       <env name="BASE_CONCURRENCY" value="5" />
       <env name="HEALTHPORT" value="8183" />
+      <env name="METRICS_ENABLED" value="true" />
+      <env name="METRICS_PORT" value="8088" />
     </envs>
     <kind value="FILE" />
     <package value="github.com/vultisig/dca/cmd/tx_indexer" />
