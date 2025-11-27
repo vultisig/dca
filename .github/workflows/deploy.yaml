@@ -7,7 +7,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  CLUSTER: plugins-prod-cluster
+  CLUSTER: plugins-prod-k8s
   NS: plugin-dca
 
 jobs:
@@ -93,7 +93,7 @@ jobs:
           kubectl -n ${{ env.NS }} apply -f deploy/01_worker.yaml
           kubectl -n ${{ env.NS }} apply -f deploy/01_tx_indexer.yaml
 
-          kubectl -n monitoring apply -f deploy/02_grafana_dashboard.yaml
+          kubectl -n ${{ env.NS }} apply -f deploy/02_grafana_dashboard.yaml
 
           kubectl -n ${{ env.NS }} rollout status deployment/server-send --timeout=300s
           kubectl -n ${{ env.NS }} rollout status deployment/server-swap --timeout=300s
