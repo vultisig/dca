@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	solanarpc "github.com/gagliardetto/solana-go/rpc"
@@ -17,6 +16,7 @@ import (
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/jupiter"
+	"github.com/vultisig/dca/internal/logging"
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/oneinch"
 	"github.com/vultisig/dca/internal/solana"
@@ -43,14 +43,12 @@ import (
 func main() {
 	ctx := context.Background()
 
-	logger := logrus.New()
-	logger.SetOutput(os.Stdout)
-	logger.SetLevel(logrus.DebugLevel)
-
 	cfg, err := newConfig()
 	if err != nil {
-		logger.Fatalf("failed to load config: %v", err)
+		logrus.Fatalf("failed to load config: %v", err)
 	}
+
+	logger := logging.NewLogger(cfg.LogFormat)
 
 	// Start metrics server for worker
 	metricsServer := metrics.StartMetricsServer(cfg.Metrics, []string{metrics.ServiceWorker}, logger)
@@ -282,6 +280,7 @@ func main() {
 }
 
 type config struct {
+	LogFormat    logging.LogFormat `envconfig:"LOG_FORMAT" default:"text"`
 	VaultService vault_config.Config
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database

@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/health"
+	"github.com/vultisig/dca/internal/logging"
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
@@ -23,14 +23,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	logger := logrus.New()
-	logger.SetOutput(os.Stdout)
-	logger.SetLevel(logrus.DebugLevel)
-
 	cfg, err := newConfig()
 	if err != nil {
-		logger.Fatalf("failed to load config: %v", err)
+		logrus.Fatalf("failed to load config: %v", err)
 	}
+
+	logger := logging.NewLogger(cfg.LogFormat)
 
 	// Start metrics server for scheduler
 	metricsServer := metrics.StartMetricsServer(cfg.Metrics, []string{metrics.ServiceScheduler}, logger)
@@ -103,6 +101,7 @@ func main() {
 }
 
 type config struct {
+	LogFormat  logging.LogFormat `envconfig:"LOG_FORMAT" default:"text"`
 	Postgres   plugin_config.Database
 	Redis      plugin_config.Redis
 	HealthPort int
