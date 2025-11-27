@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-dca
+  name: plugin-dca
   labels:
     grafana-dashboard: "true"
 data:
-  grafana-dashboard.json: |
+  plugin-dca.json: |
     {
       "id": null,
       "links": [],

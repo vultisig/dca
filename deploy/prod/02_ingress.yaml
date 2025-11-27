@@ -3,11 +3,17 @@ kind: Ingress
 metadata:
   name: plugin-dca
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web-internal
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    cert-manager.io/cluster-issuer: "letsencrypt"
 spec:
   ingressClassName: traefik
+  tls:
+    - secretName: plugin-dca-tls
+      hosts:
+        - plugin-dca-send.lb.services.1conf.com
+        - plugin-dca-swap.lb.services.1conf.com
   rules:
-    - host: dca-send.lb-1.plugins-cluster.nbitslabs.com
+    - host: plugin-dca-send.lb.services.1conf.com
       http:
         paths:
           - path: /
@@ -17,7 +23,7 @@ spec:
                 name: server-send
                 port:
                   number: 80
-    - host: dca-swap.lb-1.plugins-cluster.nbitslabs.com
+    - host: plugin-dca-swap.lb.services.1conf.com
       http:
         paths:
           - path: /
