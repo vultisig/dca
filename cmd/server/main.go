@@ -122,6 +122,10 @@ func main() {
 		middlewares,
 	)
 
+	if cfg.Verifier.Token != "" {
+		srv.SetAuthMiddleware(server.NewAuth(cfg.Verifier.Token).Middleware)
+	}
+
 	go func() {
 		sig := <-graceful.MakeSigintChan()
 		logger.Infof("received exit signal: %v", sig)
@@ -135,13 +139,14 @@ func main() {
 }
 
 type config struct {
-	Mode         string `envconfig:"MODE" required:"true"`
+	Mode         string            `envconfig:"MODE" required:"true"`
 	LogFormat    logging.LogFormat `envconfig:"LOG_FORMAT" default:"text"`
 	Server       server.Config
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database
 	Redis        plugin_config.Redis
 	Metrics      metrics.Config
+	Verifier     plugin_config.Verifier
 }
 
 func newConfig() (config, error) {
