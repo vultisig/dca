@@ -99,6 +99,8 @@ spec:
                 secretKeyRef:
                   name: verifier
                   key: token
+            - name: LOGFORMAT
+              value: "json"
           resources:
             requests:
               memory: "32Mi"

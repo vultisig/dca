@@ -48,6 +48,8 @@ spec:
               value: "true"
             - name: METRICS_PORT
               value: "8088"
+            - name: LOGFORMAT
+              value: "json"
           resources:
             requests:
               memory: "32Mi"
