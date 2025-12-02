@@ -8,12 +8,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
+
 	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/graceful"
 	"github.com/vultisig/dca/internal/logging"
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
+	smetrics "github.com/vultisig/verifier/plugin/metrics"
 	"github.com/vultisig/verifier/plugin/policy"
 	"github.com/vultisig/verifier/plugin/policy/policy_pg"
 	"github.com/vultisig/verifier/plugin/redis"
@@ -120,7 +122,12 @@ func main() {
 		asynqInspector,
 		spec,
 		middlewares,
+		smetrics.NewNilPluginServerMetrics(),
 	)
+
+	if cfg.Verifier.Token != "" {
+		srv.SetAuthMiddleware(server.NewAuth(cfg.Verifier.Token).Middleware)
+	}
 
 	go func() {
 		sig := <-graceful.MakeSigintChan()
@@ -135,13 +142,14 @@ func main() {
 }
 
 type config struct {
-	Mode         string `envconfig:"MODE" required:"true"`
+	Mode         string            `envconfig:"MODE" required:"true"`
 	LogFormat    logging.LogFormat `envconfig:"LOG_FORMAT" default:"text"`
 	Server       server.Config
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database
 	Redis        plugin_config.Redis
 	Metrics      metrics.Config
+	Verifier     plugin_config.Verifier
 }
 
 func newConfig() (config, error) {
