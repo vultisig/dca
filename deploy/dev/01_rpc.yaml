@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rpc
+data:
+  xrp: "https://xrplcluster.com"
+  ethereum: "https://api.vultisig.com/eth/"
+  arbitrum: "https://api.vultisig.com/arb/"
+  avalanche: "https://api.vultisig.com/avax/"
+  bsc: "https://api.vultisig.com/bsc/"
+  base: "https://api.vultisig.com/base/"
+  blast: "https://api.vultisig.com/blast/"
+  optimism: "https://api.vultisig.com/opt/"
+  polygon: "https://api.vultisig.com/polygon/"
+  solana: "https://api.vultisig.com/solana/"

@@ -1,13 +1,17 @@
-name: Build and Deploy
+name: Build and Deploy to Dev
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - dev
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  CLUSTER: plugins-prod-k8s
+  CLUSTER: plugins-dev-k8s
   NS: plugin-dca
 
 jobs:
@@ -20,8 +24,8 @@ jobs:
       service: server
       registry: ghcr.io
       image_name: ${{ github.repository }}
-      tag: ${{ github.event.release.tag_name }}
-      additional_tag: latest
+      tag: dev-${{ github.sha }}
+      additional_tag: dev-latest
 
   build-scheduler:
     uses: ./.github/workflows/build-push-image.yaml
@@ -32,8 +36,8 @@ jobs:
       service: scheduler
       registry: ghcr.io
       image_name: ${{ github.repository }}
-      tag: ${{ github.event.release.tag_name }}
-      additional_tag: latest
+      tag: dev-${{ github.sha }}
+      additional_tag: dev-latest
 
   build-worker:
     uses: ./.github/workflows/build-push-image.yaml
@@ -44,8 +48,8 @@ jobs:
       service: worker
       registry: ghcr.io
       image_name: ${{ github.repository }}
-      tag: ${{ github.event.release.tag_name }}
-      additional_tag: latest
+      tag: dev-${{ github.sha }}
+      additional_tag: dev-latest
 
   build-tx-indexer:
     uses: ./.github/workflows/build-push-image.yaml
@@ -56,8 +60,8 @@ jobs:
       service: tx_indexer
       registry: ghcr.io
       image_name: ${{ github.repository }}
-      tag: ${{ github.event.release.tag_name }}
-      additional_tag: latest
+      tag: dev-${{ github.sha }}
+      additional_tag: dev-latest
 
   deploy:
     needs: [build-server, build-scheduler, build-worker, build-tx-indexer]
@@ -78,7 +82,7 @@ jobs:
 
       - name: Update deployment files
         run: |
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="dev-${{ github.sha }}"
 
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/server:${TAG}|" deploy/base/server/server.yaml
 
@@ -88,7 +92,7 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: |
-          kubectl -n ${{ env.NS }} apply -f deploy/prod
+          kubectl -n ${{ env.NS }} apply -f deploy/dev
 
           kubectl -n ${{ env.NS }} apply -k deploy/overlays/send
           kubectl -n ${{ env.NS }} apply -k deploy/overlays/swap
