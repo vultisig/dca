@@ -58,6 +58,7 @@ subjects:
   - kind: ServiceAccount
     name: github-actions
     namespace: plugin-dca
+
 ---
 apiVersion: v1
 kind: Secret
