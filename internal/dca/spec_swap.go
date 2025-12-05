@@ -6,8 +6,6 @@ import (
 	"strings"
 
 	"github.com/kaptinlin/jsonschema"
-	"google.golang.org/protobuf/types/known/structpb"
-
 	"github.com/vultisig/dca/internal/util"
 	rjsonschema "github.com/vultisig/recipes/jsonschema"
 	rtypes "github.com/vultisig/recipes/types"
@@ -15,6 +13,7 @@ import (
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
 	"github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/common"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type SwapSpec struct {
@@ -252,7 +251,7 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		return nil, fmt.Errorf("failed to build pb recipe config: %w", err)
 	}
 
-	cfgExample, err := plugin.RecipeConfiguration(map[string]any{
+	cfgExample1, err := plugin.RecipeConfiguration(map[string]any{
 		fromAsset: map[string]any{
 			"chain":   "Ethereum",
 			"token":   "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
@@ -268,8 +267,10 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		frequency:  daily,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to build pb recipe config example: %w", err)
+		return nil, fmt.Errorf("failed to build pb recipe config example1: %w", err)
 	}
+
+	cfgExamples := []*structpb.Struct{cfgExample1}
 
 	return &rtypes.RecipeSchema{
 		Version:              1,
@@ -278,7 +279,7 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		PluginVersion:        1,
 		SupportedResources:   s.buildSupportedResources(),
 		Configuration:        cfg,
-		ConfigurationExample: []*structpb.Struct{cfgExample},
+		ConfigurationExample: cfgExamples,
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
 			SupportedChains:    getSupportedChainStrings(),
