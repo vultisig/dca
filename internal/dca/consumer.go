@@ -22,6 +22,7 @@ import (
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/util"
 	"github.com/vultisig/dca/internal/xrp"
+	"github.com/vultisig/dca/internal/zcash"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/recipes/metarule"
 	"github.com/vultisig/recipes/resolver"
@@ -49,6 +50,7 @@ type Consumer struct {
 	btc         *btc.Network
 	xrp         *xrp.Network
 	solana      *solana.Network
+	zcash       *zcash.Network
 	vault       vault.Storage
 	vaultSecret string
 	metrics     *metrics.WorkerMetrics
@@ -61,22 +63,23 @@ func NewConsumer(
 	btc *btc.Network,
 	solana *solana.Network,
 	xrp *xrp.Network,
+	zcash *zcash.Network,
 	vault vault.Storage,
 	vaultSecret string,
 ) *Consumer {
 	return &Consumer{
-		logger:      logger.WithField("pkg", "dca.Consumer").Logger,
+		logger:      logger.WithField("pkg", "recurring.Consumer").Logger,
 		policy:      policy,
 		evm:         evm,
 		btc:         btc,
 		xrp:         xrp,
 		solana:      solana,
+		zcash:       zcash,
 		vault:       vault,
 		vaultSecret: vaultSecret,
 		metrics:     metrics.NewWorkerMetrics(),
 	}
 }
-
 
 func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	var trigger scheduler.Scheduler
@@ -183,6 +186,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 			return nil
 		}
 
+		if fromChainTyped == common.Zcash {
+			er := c.handleZcashSend(ctx, pol, fromAmountStr, toAddressStr)
+			if er != nil {
+				return fmt.Errorf("failed to handle Zcash send: %w", er)
+			}
+			return nil
+		}
+
 		c.logger.WithFields(logrus.Fields{
 			"chain":     fromChainStr,
 			"operation": "send",
@@ -210,6 +221,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		er := c.handleSolanaSwap(ctx, pol, toAssetMap, fromAmountStr, fromAssetTokenStr, toAssetTokenStr, toAddressStr)
 		if er != nil {
 			return fmt.Errorf("failed to handle Solana swap: %w", er)
+		}
+		return nil
+	}
+
+	if fromChainTyped == common.Zcash {
+		er := c.handleZcashSwap(ctx, pol, toAssetMap, fromAmountStr, toAssetTokenStr, toAddressStr)
+		if er != nil {
+			return fmt.Errorf("failed to handle Zcash swap: %w", er)
 		}
 		return nil
 	}
@@ -929,4 +948,130 @@ func findSpender(chain common.Chain, rawRules []*rtypes.Rule) (ecommon.Address, 
 		}
 	}
 	return ecommon.Address{}, fmt.Errorf("rule not found")
+}
+
+func (c *Consumer) zcashPubToAddress(rootPub string, pluginID string) (string, []byte, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.Zcash.GetDerivePath(), false)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get derived pubkey: %w", err)
+	}
+
+	addr, pubKeyBytes, err := zcash.GetAddressFromPubKey(childPub)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get Zcash address: %w", err)
+	}
+
+	return addr, pubKeyBytes, nil
+}
+
+func (c *Consumer) handleZcashSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	fromAmount string,
+	toAddress string,
+) error {
+	fromAddressStr, pubKeyBytes, err := c.zcashPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get Zcash address from policy PublicKey: %w", err)
+	}
+
+	fromAmountZatoshis, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	from := zcash.From{
+		PubKey:  pubKeyBytes,
+		Address: fromAddressStr,
+		Amount:  fromAmountZatoshis,
+	}
+
+	l := c.logger.WithFields(logrus.Fields{
+		"operation":   "send",
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"toAddress":   toAddress,
+		"amount":      fromAmountZatoshis,
+	})
+
+	l.Info("handling Zcash send")
+
+	txHash, err := c.zcash.Send(ctx, *pol, from, toAddress, fromAmountZatoshis)
+	if err != nil {
+		l.WithError(err).Error("failed to execute Zcash send")
+		return fmt.Errorf("failed to execute Zcash send: %w", err)
+	}
+
+	l.WithField("txHash", txHash).Info("Zcash send executed successfully")
+	return nil
+}
+
+func (c *Consumer) handleZcashSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	toAssetMap map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressStr, pubKeyBytes, err := c.zcashPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get Zcash address from policy PublicKey: %w", err)
+	}
+
+	fromAmountZatoshis, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
+	}
+
+	from := zcash.From{
+		PubKey:  pubKeyBytes,
+		Address: fromAddressStr,
+		Amount:  fromAmountZatoshis,
+	}
+
+	to := zcash.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"fromAmount":  fromAmountZatoshis,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling Zcash swap")
+
+	txHash, err := c.zcash.Swap(ctx, *pol, from, to)
+	if err != nil {
+		// Record failed swap transaction
+		c.metrics.RecordSwapTransactionWithFallback("ZEC", toAsset, common.Zcash.String(), toChainTyped.String(), false)
+		return fmt.Errorf("failed to execute Zcash swap: %w", err)
+	}
+
+	// Record successful swap transaction
+	c.metrics.RecordSwapTransactionWithFallback("ZEC", toAsset, common.Zcash.String(), toChainTyped.String(), true)
+	c.logger.WithField("txHash", txHash).Info("Zcash swap executed successfully")
+	return nil
 }

@@ -23,6 +23,7 @@ require (
 	github.com/vultisig/verifier v0.0.0-20251205134402-c3717400c12e
 	github.com/vultisig/vultisig-go v0.0.0-20251201083443-f9306a44b356
 	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
+	golang.org/x/crypto v0.41.0
 	golang.org/x/sync v0.16.0
 	google.golang.org/protobuf v1.36.8
 )
@@ -241,7 +242,6 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/arch v0.15.0 // indirect
-	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
