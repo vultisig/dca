@@ -293,7 +293,7 @@ func (s *SendSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 			ResourcePath: &rtypes.ResourcePath{
 				ChainId:    chainNameLower,
 				ProtocolId: "send",
-				FunctionId: "",
+				FunctionId: "Access to transaction signing",
 				Full:       chainNameLower + ".send",
 			},
 			Target: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
