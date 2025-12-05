@@ -123,6 +123,7 @@ func main() {
 		spec,
 		middlewares,
 		smetrics.NewNilPluginServerMetrics(),
+		logger,
 	)
 
 	if cfg.Verifier.Token != "" {
