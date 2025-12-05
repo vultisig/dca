@@ -80,7 +80,10 @@ func (s *SignerService) buildKeysignRequest(
 	policy types.PluginPolicy,
 	unsignedTx *UnsignedTx,
 ) (types.PluginKeysignRequest, error) {
-	txB64 := base64.StdEncoding.EncodeToString(unsignedTx.RawBytes)
+	// Serialize transaction with embedded metadata (pubkey + sighashes)
+	// This allows the verifier's tx_indexer to extract the metadata for signature lookup
+	dataWithMetadata := zcash.SerializeWithMetadata(unsignedTx.RawBytes, unsignedTx.SigHashes, unsignedTx.PubKey)
+	txB64 := base64.StdEncoding.EncodeToString(dataWithMetadata)
 
 	txToTrack, err := s.txIndexer.CreateTx(ctx, storage.CreateTxDto{
 		PluginID:      policy.PluginID,
