@@ -229,45 +229,26 @@ type TxBroadcaster interface {
 var _ TxBroadcaster = (*Client)(nil)
 
 // SerializeUnsignedTx creates raw unsigned transaction bytes
+// Uses Zcash v4 (Sapling) format for compatibility with recipes engine
 func SerializeUnsignedTx(inputs []TxInput, outputs []*TxOutput) ([]byte, error) {
 	var buf bytes.Buffer
 
-	// Zcash v5 transaction format (post-NU5)
+	// Zcash v4 transaction format (Sapling)
 	// Header: 4 bytes version + 4 bytes version group ID
-	// For transparent-only transactions, we use version 5
 
-	// Version (4 bytes, little-endian) - version 5
-	version := uint32(0x80000005) // Version 5 with overwintered flag
+	// Version (4 bytes, little-endian) - version 4 with overwintered flag
+	version := uint32(0x80000004) // Version 4 with overwintered flag
 	buf.WriteByte(byte(version))
 	buf.WriteByte(byte(version >> 8))
 	buf.WriteByte(byte(version >> 16))
 	buf.WriteByte(byte(version >> 24))
 
-	// Version group ID (4 bytes, little-endian) - for v5 transactions
-	versionGroupID := uint32(0x26A7270A) // NU5 version group ID
+	// Version group ID (4 bytes, little-endian) - Sapling
+	versionGroupID := uint32(0x892F2085) // Sapling version group ID
 	buf.WriteByte(byte(versionGroupID))
 	buf.WriteByte(byte(versionGroupID >> 8))
 	buf.WriteByte(byte(versionGroupID >> 16))
 	buf.WriteByte(byte(versionGroupID >> 24))
-
-	// Consensus branch ID (4 bytes, little-endian) - NU5
-	branchID := uint32(0xC2D6D0B4) // NU5 branch ID
-	buf.WriteByte(byte(branchID))
-	buf.WriteByte(byte(branchID >> 8))
-	buf.WriteByte(byte(branchID >> 16))
-	buf.WriteByte(byte(branchID >> 24))
-
-	// Lock time (4 bytes, little-endian)
-	buf.WriteByte(0x00)
-	buf.WriteByte(0x00)
-	buf.WriteByte(0x00)
-	buf.WriteByte(0x00)
-
-	// Expiry height (4 bytes, little-endian) - 0 for no expiry
-	buf.WriteByte(0x00)
-	buf.WriteByte(0x00)
-	buf.WriteByte(0x00)
-	buf.WriteByte(0x00)
 
 	// Transparent inputs count (compactSize)
 	writeCompactSize(&buf, uint64(len(inputs)))
@@ -323,13 +304,35 @@ func SerializeUnsignedTx(inputs []TxInput, outputs []*TxOutput) ([]byte, error) 
 		buf.Write(output.Script)
 	}
 
-	// Sapling spends count (compactSize) - 0 for transparent-only
+	// Lock time (4 bytes, little-endian)
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
 	buf.WriteByte(0x00)
 
-	// Sapling outputs count (compactSize) - 0 for transparent-only
+	// Expiry height (4 bytes, little-endian) - 0 for no expiry
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
 	buf.WriteByte(0x00)
 
-	// Orchard actions count (compactSize) - 0 for transparent-only
+	// Value balance (8 bytes, little-endian) - 0 for transparent-only
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
+	buf.WriteByte(0x00)
+
+	// Shielded spends count (compactSize) - 0 for transparent-only
+	buf.WriteByte(0x00)
+
+	// Shielded outputs count (compactSize) - 0 for transparent-only
+	buf.WriteByte(0x00)
+
+	// JoinSplits count (compactSize) - 0 for transparent-only (Sapling v4)
 	buf.WriteByte(0x00)
 
 	return buf.Bytes(), nil

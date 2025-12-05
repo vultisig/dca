@@ -216,10 +216,10 @@ func (n *Network) finalizeUnsignedTx(inputs []TxInput, outputs []*TxOutput, pubK
 
 // estimateFee estimates the transaction fee based on size
 func estimateFee(numInputs, numOutputs int, zatoshisPerByte uint64) uint64 {
-	// Zcash v5 transaction overhead
-	// Version: 4, VersionGroupID: 4, BranchID: 4, LockTime: 4, ExpiryHeight: 4
-	// Plus empty sapling/orchard: 3 bytes
-	baseSize := 4 + 4 + 4 + 4 + 4 + 3
+	// Zcash v4 (Sapling) transaction overhead
+	// Version: 4, VersionGroupID: 4, LockTime: 4, ExpiryHeight: 4, ValueBalance: 8
+	// Plus empty shielded sections and joinsplits: 3 bytes
+	baseSize := 4 + 4 + 4 + 4 + 8 + 3
 
 	// Input size: prevout (32+4) + script (~107 for P2PKH sig) + sequence (4)
 	inputSize := (32 + 4 + 107 + 4) * numInputs

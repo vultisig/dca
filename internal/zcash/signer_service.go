@@ -15,6 +15,7 @@ import (
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
 	"github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/common"
+	"golang.org/x/crypto/blake2b"
 )
 
 // SignerService handles Zcash transaction signing and broadcasting
@@ -121,27 +122,18 @@ func (s *SignerService) buildKeysignRequest(
 }
 
 // applySignatures applies TSS signatures to create a signed transaction
+// Uses Zcash v4 (Sapling) format for compatibility with recipes engine
 func (s *SignerService) applySignatures(unsignedTx *UnsignedTx, signatures map[string]tss.KeysignResponse) ([]byte, error) {
 	var buf bytes.Buffer
 
-	// Zcash v5 transaction format
-	// Version (4 bytes, little-endian) - version 5 with overwintered flag
-	version := uint32(0x80000005)
-	binary.Write(&buf, binary.LittleEndian, version)
+	// Zcash v4 transaction format (Sapling)
+	// Version (4 bytes, little-endian) - version 4 with overwintered flag
+	version := uint32(0x80000004)
+	_ = binary.Write(&buf, binary.LittleEndian, version)
 
-	// Version group ID (4 bytes, little-endian) - NU5
-	versionGroupID := uint32(0x26A7270A)
-	binary.Write(&buf, binary.LittleEndian, versionGroupID)
-
-	// Consensus branch ID (4 bytes, little-endian) - NU5
-	branchID := uint32(0xC2D6D0B4)
-	binary.Write(&buf, binary.LittleEndian, branchID)
-
-	// Lock time (4 bytes, little-endian)
-	binary.Write(&buf, binary.LittleEndian, uint32(0))
-
-	// Expiry height (4 bytes, little-endian)
-	binary.Write(&buf, binary.LittleEndian, uint32(0))
+	// Version group ID (4 bytes, little-endian) - Sapling
+	versionGroupID := uint32(0x892F2085)
+	_ = binary.Write(&buf, binary.LittleEndian, versionGroupID)
 
 	// Transparent inputs count
 	writeCompactSize(&buf, uint64(len(unsignedTx.Inputs)))
@@ -158,7 +150,7 @@ func (s *SignerService) applySignatures(unsignedTx *UnsignedTx, signatures map[s
 		}
 
 		// Previous output index (4 bytes, little-endian)
-		binary.Write(&buf, binary.LittleEndian, input.Index)
+		_ = binary.Write(&buf, binary.LittleEndian, input.Index)
 
 		// Get signature for this input
 		sigHash := unsignedTx.SigHashes[i]
@@ -190,7 +182,7 @@ func (s *SignerService) applySignatures(unsignedTx *UnsignedTx, signatures map[s
 		buf.Write(scriptSig)
 
 		// Sequence (4 bytes)
-		binary.Write(&buf, binary.LittleEndian, uint32(0xffffffff))
+		_ = binary.Write(&buf, binary.LittleEndian, uint32(0xffffffff))
 	}
 
 	// Transparent outputs count
@@ -198,144 +190,169 @@ func (s *SignerService) applySignatures(unsignedTx *UnsignedTx, signatures map[s
 
 	// Transparent outputs
 	for _, output := range unsignedTx.Outputs {
-		binary.Write(&buf, binary.LittleEndian, uint64(output.Value))
+		_ = binary.Write(&buf, binary.LittleEndian, uint64(output.Value))
 		writeCompactSize(&buf, uint64(len(output.Script)))
 		buf.Write(output.Script)
 	}
 
-	// Sapling spends count - 0
+	// Lock time (4 bytes, little-endian)
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(0))
+
+	// Expiry height (4 bytes, little-endian)
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(0))
+
+	// Value balance (8 bytes, little-endian) - 0 for transparent-only
+	_ = binary.Write(&buf, binary.LittleEndian, int64(0))
+
+	// Shielded spends count - 0
 	buf.WriteByte(0x00)
 
-	// Sapling outputs count - 0
+	// Shielded outputs count - 0
 	buf.WriteByte(0x00)
 
-	// Orchard actions count - 0
+	// JoinSplits count - 0 (for Sapling v4)
 	buf.WriteByte(0x00)
 
 	return buf.Bytes(), nil
 }
 
+// Sapling consensus branch ID for signature hash personalization
+const saplingBranchID = 0x76B809BB
+
 // CalculateSigHash computes the signature hash for a Zcash transparent input
-// This uses the ZIP-244 signature hash algorithm for v5 transactions
+// This uses the ZIP-243 signature hash algorithm for v4 (Sapling) transactions
 func CalculateSigHash(inputs []TxInput, outputs []*TxOutput, inputIndex int) ([]byte, error) {
-	// For v5 transactions, we use ZIP-244 signature hash
-	// Simplified implementation for transparent P2PKH inputs
+	// ZIP-243 signature hash for Sapling (v4) transactions
+	// Uses BLAKE2b-256 with personalization "ZcashSigHash" + branch ID
 
 	var preimage bytes.Buffer
 
-	// 1. header_digest (32 bytes)
-	headerDigest := calcHeaderDigest()
-	preimage.Write(headerDigest)
+	// 1. nVersion | nVersionGroupId (header)
+	_ = binary.Write(&preimage, binary.LittleEndian, uint32(0x80000004)) // v4 with overwintered
+	_ = binary.Write(&preimage, binary.LittleEndian, uint32(0x892F2085)) // Sapling version group
 
-	// 2. transparent_digest (32 bytes)
-	transparentDigest := calcTransparentDigest(inputs, outputs, inputIndex)
-	preimage.Write(transparentDigest)
+	// 2. hashPrevouts - BLAKE2b-256 of all prevouts
+	hashPrevouts := calcHashPrevouts(inputs)
+	preimage.Write(hashPrevouts)
 
-	// 3. sapling_digest (32 bytes) - all zeros for transparent-only
-	saplingDigest := make([]byte, 32)
-	preimage.Write(saplingDigest)
+	// 3. hashSequence - BLAKE2b-256 of all sequences
+	hashSequence := calcHashSequence(inputs)
+	preimage.Write(hashSequence)
 
-	// 4. orchard_digest (32 bytes) - all zeros for transparent-only
-	orchardDigest := make([]byte, 32)
-	preimage.Write(orchardDigest)
+	// 4. hashOutputs - BLAKE2b-256 of all outputs
+	hashOutputs := calcHashOutputs(outputs)
+	preimage.Write(hashOutputs)
 
-	// Double SHA256 for final signature hash
-	hash1 := sha256.Sum256(preimage.Bytes())
-	hash2 := sha256.Sum256(hash1[:])
+	// 5. hashJoinSplits - 32 zero bytes (no joinsplits)
+	preimage.Write(make([]byte, 32))
 
-	return hash2[:], nil
+	// 6. hashShieldedSpends - 32 zero bytes (no shielded spends)
+	preimage.Write(make([]byte, 32))
+
+	// 7. hashShieldedOutputs - 32 zero bytes (no shielded outputs)
+	preimage.Write(make([]byte, 32))
+
+	// 8. nLockTime
+	_ = binary.Write(&preimage, binary.LittleEndian, uint32(0))
+
+	// 9. nExpiryHeight
+	_ = binary.Write(&preimage, binary.LittleEndian, uint32(0))
+
+	// 10. valueBalance (8 bytes) - 0 for transparent-only
+	_ = binary.Write(&preimage, binary.LittleEndian, int64(0))
+
+	// 11. nHashType
+	_ = binary.Write(&preimage, binary.LittleEndian, uint32(1)) // SIGHASH_ALL
+
+	// For SIGHASH_ALL, include the input being signed
+	if inputIndex >= 0 && inputIndex < len(inputs) {
+		input := inputs[inputIndex]
+
+		// prevout (txid + index)
+		txHashBytes, _ := hex.DecodeString(input.TxHash)
+		// Reverse for little-endian
+		for j := len(txHashBytes) - 1; j >= 0; j-- {
+			preimage.WriteByte(txHashBytes[j])
+		}
+		_ = binary.Write(&preimage, binary.LittleEndian, input.Index)
+
+		// scriptCode (with length prefix)
+		writeCompactSize(&preimage, uint64(len(input.Script)))
+		preimage.Write(input.Script)
+
+		// amount (value of the input)
+		_ = binary.Write(&preimage, binary.LittleEndian, input.Value)
+
+		// nSequence
+		_ = binary.Write(&preimage, binary.LittleEndian, uint32(0xffffffff))
+	}
+
+	// Final hash using BLAKE2b-256 with personalization
+	return blake2bSigHash(preimage.Bytes())
 }
 
-// calcHeaderDigest computes the header portion of the signature hash
-func calcHeaderDigest() []byte {
-	var buf bytes.Buffer
+// blake2bSigHash computes BLAKE2b-256 with Zcash signature hash personalization
+func blake2bSigHash(data []byte) ([]byte, error) {
+	// Personalization: "ZcashSigHash" (12 bytes) + branch ID (4 bytes, little-endian)
+	personalization := make([]byte, 16)
+	copy(personalization, "ZcashSigHash")
+	binary.LittleEndian.PutUint32(personalization[12:], saplingBranchID)
 
-	// Version
-	binary.Write(&buf, binary.LittleEndian, uint32(0x80000005))
-	// Version group ID
-	binary.Write(&buf, binary.LittleEndian, uint32(0x26A7270A))
-	// Consensus branch ID
-	binary.Write(&buf, binary.LittleEndian, uint32(0xC2D6D0B4))
-	// Lock time
-	binary.Write(&buf, binary.LittleEndian, uint32(0))
-	// Expiry height
-	binary.Write(&buf, binary.LittleEndian, uint32(0))
-
-	hash := sha256.Sum256(buf.Bytes())
-	return hash[:]
+	h, err := blake2b.New256(personalization)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create BLAKE2b hasher: %w", err)
+	}
+	h.Write(data)
+	return h.Sum(nil), nil
 }
 
-// calcTransparentDigest computes the transparent portion of the signature hash
-func calcTransparentDigest(inputs []TxInput, outputs []*TxOutput, inputIndex int) []byte {
+// calcHashPrevouts computes BLAKE2b-256 of all input prevouts
+func calcHashPrevouts(inputs []TxInput) []byte {
 	var buf bytes.Buffer
-
-	// Hash of all input prevouts
-	var prevoutsHash bytes.Buffer
 	for _, input := range inputs {
 		txHashBytes, _ := hex.DecodeString(input.TxHash)
 		// Reverse for little-endian
 		for j := len(txHashBytes) - 1; j >= 0; j-- {
-			prevoutsHash.WriteByte(txHashBytes[j])
-		}
-		binary.Write(&prevoutsHash, binary.LittleEndian, input.Index)
-	}
-	prevoutsDigest := sha256.Sum256(prevoutsHash.Bytes())
-	buf.Write(prevoutsDigest[:])
-
-	// Hash of all input amounts
-	var amountsHash bytes.Buffer
-	for _, input := range inputs {
-		binary.Write(&amountsHash, binary.LittleEndian, input.Value)
-	}
-	amountsDigest := sha256.Sum256(amountsHash.Bytes())
-	buf.Write(amountsDigest[:])
-
-	// Hash of all input scriptPubKeys
-	var scriptsHash bytes.Buffer
-	for _, input := range inputs {
-		writeCompactSize(&scriptsHash, uint64(len(input.Script)))
-		scriptsHash.Write(input.Script)
-	}
-	scriptsDigest := sha256.Sum256(scriptsHash.Bytes())
-	buf.Write(scriptsDigest[:])
-
-	// Hash of all sequences
-	var sequencesHash bytes.Buffer
-	for range inputs {
-		binary.Write(&sequencesHash, binary.LittleEndian, uint32(0xffffffff))
-	}
-	sequencesDigest := sha256.Sum256(sequencesHash.Bytes())
-	buf.Write(sequencesDigest[:])
-
-	// Hash of all outputs
-	var outputsHash bytes.Buffer
-	for _, output := range outputs {
-		binary.Write(&outputsHash, binary.LittleEndian, uint64(output.Value))
-		writeCompactSize(&outputsHash, uint64(len(output.Script)))
-		outputsHash.Write(output.Script)
-	}
-	outputsDigest := sha256.Sum256(outputsHash.Bytes())
-	buf.Write(outputsDigest[:])
-
-	// Input being signed
-	if inputIndex >= 0 && inputIndex < len(inputs) {
-		input := inputs[inputIndex]
-		txHashBytes, _ := hex.DecodeString(input.TxHash)
-		for j := len(txHashBytes) - 1; j >= 0; j-- {
 			buf.WriteByte(txHashBytes[j])
 		}
-		binary.Write(&buf, binary.LittleEndian, input.Index)
-		binary.Write(&buf, binary.LittleEndian, input.Value)
-		writeCompactSize(&buf, uint64(len(input.Script)))
-		buf.Write(input.Script)
-		binary.Write(&buf, binary.LittleEndian, uint32(0xffffffff))
+		_ = binary.Write(&buf, binary.LittleEndian, input.Index)
 	}
 
-	// Sighash type
-	binary.Write(&buf, binary.LittleEndian, uint32(1)) // SIGHASH_ALL
+	personalization := make([]byte, 16)
+	copy(personalization, "ZcashPrevoutHash")
+	h, _ := blake2b.New256(personalization)
+	h.Write(buf.Bytes())
+	return h.Sum(nil)
+}
 
-	hash := sha256.Sum256(buf.Bytes())
-	return hash[:]
+// calcHashSequence computes BLAKE2b-256 of all input sequences
+func calcHashSequence(inputs []TxInput) []byte {
+	var buf bytes.Buffer
+	for range inputs {
+		_ = binary.Write(&buf, binary.LittleEndian, uint32(0xffffffff))
+	}
+
+	personalization := make([]byte, 16)
+	copy(personalization, "ZcashSequencHash")
+	h, _ := blake2b.New256(personalization)
+	h.Write(buf.Bytes())
+	return h.Sum(nil)
+}
+
+// calcHashOutputs computes BLAKE2b-256 of all outputs
+func calcHashOutputs(outputs []*TxOutput) []byte {
+	var buf bytes.Buffer
+	for _, output := range outputs {
+		_ = binary.Write(&buf, binary.LittleEndian, uint64(output.Value))
+		writeCompactSize(&buf, uint64(len(output.Script)))
+		buf.Write(output.Script)
+	}
+
+	personalization := make([]byte, 16)
+	copy(personalization, "ZcashOutputsHash")
+	h, _ := blake2b.New256(personalization)
+	h.Write(buf.Bytes())
+	return h.Sum(nil)
 }
 
 // deriveKeyFromMessage derives a key from a message hash
