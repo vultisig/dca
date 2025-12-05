@@ -216,8 +216,10 @@ func (s *SignerService) applySignatures(unsignedTx *UnsignedTx, signatures map[s
 	return buf.Bytes(), nil
 }
 
-// Sapling consensus branch ID for signature hash personalization
-const saplingBranchID = 0x76B809BB
+// NU5 consensus branch ID for signature hash personalization
+// Although we use v4 transactions (Sapling format), we must use the
+// consensus branch ID of the current epoch (NU5/NU6) for signature hashing.
+const nu5BranchID = 0xc2d6d0b4
 
 // CalculateSigHash computes the signature hash for a Zcash transparent input
 // This uses the ZIP-243 signature hash algorithm for v4 (Sapling) transactions
@@ -302,7 +304,7 @@ func blake2bSigHash(data []byte) ([]byte, error) {
 	// Personalization: "ZcashSigHash" (12 bytes) + branch ID (4 bytes, little-endian)
 	personalization := make([]byte, 16)
 	copy(personalization, "ZcashSigHash")
-	binary.LittleEndian.PutUint32(personalization[12:], saplingBranchID)
+	binary.LittleEndian.PutUint32(personalization[12:], nu5BranchID)
 
 	h, err := blake2b.New256(personalization)
 	if err != nil {
