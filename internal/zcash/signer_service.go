@@ -232,7 +232,10 @@ func CalculateSigHash(inputs []TxInput, outputs []*TxOutput, inputIndex int) ([]
 	_ = binary.Write(&preimage, binary.LittleEndian, uint32(0x892F2085)) // Sapling version group
 
 	// 2. hashPrevouts - BLAKE2b-256 of all prevouts
-	hashPrevouts := calcHashPrevouts(inputs)
+	hashPrevouts, err := calcHashPrevouts(inputs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate hashPrevouts: %w", err)
+	}
 	preimage.Write(hashPrevouts)
 
 	// 3. hashSequence - BLAKE2b-256 of all sequences
@@ -269,7 +272,10 @@ func CalculateSigHash(inputs []TxInput, outputs []*TxOutput, inputIndex int) ([]
 		input := inputs[inputIndex]
 
 		// prevout (txid + index)
-		txHashBytes, _ := hex.DecodeString(input.TxHash)
+		txHashBytes, err := hex.DecodeString(input.TxHash)
+		if err != nil {
+			return nil, fmt.Errorf("invalid tx hash hex for input %d: %w", inputIndex, err)
+		}
 		// Reverse for little-endian
 		for j := len(txHashBytes) - 1; j >= 0; j-- {
 			preimage.WriteByte(txHashBytes[j])
@@ -307,10 +313,13 @@ func blake2bSigHash(data []byte) ([]byte, error) {
 }
 
 // calcHashPrevouts computes BLAKE2b-256 of all input prevouts
-func calcHashPrevouts(inputs []TxInput) []byte {
+func calcHashPrevouts(inputs []TxInput) ([]byte, error) {
 	var buf bytes.Buffer
-	for _, input := range inputs {
-		txHashBytes, _ := hex.DecodeString(input.TxHash)
+	for i, input := range inputs {
+		txHashBytes, err := hex.DecodeString(input.TxHash)
+		if err != nil {
+			return nil, fmt.Errorf("invalid tx hash hex for input %d: %w", i, err)
+		}
 		// Reverse for little-endian
 		for j := len(txHashBytes) - 1; j >= 0; j-- {
 			buf.WriteByte(txHashBytes[j])
@@ -322,7 +331,7 @@ func calcHashPrevouts(inputs []TxInput) []byte {
 	copy(personalization, "ZcashPrevoutHash")
 	h, _ := blake2b.New256(personalization)
 	h.Write(buf.Bytes())
-	return h.Sum(nil)
+	return h.Sum(nil), nil
 }
 
 // calcHashSequence computes BLAKE2b-256 of all input sequences

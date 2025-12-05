@@ -2,6 +2,7 @@ package zcash
 
 import (
 	"fmt"
+	"math"
 )
 
 type SendService struct{}
@@ -15,6 +16,10 @@ func (s *SendService) BuildTransfer(
 	fromAddress string,
 	amount uint64,
 ) ([]*TxOutput, int, error) {
+	if amount > uint64(math.MaxInt64) {
+		return nil, 0, fmt.Errorf("amount %d exceeds maximum int64 value", amount)
+	}
+
 	toScript, err := PayToAddrScript(toAddress)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create to script: %w", err)

@@ -1,7 +1,7 @@
 package mayachain
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/vultisig/vultisig-go/common"
 )
@@ -17,6 +17,8 @@ func parseMayaNetwork(c common.Chain) (mayaNetwork, error) {
 		return btc, nil
 	case common.Ethereum:
 		return eth, nil
+	case common.Arbitrum:
+		return arb, nil
 	case common.Zcash:
 		return zec, nil
 	case common.Dash:
@@ -24,7 +26,7 @@ func parseMayaNetwork(c common.Chain) (mayaNetwork, error) {
 	case common.THORChain:
 		return thor, nil
 	default:
-		return "", errors.New("unknown chain for MayaChain")
+		return "", fmt.Errorf("unknown chain %s for MayaChain", c.String())
 	}
 }
 
@@ -33,6 +35,7 @@ type mayaNetwork string
 const (
 	btc  mayaNetwork = "BTC"
 	eth  mayaNetwork = "ETH"
+	arb  mayaNetwork = "ARB"
 	zec  mayaNetwork = "ZEC"
 	dash mayaNetwork = "DASH"
 	thor mayaNetwork = "THOR"

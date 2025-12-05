@@ -285,7 +285,10 @@ func SerializeUnsignedTx(inputs []TxInput, outputs []*TxOutput) ([]byte, error) 
 	writeCompactSize(&buf, uint64(len(outputs)))
 
 	// Transparent outputs
-	for _, output := range outputs {
+	for i, output := range outputs {
+		if output.Value < 0 {
+			return nil, fmt.Errorf("invalid negative output value at index %d: %d", i, output.Value)
+		}
 		// Value (8 bytes, little-endian)
 		value := uint64(output.Value)
 		buf.WriteByte(byte(value))

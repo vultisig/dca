@@ -3,6 +3,7 @@ package mayachain
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/vultisig/dca/internal/zcash"
@@ -120,6 +121,10 @@ func (p *ProviderZcash) MakeOutputs(
 
 	if from.Amount < dustThreshold {
 		return 0, nil, fmt.Errorf("amount %d below dust threshold %d", from.Amount, dustThreshold)
+	}
+
+	if from.Amount > uint64(math.MaxInt64) {
+		return 0, nil, fmt.Errorf("amount %d exceeds maximum int64 value", from.Amount)
 	}
 
 	outputs := []*zcash.TxOutput{
