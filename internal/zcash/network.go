@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/vultisig/recipes/engine"
+	"github.com/vultisig/recipes/sdk/zcash"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/common"
 )
@@ -20,6 +21,7 @@ type Network struct {
 	swap   *SwapService
 	send   *SendService
 	signer *SignerService
+	sdk    *zcash.SDK
 }
 
 // NewNetwork creates a new Zcash network handler
@@ -36,6 +38,7 @@ func NewNetwork(
 		swap:   swap,
 		send:   send,
 		signer: signer,
+		sdk:    zcash.NewSDK(nil), // SDK without broadcaster (used only for tx building)
 	}
 }
 
@@ -190,15 +193,19 @@ func (n *Network) buildUnsignedTx(
 
 // finalizeUnsignedTx creates the final unsigned transaction structure
 func (n *Network) finalizeUnsignedTx(inputs []TxInput, outputs []*TxOutput, pubKey []byte) (*UnsignedTx, error) {
-	rawBytes, err := SerializeUnsignedTx(inputs, outputs)
+	// Convert to SDK types for serialization
+	sdkInputs := toSDKInputs(inputs)
+	sdkOutputs := toSDKOutputs(outputs)
+
+	rawBytes, err := n.sdk.SerializeUnsignedTx(sdkInputs, sdkOutputs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize tx: %w", err)
 	}
 
-	// Calculate signature hashes for each input
+	// Calculate signature hashes for each input using the SDK
 	sigHashes := make([][]byte, len(inputs))
 	for i := range inputs {
-		sigHash, err := CalculateSigHash(inputs, outputs, i)
+		sigHash, err := n.sdk.CalculateSigHash(sdkInputs, sdkOutputs, i)
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate sig hash for input %d: %w", i, err)
 		}
@@ -212,6 +219,33 @@ func (n *Network) finalizeUnsignedTx(inputs []TxInput, outputs []*TxOutput, pubK
 		RawBytes:  rawBytes,
 		SigHashes: sigHashes,
 	}, nil
+}
+
+// toSDKInputs converts local TxInputs to SDK TxInputs
+func toSDKInputs(inputs []TxInput) []zcash.TxInput {
+	sdkInputs := make([]zcash.TxInput, len(inputs))
+	for i, in := range inputs {
+		sdkInputs[i] = zcash.TxInput{
+			TxHash:   in.TxHash,
+			Index:    in.Index,
+			Value:    in.Value,
+			Script:   in.Script,
+			Sequence: in.Sequence,
+		}
+	}
+	return sdkInputs
+}
+
+// toSDKOutputs converts local TxOutputs to SDK TxOutputs
+func toSDKOutputs(outputs []*TxOutput) []*zcash.TxOutput {
+	sdkOutputs := make([]*zcash.TxOutput, len(outputs))
+	for i, out := range outputs {
+		sdkOutputs[i] = &zcash.TxOutput{
+			Value:  out.Value,
+			Script: out.Script,
+		}
+	}
+	return sdkOutputs
 }
 
 // estimateFee estimates the transaction fee based on size
