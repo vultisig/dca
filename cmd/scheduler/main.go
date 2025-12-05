@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
-	"github.com/vultisig/dca/internal/dca"
+	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/logging"
 	"github.com/vultisig/dca/internal/metrics"
@@ -80,7 +80,7 @@ func main() {
 		tasks.TypePluginTransaction,
 		tasks.QUEUE_NAME,
 		schedulerStorage,
-		dca.NewSchedulerInterval(),
+		recurring.NewSchedulerInterval(),
 		policyStorage,
 		schedulerMetrics,
 	)

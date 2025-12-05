@@ -12,7 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/blockchair"
 	"github.com/vultisig/dca/internal/btc"
-	"github.com/vultisig/dca/internal/dca"
+	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/jupiter"
@@ -142,7 +142,7 @@ func main() {
 
 	policyService, err := policy.NewPolicyService(
 		policyStorage,
-		dca.NewSchedulerService(schedulerStorage),
+		recurring.NewSchedulerService(schedulerStorage),
 		logger,
 	)
 	if err != nil {
@@ -261,7 +261,7 @@ func main() {
 		logger.Fatalf("failed to initialize Solana network: %v", err)
 	}
 
-	recurringConsumer := dca.NewConsumer(
+	recurringConsumer := recurring.NewConsumer(
 		logger,
 		policyService,
 		evm.NewManager(networks),

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"golang.org/x/crypto/ripemd160"
+	"golang.org/x/crypto/ripemd160" //nolint:staticcheck // RIPEMD160 required for Hash160 (Bitcoin/Zcash address standard)
 )
 
 // Zcash mainnet address prefixes (2 bytes)

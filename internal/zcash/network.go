@@ -179,7 +179,7 @@ func (n *Network) buildUnsignedTx(
 					outputs[changeOutputIndex].Value = int64(totalInputsValue - from.Amount - fee)
 
 					utxoCtxCancel()
-					_ = <-utxoCh
+					<-utxoCh // Drain channel after cancel
 
 					return n.finalizeUnsignedTx(inputs, outputs, from.PubKey)
 				}
