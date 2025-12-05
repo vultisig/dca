@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/kaptinlin/jsonschema"
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/vultisig/dca/internal/util"
 	rjsonschema "github.com/vultisig/recipes/jsonschema"
 	rtypes "github.com/vultisig/recipes/types"
@@ -262,7 +264,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		PluginVersion:        1,
 		SupportedResources:   s.buildSupportedResources(),
 		Configuration:        cfg,
-		ConfigurationExample: cfgExample,
+		ConfigurationExample: []*structpb.Struct{cfgExample},
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
 			SupportedChains:    getSupportedChainStrings(),
