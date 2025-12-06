@@ -35,6 +35,14 @@ patches:
         value:
           name: MODE
           value: "swap"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: VERIFIER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: verifier
+              key: swap-token
     target:
       kind: Deployment
       name: server
