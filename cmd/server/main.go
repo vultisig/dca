@@ -10,7 +10,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/dca/internal/graceful"
-	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/logging"
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/recurring"
@@ -44,14 +43,6 @@ func main() {
 			if err := metricsServer.Stop(ctx); err != nil {
 				logger.Errorf("failed to stop metrics server: %v", err)
 			}
-		}
-	}()
-
-	// Start health check server
-	healthServer := health.New(cfg.HealthPort)
-	go func() {
-		if er := healthServer.Start(ctx, logger); er != nil {
-			logger.Errorf("health server failed: %v", er)
 		}
 	}()
 
@@ -154,7 +145,6 @@ func main() {
 type config struct {
 	Mode         string            `envconfig:"MODE" required:"true"`
 	LogFormat    logging.LogFormat `envconfig:"LOG_FORMAT" default:"text"`
-	HealthPort   int               `envconfig:"HEALTH_PORT" default:"8081"`
 	Server       server.Config
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database

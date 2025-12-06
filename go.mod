@@ -23,8 +23,8 @@ require (
 	github.com/vultisig/verifier v0.0.0-20251205220900-c253f4f48e07
 	github.com/vultisig/vultisig-go v0.0.0-20251201083443-f9306a44b356
 	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
-	golang.org/x/crypto v0.41.0
-	golang.org/x/sync v0.16.0
+	golang.org/x/crypto v0.45.0
+	golang.org/x/sync v0.18.0
 	google.golang.org/protobuf v1.36.8
 )
 
@@ -244,10 +244,10 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/arch v0.15.0 // indirect
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
-	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/term v0.34.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/term v0.37.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
