@@ -49,6 +49,10 @@ func (s *SignerService) SignAndBroadcast(
 	policy types.PluginPolicy,
 	unsignedTx *UnsignedTx,
 ) (string, error) {
+	if unsignedTx == nil {
+		return "", fmt.Errorf("zcash: unsigned transaction is nil")
+	}
+
 	keysignRequest, err := s.buildKeysignRequest(ctx, policy, unsignedTx)
 	if err != nil {
 		return "", fmt.Errorf("zcash: failed to build keysign request: %w", err)
