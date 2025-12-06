@@ -12,16 +12,18 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/blockchair"
 	"github.com/vultisig/dca/internal/btc"
-	"github.com/vultisig/dca/internal/dca"
+	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/jupiter"
 	"github.com/vultisig/dca/internal/logging"
+	"github.com/vultisig/dca/internal/mayachain"
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/oneinch"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/xrp"
+	"github.com/vultisig/dca/internal/zcash"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
 	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
@@ -140,7 +142,7 @@ func main() {
 
 	policyService, err := policy.NewPolicyService(
 		policyStorage,
-		dca.NewSchedulerService(schedulerStorage),
+		recurring.NewSchedulerService(schedulerStorage),
 		logger,
 	)
 	if err != nil {
@@ -226,6 +228,21 @@ func main() {
 		xrpClient,
 	)
 
+	// Initialize MayaChain client for Zcash swaps
+	mayachainClient := mayachain.NewClient(cfg.MayaChain.URL)
+	mayachainZcash := mayachain.NewProviderZcash(mayachainClient)
+
+	// Initialize Zcash network
+	zcashClient := zcash.NewClient(cfg.ZEC.BlockchairURL)
+
+	zcashNetwork := zcash.NewNetwork(
+		mayachainZcash,
+		zcash.NewSwapService([]zcash.SwapProvider{mayachainZcash}),
+		zcash.NewSendService(),
+		zcash.NewSignerService(zcashClient, signer, txIndexerService),
+		zcashClient,
+	)
+
 	jup, err := jupiter.NewProvider(cfg.Solana.JupiterAPIURL, solanarpc.New(cfg.Rpc.Solana.URL))
 	if err != nil {
 		logger.Fatalf("failed to initialize Jupiter provider: %v", err)
@@ -244,7 +261,7 @@ func main() {
 		logger.Fatalf("failed to initialize Solana network: %v", err)
 	}
 
-	dcaConsumer := dca.NewConsumer(
+	recurringConsumer := recurring.NewConsumer(
 		logger,
 		policyService,
 		evm.NewManager(networks),
@@ -257,6 +274,7 @@ func main() {
 		),
 		solanaNetwork,
 		xrpNetwork,
+		zcashNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
@@ -270,7 +288,7 @@ func main() {
 	}()
 
 	mux := asynq.NewServeMux()
-	mux.HandleFunc(tasks.TypePluginTransaction, dcaConsumer.Handle)
+	mux.HandleFunc(tasks.TypePluginTransaction, recurringConsumer.Handle)
 	mux.HandleFunc(tasks.TypeKeySignDKLS, vaultService.HandleKeySignDKLS)
 	mux.HandleFunc(tasks.TypeReshareDKLS, vaultService.HandleReshareDKLS)
 	err = consumer.Run(mux)
@@ -289,8 +307,10 @@ type config struct {
 	Rpc          rpc
 	OneInch      oneInchConfig
 	ThorChain    thorChainConfig
+	MayaChain    mayaChainConfig
 	BTC          btcConfig
 	XRP          xrpConfig
+	ZEC          zecConfig
 	Solana       solanaConfig
 	HealthPort   int
 	Metrics      metrics.Config
@@ -301,6 +321,10 @@ type oneInchConfig struct {
 }
 
 type thorChainConfig struct {
+	URL string
+}
+
+type mayaChainConfig struct {
 	URL string
 }
 
@@ -327,6 +351,10 @@ type btcConfig struct {
 
 type xrpConfig struct {
 	RPC string
+}
+
+type zecConfig struct {
+	BlockchairURL string
 }
 
 type solanaConfig struct {

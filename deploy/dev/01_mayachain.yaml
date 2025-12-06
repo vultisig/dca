@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mayachain
+data:
+  url: "https://mayanode.mayachain.info/mayachain"
+

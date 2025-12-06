@@ -1,4 +1,4 @@
-package dca
+package recurring
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func (s *SchedulerService) Create(ctx context.Context, policy types.PluginPolicy
 }
 
 func (s *SchedulerService) Update(_ context.Context, _, _ types.PluginPolicy) error {
-	return errors.New("DCA policy couldn't be changed")
+	return errors.New("recurring policy couldn't be changed")
 }
 
 func (s *SchedulerService) Delete(ctx context.Context, policyID uuid.UUID) error {

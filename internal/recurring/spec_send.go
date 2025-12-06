@@ -1,4 +1,4 @@
-package dca
+package recurring
 
 import (
 	"encoding/json"
@@ -16,15 +16,23 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-type SwapSpec struct {
+const (
+	asset       = "asset"
+	fromAddress = "fromAddress"
+	toAddress   = "toAddress"
+	amount      = "amount"
+	memo        = "memo"
+)
+
+type SendSpec struct {
 	plugin.Unimplemented
 }
 
-func NewSwapSpec() *SwapSpec {
-	return &SwapSpec{}
+func NewSendSpec() *SendSpec {
+	return &SendSpec{}
 }
 
-func (s *SwapSpec) validateConfiguration(cfg map[string]any) error {
+func (s *SendSpec) validateConfiguration(cfg map[string]any) error {
 	spec, err := s.GetRecipeSpecification()
 	if err != nil {
 		return fmt.Errorf("failed to get recipe specification: %w", err)
@@ -59,30 +67,30 @@ func (s *SwapSpec) validateConfiguration(cfg map[string]any) error {
 	return nil
 }
 
-func (s *SwapSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
+func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	err := s.validateConfiguration(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
+	assetMap, ok := cfg[asset].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("'from' must be an object")
+		return nil, fmt.Errorf("'asset' must be an object")
 	}
 
-	fromChainStr, ok := fromAssetMap["chain"].(string)
+	chainStr, ok := assetMap["chain"].(string)
 	if !ok {
-		return nil, fmt.Errorf("'from.chain' could not be empty")
+		return nil, fmt.Errorf("'asset.chain' could not be empty")
 	}
 
-	fromChainTyped, err := common.FromString(fromChainStr)
+	chainTyped, err := common.FromString(chainStr)
 	if err != nil {
-		return nil, fmt.Errorf("unsupported chain: %s", fromChainStr)
+		return nil, fmt.Errorf("unsupported chain: %s", chainStr)
 	}
 
-	rule, err := s.createSwapMetaRule(cfg, fromChainTyped)
+	rule, err := s.createSendMetaRule(cfg, chainTyped)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create swap meta rule: %w", err)
+		return nil, fmt.Errorf("failed to create send meta rule: %w", err)
 	}
 
 	freq := cfg[frequency].(string)
@@ -91,7 +99,8 @@ func (s *SwapSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, err
 	}
 
-	maxTxsPerWindow := getMaxTxsForSwap(fromChainTyped)
+	tokenStr := util.GetStr(assetMap, "token")
+	maxTxsPerWindow := getMaxTxsForSend(chainTyped, tokenStr)
 
 	return &rtypes.PolicySuggest{
 		RateLimitWindow: conv.Ptr(rateLimitWindow),
@@ -100,52 +109,41 @@ func (s *SwapSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	}, nil
 }
 
-func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chain) (*rtypes.Rule, error) {
-	fromChainLowercase := strings.ToLower(fromChainTyped.String())
+func (s *SendSpec) createSendMetaRule(cfg map[string]any, chainTyped common.Chain) (*rtypes.Rule, error) {
+	chainLowercase := strings.ToLower(chainTyped.String())
 
-	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
+	assetMap, ok := cfg[asset].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("'from' must be an object")
+		return nil, fmt.Errorf("'asset' must be an object")
 	}
 
-	toAssetMap, ok := cfg[toAsset].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("'to' must be an object")
-	}
-
-	fromAddressStr, ok := fromAssetMap["address"].(string)
+	fromAddressStr, ok := cfg[fromAddress].(string)
 	if !ok || fromAddressStr == "" {
-		return nil, fmt.Errorf("'from.address' could not be empty")
+		return nil, fmt.Errorf("'fromAddress' could not be empty")
 	}
 
-	toAddressStr, ok := toAssetMap["address"].(string)
+	toAddressStr, ok := cfg[toAddress].(string)
 	if !ok || toAddressStr == "" {
-		return nil, fmt.Errorf("'to.address' could not be empty")
+		return nil, fmt.Errorf("'toAddress' could not be empty")
 	}
 
-	toChainStr, ok := toAssetMap["chain"].(string)
-	if !ok || toChainStr == "" {
-		return nil, fmt.Errorf("'to.chain' could not be empty")
+	amountStr := util.GetStr(cfg, amount)
+	if amountStr == "" {
+		return nil, fmt.Errorf("'amount' could not be empty")
 	}
 
-	fromAmountStr := util.GetStr(cfg, fromAmount)
-	if fromAmountStr == "" {
-		return nil, fmt.Errorf("'fromAmount' could not be empty")
-	}
-
-	fromAssetTokenStr := util.GetStr(fromAssetMap, "token")
-	toAssetTokenStr := util.GetStr(toAssetMap, "token")
+	tokenStr := util.GetStr(assetMap, "token")
 
 	return &rtypes.Rule{
-		Resource: fromChainLowercase + ".swap",
+		Resource: chainLowercase + ".send",
 		Effect:   rtypes.Effect_EFFECT_ALLOW,
 		ParameterConstraints: []*rtypes.ParameterConstraint{
 			{
-				ParameterName: "from_asset",
+				ParameterName: "asset",
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: fromAssetTokenStr,
+						FixedValue: tokenStr,
 					},
 					Required: false,
 				},
@@ -161,33 +159,13 @@ func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.
 				},
 			},
 			{
-				ParameterName: "from_amount",
+				ParameterName: "amount",
 				Constraint: &rtypes.Constraint{
 					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: fromAmountStr,
+						FixedValue: amountStr,
 					},
 					Required: true,
-				},
-			},
-			{
-				ParameterName: "to_chain",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: strings.ToLower(toChainStr),
-					},
-					Required: true,
-				},
-			},
-			{
-				ParameterName: "to_asset",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: toAssetTokenStr,
-					},
-					Required: false,
 				},
 			},
 			{
@@ -200,6 +178,13 @@ func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.
 					Required: true,
 				},
 			},
+			{
+				ParameterName: "memo",
+				Constraint: &rtypes.Constraint{
+					Type:     rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required: false,
+				},
+			},
 		},
 		Target: &rtypes.Target{
 			TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
@@ -207,20 +192,26 @@ func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.
 	}, nil
 }
 
-func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
-	asset := rjsonschema.NewAsset()
+func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
+	assetDef := rjsonschema.NewAsset()
 
 	cfg, err := plugin.RecipeConfiguration(map[string]any{
 		"type":        "object",
 		"definitions": rjsonschema.Definitions(),
 		"properties": map[string]any{
-			fromAsset: map[string]any{
-				"$ref": "#/definitions/" + asset.Name(),
+			asset: map[string]any{
+				"$ref": "#/definitions/" + assetDef.Name(),
 			},
-			toAsset: map[string]any{
-				"$ref": "#/definitions/" + asset.Name(),
+			fromAddress: map[string]any{
+				"type": "string",
 			},
-			fromAmount: map[string]any{
+			toAddress: map[string]any{
+				"type": "string",
+			},
+			amount: map[string]any{
+				"type": "string",
+			},
+			memo: map[string]any{
 				"type": "string",
 			},
 			endDate: map[string]any{
@@ -242,9 +233,10 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		},
 		"required": []any{
 			frequency,
-			fromAsset,
-			toAsset,
-			fromAmount,
+			asset,
+			fromAddress,
+			toAddress,
+			amount,
 		},
 	})
 	if err != nil {
@@ -252,30 +244,35 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	}
 
 	cfgExample1, err := plugin.RecipeConfiguration(map[string]any{
-		fromAsset: map[string]any{
-			"chain":   "Ethereum",
-			"token":   "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-			"address": "",
+		asset: map[string]any{
+			"chain": "Bitcoin",
+			"token": "",
 		},
-		toAsset: map[string]any{
-			"chain":   "Ethereum",
-			"token":   "0xdac17f958d2ee523a2206206994597c13d831ec7",
-			"address": "",
-		},
-		fromAmount: "10000000",
-		endDate:    "2026-12-25T00:00:00Z",
-		frequency:  daily,
+		amount:    "5000000",
+		endDate:   "2026-12-25T00:00:00Z",
+		frequency: daily,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to build pb recipe config example1: %w", err)
 	}
-
-	cfgExamples := []*structpb.Struct{cfgExample1}
+	cfgExample2, err := plugin.RecipeConfiguration(map[string]any{
+		asset: map[string]any{
+			"chain": "Ethereum",
+			"token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+		},
+		amount:    "10000000",
+		endDate:   "2026-12-25T00:00:00Z",
+		frequency: daily,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build pb recipe config example2: %w", err)
+	}
+	cfgExamples := []*structpb.Struct{cfgExample1, cfgExample2}
 
 	return &rtypes.RecipeSchema{
 		Version:              1,
-		PluginId:             PluginRecurringSwaps,
-		PluginName:           "Recurring Swaps",
+		PluginId:             PluginRecurringSends,
+		PluginName:           "Recurring Sends",
 		PluginVersion:        1,
 		SupportedResources:   s.buildSupportedResources(),
 		Configuration:        cfg,
@@ -287,7 +284,7 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	}, nil
 }
 
-func (s *SwapSpec) buildSupportedResources() []*rtypes.ResourcePattern {
+func (s *SendSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 	var resources []*rtypes.ResourcePattern
 	for _, chain := range supportedChains {
 		chainNameLower := strings.ToLower(chain.String())
@@ -295,14 +292,14 @@ func (s *SwapSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 		resources = append(resources, &rtypes.ResourcePattern{
 			ResourcePath: &rtypes.ResourcePath{
 				ChainId:    chainNameLower,
-				ProtocolId: "swap",
+				ProtocolId: "send",
 				FunctionId: "Access to transaction signing",
-				Full:       chainNameLower + ".swap",
+				Full:       chainNameLower + ".send",
 			},
 			Target: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
 			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
 				{
-					ParameterName:  "from_asset",
+					ParameterName:  "asset",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Required:       false,
 				},
@@ -312,24 +309,19 @@ func (s *SwapSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 					Required:       true,
 				},
 				{
-					ParameterName:  "from_amount",
+					ParameterName:  "amount",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Required:       true,
-				},
-				{
-					ParameterName:  "to_chain",
-					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       true,
-				},
-				{
-					ParameterName:  "to_asset",
-					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       false,
 				},
 				{
 					ParameterName:  "to_address",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Required:       true,
+				},
+				{
+					ParameterName:  "memo",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       false,
 				},
 			},
 			Required: true,
@@ -339,7 +331,7 @@ func (s *SwapSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 	return resources
 }
 
-func (s *SwapSpec) ValidatePluginPolicy(pol types.PluginPolicy) error {
+func (s *SendSpec) ValidatePluginPolicy(pol types.PluginPolicy) error {
 	spec, err := s.GetRecipeSpecification()
 	if err != nil {
 		return fmt.Errorf("failed to get recipe spec: %w", err)

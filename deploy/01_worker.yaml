@@ -126,6 +126,16 @@ spec:
                 configMapKeyRef:
                   name: blockchair
                   key: url
+            - name: ZEC_BLOCKCHAIRURL
+              valueFrom:
+                configMapKeyRef:
+                  name: blockchair
+                  key: url
+            - name: MAYACHAIN_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: mayachain
+                  key: url
             - name: SOLANA_JUPITERAPIURL
               valueFrom:
                 configMapKeyRef:
