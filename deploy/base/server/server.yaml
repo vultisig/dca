@@ -94,11 +94,6 @@ spec:
               value: "true"
             - name: METRICS_PORT
               value: "8088"
-            - name: VERIFIER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: verifier
-                  key: token
             - name: LOGFORMAT
               value: "json"
           resources:
