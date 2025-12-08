@@ -1,4 +1,4 @@
-package dca
+package recurring
 
 import (
 	"fmt"
@@ -23,6 +23,7 @@ var supportedChains = []common.Chain{
 	common.Bitcoin,
 	common.Solana,
 	common.XRP,
+	common.Zcash,
 }
 
 const (
@@ -71,6 +72,8 @@ func getMaxTxsForSwap(chain common.Chain) uint32 {
 	case chain == common.Solana:
 		return 8
 	case chain == common.XRP:
+		return 1
+	case chain == common.Zcash:
 		return 1
 	case chain.IsEvm():
 		return 2

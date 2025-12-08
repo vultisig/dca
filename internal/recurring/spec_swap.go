@@ -1,4 +1,4 @@
-package dca
+package recurring
 
 import (
 	"encoding/json"
@@ -296,7 +296,7 @@ func (s *SwapSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 			ResourcePath: &rtypes.ResourcePath{
 				ChainId:    chainNameLower,
 				ProtocolId: "swap",
-				FunctionId: "",
+				FunctionId: "Access to transaction signing",
 				Full:       chainNameLower + ".swap",
 			},
 			Target: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,

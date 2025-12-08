@@ -9,10 +9,10 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 
-	"github.com/vultisig/dca/internal/dca"
 	"github.com/vultisig/dca/internal/graceful"
 	"github.com/vultisig/dca/internal/logging"
 	"github.com/vultisig/dca/internal/metrics"
+	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	smetrics "github.com/vultisig/verifier/plugin/metrics"
@@ -91,7 +91,7 @@ func main() {
 
 	policyService, err := policy.NewPolicyService(
 		policyStorage,
-		dca.NewSchedulerService(schedulerStorage),
+		recurring.NewSchedulerService(schedulerStorage),
 		logger,
 	)
 	if err != nil {
@@ -101,10 +101,10 @@ func main() {
 	var spec plugin.Spec
 	switch cfg.Mode {
 	case "send":
-		spec = dca.NewSendSpec()
+		spec = recurring.NewSendSpec()
 		logger.Info("Starting server in SEND mode")
 	case "swap":
-		spec = dca.NewSwapSpec()
+		spec = recurring.NewSwapSpec()
 		logger.Info("Starting server in SWAP mode")
 	default:
 		logger.Fatalf("invalid MODE: %s (must be 'send' or 'swap')", cfg.Mode)

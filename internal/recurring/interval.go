@@ -1,4 +1,4 @@
-package dca
+package recurring
 
 import (
 	"fmt"

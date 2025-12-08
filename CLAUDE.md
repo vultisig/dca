@@ -25,7 +25,7 @@ The system consists of four main services that can be run independently:
 
 ### Key Modules
 
-- **`internal/dca/`** - Core DCA logic including policy specs, scheduling, and transaction consumption
+- **`internal/recurring/`** - Core recurring logic including policy specs, scheduling, and transaction consumption
 - **`internal/evm/`** - EVM blockchain abstraction layer with network management, approval, send, and swap services
 - **`internal/btc/`** - Bitcoin blockchain abstraction layer with UTXO management, send, and swap services
 - **`internal/graceful/`** - Graceful shutdown handling
@@ -111,7 +111,7 @@ docker build --build-arg SERVICE=worker -t dca-worker .
 go test ./...
 
 # Run specific package tests
-go test ./internal/dca/
+go test ./internal/recurring/
 ```
 
 ### Development Setup
