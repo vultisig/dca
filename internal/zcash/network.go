@@ -16,12 +16,13 @@ import (
 
 // Network handles Zcash transaction building, signing, and broadcasting
 type Network struct {
-	utxo   UtxoProvider
-	fee    feeProvider
-	swap   *SwapService
-	send   *SendService
-	signer *SignerService
-	sdk    *zcash.SDK
+	utxo       UtxoProvider
+	fee        feeProvider
+	swap       *SwapService
+	send       *SendService
+	signerSend *SignerService
+	signerSwap *SignerService
+	sdk        *zcash.SDK
 }
 
 // NewNetwork creates a new Zcash network handler
@@ -29,16 +30,18 @@ func NewNetwork(
 	fee feeProvider,
 	swap *SwapService,
 	send *SendService,
-	signer *SignerService,
+	signerSend *SignerService,
+	signerSwap *SignerService,
 	utxo UtxoProvider,
 ) *Network {
 	return &Network{
-		utxo:   utxo,
-		fee:    fee,
-		swap:   swap,
-		send:   send,
-		signer: signer,
-		sdk:    zcash.NewSDK(nil), // SDK without broadcaster (used only for tx building)
+		utxo:       utxo,
+		fee:        fee,
+		swap:       swap,
+		send:       send,
+		signerSend: signerSend,
+		signerSwap: signerSwap,
+		sdk:        zcash.NewSDK(nil), // SDK without broadcaster (used only for tx building)
 	}
 }
 
@@ -73,7 +76,7 @@ func (n *Network) Swap(ctx context.Context, policy vtypes.PluginPolicy, from Fro
 		return "", fmt.Errorf("zcash: failed to evaluate tx: %w", err)
 	}
 
-	txHash, err := n.signer.SignAndBroadcast(ctx, policy, unsignedTx)
+	txHash, err := n.signerSwap.SignAndBroadcast(ctx, policy, unsignedTx)
 	if err != nil {
 		return "", fmt.Errorf("zcash: failed to sign and broadcast: %w", err)
 	}
@@ -114,7 +117,7 @@ func (n *Network) Send(
 		return "", fmt.Errorf("zcash: failed to evaluate tx: %w", err)
 	}
 
-	txHash, err := n.signer.SignAndBroadcast(ctx, policy, unsignedTx)
+	txHash, err := n.signerSend.SignAndBroadcast(ctx, policy, unsignedTx)
 	if err != nil {
 		return "", fmt.Errorf("zcash: failed to sign and broadcast: %w", err)
 	}
