@@ -249,7 +249,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"token": "",
 		},
 		amount:    "0.05",
-		endDate:   "2026-12-25T00:00:00Z",
+		endDate:   int64(1798329600000),
 		frequency: daily,
 	})
 	if err != nil {
@@ -261,7 +261,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
 		},
 		amount:    "10",
-		endDate:   "2026-12-25T00:00:00Z",
+		endDate:   int64(1798329600000),
 		frequency: daily,
 	})
 	if err != nil {

@@ -263,7 +263,7 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"address": "",
 		},
 		fromAmount: "10",
-		endDate:    "2026-12-25T00:00:00Z",
+		endDate:    int64(1798329600000),
 		frequency:  daily,
 	})
 	if err != nil {
