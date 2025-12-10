@@ -25,8 +25,11 @@ func (i *Interval) FromNowWhenNext(policy types.PluginPolicy) (time.Time, error)
 	if endDateField, exists := cfg[endDate]; exists {
 		endDateStr := endDateField.GetStringValue()
 		if endDateStr != "" {
-			endTime, err := time.Parse(time.RFC3339, endDateStr)
-			if err == nil && time.Now().After(endTime) {
+			endTime, er := time.Parse(time.RFC3339, endDateStr)
+			if er != nil {
+				return time.Time{}, fmt.Errorf("failed to parse endDate '%s': %w", endDateStr, er)
+			}
+			if time.Now().After(endTime) {
 				return time.Time{}, nil
 			}
 		}
@@ -56,8 +59,11 @@ func (i *Interval) FromNowWhenNext(policy types.PluginPolicy) (time.Time, error)
 	if endDateField, exists := cfg[endDate]; exists {
 		endDateStr := endDateField.GetStringValue()
 		if endDateStr != "" {
-			endTime, err := time.Parse(time.RFC3339, endDateStr)
-			if err == nil && next.After(endTime) {
+			endTime, er := time.Parse(time.RFC3339, endDateStr)
+			if er != nil {
+				return time.Time{}, fmt.Errorf("failed to parse endDate '%s': %w", endDateStr, er)
+			}
+			if next.After(endTime) {
 				return time.Time{}, nil
 			}
 		}
