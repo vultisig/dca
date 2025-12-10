@@ -8,11 +8,12 @@ import (
 )
 
 type Network struct {
-	Approve *approveService
-	Swap    *swapService
-	Send    *sendService
-	Signer  *signerService
-	Status  *status.Status
+	Approve  *approveService
+	Swap     *swapService
+	Send     *sendService
+	Signer   *signerService
+	Status   *status.Status
+	Decimals *decimalsService
 }
 
 type Manager struct {
