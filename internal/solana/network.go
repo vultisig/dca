@@ -6,17 +6,21 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
-	"github.com/vultisig/dca/internal/status"
+
 	sdk "github.com/vultisig/recipes/sdk/solana"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	txindrpc "github.com/vultisig/verifier/plugin/tx_indexer/pkg/rpc"
 	"github.com/vultisig/verifier/types"
+
+	"github.com/vultisig/dca/internal/status"
+	itypes "github.com/vultisig/dca/internal/types"
 )
 
 type Network struct {
 	swapService  *swapService
-	signer       *signerService
+	signerSend   *signerService
+	signerSwap   *signerService
 	tokenAccount *tokenAccountService
 	sendService  *sendService
 }
@@ -25,7 +29,8 @@ func NewNetwork(
 	ctx context.Context,
 	rpcURL string,
 	providers []Provider,
-	signer *keysign.Signer,
+	signerSend *keysign.Signer,
+	signerSwap *keysign.Signer,
 	txIndexer *tx_indexer.Service,
 ) (*Network, error) {
 	rpcClient := rpc.New(rpcURL)
@@ -40,14 +45,24 @@ func NewNetwork(
 		return nil, fmt.Errorf("failed to connect to Solana RPC: %w", err)
 	}
 
+	signerSdk := sdk.NewSDK(rpcClient)
+	signerStatus := status.NewStatus(txIndRpc)
+
 	return &Network{
 		swapService: newSwapService(rpcClient, providers),
-		signer: newSignerService(
-			sdk.NewSDK(rpcClient),
+		signerSend: newSignerService(
+			signerSdk,
 			rpcClient,
-			signer,
+			signerSend,
 			txIndexer,
-			status.NewStatus(txIndRpc),
+			signerStatus,
+		),
+		signerSwap: newSignerService(
+			signerSdk,
+			rpcClient,
+			signerSwap,
+			txIndexer,
+			signerStatus,
 		),
 		tokenAccount: newTokenAccountService(rpcClient),
 		sendService:  newSendService(rpcClient),
@@ -96,7 +111,7 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 				return "", fmt.Errorf("failed to serialize close wSOL transaction: %w", err)
 			}
 
-			_, err = n.signBroadcastWait(ctx, policy, closeWsolTxBytes)
+			_, err = n.signBroadcastWait(ctx, policy, itypes.OperationSwap, closeWsolTxBytes)
 			if err != nil {
 				return "", fmt.Errorf("failed to execute: %w", err)
 			}
@@ -115,7 +130,7 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 		}
 
 		for _, setupTxBytes := range setupTxs {
-			_, er := n.signBroadcastWait(ctx, policy, setupTxBytes)
+			_, er := n.signBroadcastWait(ctx, policy, itypes.OperationSwap, setupTxBytes)
 			if er != nil {
 				return "", fmt.Errorf("failed to execute: %w", er)
 			}
@@ -127,7 +142,7 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 		return "", fmt.Errorf("failed to build swap transaction: %w", err)
 	}
 
-	txHash, err := n.signBroadcastWait(ctx, policy, swapTx)
+	txHash, err := n.signBroadcastWait(ctx, policy, itypes.OperationSwap, swapTx)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute: %w", err)
 	}
@@ -144,7 +159,7 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 		}
 
 		for _, cleanupTxBytes := range cleanupTxs {
-			_, er := n.signBroadcastWait(ctx, policy, cleanupTxBytes)
+			_, er := n.signBroadcastWait(ctx, policy, itypes.OperationSwap, cleanupTxBytes)
 			if er != nil {
 				return "", fmt.Errorf("failed to execute: %w", er)
 			}
@@ -187,7 +202,7 @@ func (n *Network) ensureATAExists(
 			return fmt.Errorf("failed to serialize create %s ATA transaction: %w", label, err)
 		}
 
-		_, err = n.signBroadcastWait(ctx, policy, createTxBytes)
+		_, err = n.signBroadcastWait(ctx, policy, itypes.OperationSwap, createTxBytes)
 		if err != nil {
 			return fmt.Errorf("failed to create %s ATA: %w", label, err)
 		}
@@ -239,7 +254,7 @@ func (n *Network) Send(
 				return "", fmt.Errorf("failed to serialize create destination ATA transaction: %w", err)
 			}
 
-			_, err = n.signBroadcastWait(ctx, policy, createTxBytes)
+			_, err = n.signBroadcastWait(ctx, policy, itypes.OperationSend, createTxBytes)
 			if err != nil {
 				return "", fmt.Errorf("failed to create destination ATA: %w", err)
 			}
@@ -251,7 +266,7 @@ func (n *Network) Send(
 		}
 	}
 
-	txHash, err := n.signBroadcastWait(ctx, policy, txBytes)
+	txHash, err := n.signBroadcastWait(ctx, policy, itypes.OperationSend, txBytes)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign and broadcast: %w", err)
 	}
@@ -259,13 +274,27 @@ func (n *Network) Send(
 	return txHash, nil
 }
 
-func (n *Network) signBroadcastWait(ctx context.Context, policy types.PluginPolicy, txBytes []byte) (string, error) {
-	hash, err := n.signer.SignAndBroadcast(ctx, policy, txBytes)
+func (n *Network) signBroadcastWait(ctx context.Context, policy types.PluginPolicy, op string, txBytes []byte) (string, error) {
+	var signer *signerService
+	switch op {
+	case itypes.OperationSend:
+		signer = n.signerSend
+	case itypes.OperationSwap:
+		signer = n.signerSwap
+	default:
+		return "", fmt.Errorf("no signer for operation %q", op)
+	}
+
+	if signer == nil {
+		return "", fmt.Errorf("nil signer for operation %q", op)
+	}
+
+	hash, err := signer.SignAndBroadcast(ctx, policy, txBytes)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign and broadcast: %w", err)
 	}
 
-	err = n.signer.WaitForConfirmation(ctx, hash)
+	err = signer.WaitForConfirmation(ctx, hash)
 	if err != nil {
 		return "", fmt.Errorf("failed to wait for confirmation: %w", err)
 	}

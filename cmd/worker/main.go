@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
+
 	"github.com/vultisig/dca/internal/blockchair"
 	"github.com/vultisig/dca/internal/btc"
-	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/jupiter"
@@ -20,6 +20,7 @@ import (
 	"github.com/vultisig/dca/internal/mayachain"
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/oneinch"
+	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/xrp"
@@ -149,12 +150,24 @@ func main() {
 		logger.Fatalf("failed to initialize policy service: %v", err)
 	}
 
-	signer := keysign.NewSigner(
+	signerSend := keysign.NewSigner(
 		logger,
 		relay.NewRelayClient(cfg.VaultService.Relay.Server),
 		[]keysign.Emitter{
 			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
-			keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.Token),
+			keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.SendToken),
+		},
+		[]string{
+			cfg.VaultService.LocalPartyPrefix,
+			cfg.Verifier.PartyPrefix,
+		},
+	)
+	signerSwap := keysign.NewSigner(
+		logger,
+		relay.NewRelayClient(cfg.VaultService.Relay.Server),
+		[]keysign.Emitter{
+			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
+			keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.SwapToken),
 		},
 		[]string{
 			cfg.VaultService.LocalPartyPrefix,
@@ -201,7 +214,8 @@ func main() {
 				oneinch.NewProvider(oneInchClient, evmRpc, evmSdk),
 				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
 			},
-			signer,
+			signerSend,
+			signerSwap,
 			txIndexerService,
 		)
 		if er != nil {
@@ -224,7 +238,8 @@ func main() {
 	xrpNetwork := xrp.NewNetwork(
 		xrp.NewSwapService([]xrp.SwapProvider{thorchainXrp}),
 		xrp.NewSendService(xrpClient),
-		xrp.NewSignerService(xrpSDK, signer, txIndexerService),
+		xrp.NewSignerService(xrpSDK, signerSend, txIndexerService),
+		xrp.NewSignerService(xrpSDK, signerSwap, txIndexerService),
 		xrpClient,
 	)
 
@@ -239,7 +254,8 @@ func main() {
 		mayachainZcash,
 		zcash.NewSwapService([]zcash.SwapProvider{mayachainZcash}),
 		zcash.NewSendService(),
-		zcash.NewSignerService(zcashClient, signer, txIndexerService),
+		zcash.NewSignerService(zcashClient, signerSend, txIndexerService),
+		zcash.NewSignerService(zcashClient, signerSwap, txIndexerService),
 		zcashClient,
 	)
 
@@ -254,7 +270,8 @@ func main() {
 		[]solana.Provider{
 			jup,
 		},
-		signer,
+		signerSend,
+		signerSwap,
 		txIndexerService,
 	)
 	if err != nil {
@@ -269,7 +286,8 @@ func main() {
 			thorchainBtc,
 			btc.NewSwapService([]btc.SwapProvider{thorchainBtc}),
 			btc.NewSendService(),
-			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signer, txIndexerService),
+			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signerSend, txIndexerService),
+			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signerSwap, txIndexerService),
 			blockchairClient,
 		),
 		solanaNetwork,
@@ -303,7 +321,7 @@ type config struct {
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database
 	Redis        plugin_config.Redis
-	Verifier     plugin_config.Verifier
+	Verifier     verifier
 	Rpc          rpc
 	OneInch      oneInchConfig
 	ThorChain    thorChainConfig
@@ -359,6 +377,13 @@ type zecConfig struct {
 
 type solanaConfig struct {
 	JupiterAPIURL string
+}
+
+type verifier struct {
+	URL         string `mapstructure:"url"`
+	SendToken   string `mapstructure:"send_token"`
+	SwapToken   string `mapstructure:"swap_token"`
+	PartyPrefix string `mapstructure:"party_prefix"`
 }
 
 func newConfig() (config, error) {

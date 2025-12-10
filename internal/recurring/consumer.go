@@ -406,7 +406,7 @@ func (c *Consumer) handleXrpSend(
 	}
 	l.Debug("XRP payment tx built successfully")
 
-	txHash, err := c.xrp.Signer.SignAndBroadcast(ctx, *pol, sendTx)
+	txHash, err := c.xrp.SignerSend.SignAndBroadcast(ctx, *pol, sendTx)
 	if err != nil {
 		l.WithError(err).Error("failed to sign & broadcast XRP send tx")
 		return fmt.Errorf("failed to sign & broadcast XRP send: %w", err)
@@ -782,7 +782,7 @@ func (c *Consumer) handleEvmSwap(
 	if shouldApprove {
 		l.Info("approve needed, wait mined")
 
-		hash, er := network.Signer.SignAndBroadcast(ctx, fromChain, *pol, approveTx)
+		hash, er := network.SignerSwap.SignAndBroadcast(ctx, fromChain, *pol, approveTx)
 		if er != nil {
 			return fmt.Errorf("failed to sign & broadcast approve: %w", er)
 		}
@@ -824,7 +824,7 @@ func (c *Consumer) handleEvmSwap(
 	}
 	l.Debug("swap route found, tx=", base64.StdEncoding.EncodeToString(swapTx))
 
-	txHash, err := network.Signer.SignAndBroadcast(ctx, fromChain, *pol, swapTx)
+	txHash, err := network.SignerSwap.SignAndBroadcast(ctx, fromChain, *pol, swapTx)
 	if err != nil {
 		// Record failed swap transaction
 		c.metrics.RecordSwapTransactionWithFallback(fromAssetTyped.String(), toAsset, fromChain.String(), toChainTyped.String(), false)
@@ -903,7 +903,7 @@ func (c *Consumer) handleEvmSend(
 		l.Debug("ERC20 transfer tx built successfully")
 	}
 
-	txHash, err := network.Signer.SignAndBroadcast(ctx, fromChain, *pol, sendTx)
+	txHash, err := network.SignerSend.SignAndBroadcast(ctx, fromChain, *pol, sendTx)
 	if err != nil {
 		l.WithError(err).Error("failed to sign & broadcast send tx")
 		return fmt.Errorf("failed to sign & broadcast send: %w", err)

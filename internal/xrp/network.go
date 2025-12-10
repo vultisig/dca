@@ -8,28 +8,32 @@ import (
 	"strings"
 
 	xrpgo "github.com/xyield/xrpl-go/binary-codec"
+
 	"github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/common"
 )
 
 type Network struct {
-	Swap   *SwapService
-	Send   *SendService
-	Signer *SignerService
-	client AccountInfoProvider
+	Swap       *SwapService
+	Send       *SendService
+	SignerSend *SignerService
+	SignerSwap *SignerService
+	client     AccountInfoProvider
 }
 
 func NewNetwork(
 	swap *SwapService,
 	send *SendService,
-	signer *SignerService,
+	signerSend *SignerService,
+	signerSwap *SignerService,
 	client AccountInfoProvider,
 ) *Network {
 	return &Network{
-		Swap:   swap,
-		Send:   send,
-		Signer: signer,
-		client: client,
+		Swap:       swap,
+		Send:       send,
+		SignerSend: signerSend,
+		SignerSwap: signerSwap,
+		client:     client,
 	}
 }
 
@@ -41,7 +45,7 @@ func (n *Network) SendPayment(ctx context.Context, policy types.PluginPolicy, fr
 	}
 
 	// Sign and broadcast transaction
-	txHash, err := n.Signer.SignAndBroadcast(ctx, policy, txData)
+	txHash, err := n.SignerSend.SignAndBroadcast(ctx, policy, txData)
 	if err != nil {
 		return "", fmt.Errorf("xrp: failed to sign and broadcast: %w", err)
 	}
@@ -70,7 +74,7 @@ func (n *Network) SwapAssets(ctx context.Context, policy types.PluginPolicy, fro
 	}
 
 	// Sign and broadcast transaction
-	txHash, err := n.Signer.SignAndBroadcast(ctx, policy, txData)
+	txHash, err := n.SignerSwap.SignAndBroadcast(ctx, policy, txData)
 	if err != nil {
 		return "", fmt.Errorf("xrp: failed to sign and broadcast: %w", err)
 	}
