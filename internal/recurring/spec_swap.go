@@ -224,8 +224,7 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 				"type": "string",
 			},
 			endDate: map[string]any{
-				"type":   "string",
-				"format": "date-time",
+				"type": "integer",
 			},
 			frequency: map[string]any{
 				"type": "string",
@@ -263,7 +262,7 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"address": "",
 		},
 		fromAmount: "10",
-		endDate:    int64(1798329600000),
+		endDate:    int64(1798891200000), // 2026-12-31T12:00:00Z
 		frequency:  daily,
 	})
 	if err != nil {

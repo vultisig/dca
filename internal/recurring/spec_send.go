@@ -215,8 +215,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 				"type": "string",
 			},
 			endDate: map[string]any{
-				"type":   "string",
-				"format": "date-time",
+				"type": "integer",
 			},
 			frequency: map[string]any{
 				"type": "string",
@@ -249,7 +248,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"token": "",
 		},
 		amount:    "0.05",
-		endDate:   int64(1798329600000),
+		endDate:   int64(1798891200000), // 2026-12-31T12:00:00Z
 		frequency: daily,
 	})
 	if err != nil {
@@ -261,7 +260,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
 		},
 		amount:    "10",
-		endDate:   int64(1798329600000),
+		endDate:   int64(1798891200000), // 2026-12-31T12:00:00Z
 		frequency: daily,
 	})
 	if err != nil {

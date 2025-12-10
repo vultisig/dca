@@ -23,12 +23,9 @@ func (i *Interval) FromNowWhenNext(policy types.PluginPolicy) (time.Time, error)
 	cfg := recipe.GetConfiguration().GetFields()
 
 	if endDateField, exists := cfg[endDate]; exists {
-		endDateStr := endDateField.GetStringValue()
-		if endDateStr != "" {
-			endTime, er := time.Parse(time.RFC3339, endDateStr)
-			if er != nil {
-				return time.Time{}, fmt.Errorf("failed to parse endDate '%s': %w", endDateStr, er)
-			}
+		endDateMs := int64(endDateField.GetNumberValue())
+		if endDateMs > 0 {
+			endTime := time.UnixMilli(endDateMs)
 			if time.Now().After(endTime) {
 				return time.Time{}, nil
 			}
@@ -57,12 +54,9 @@ func (i *Interval) FromNowWhenNext(policy types.PluginPolicy) (time.Time, error)
 	}
 
 	if endDateField, exists := cfg[endDate]; exists {
-		endDateStr := endDateField.GetStringValue()
-		if endDateStr != "" {
-			endTime, er := time.Parse(time.RFC3339, endDateStr)
-			if er != nil {
-				return time.Time{}, fmt.Errorf("failed to parse endDate '%s': %w", endDateStr, er)
-			}
+		endDateMs := int64(endDateField.GetNumberValue())
+		if endDateMs > 0 {
+			endTime := time.UnixMilli(endDateMs)
 			if next.After(endTime) {
 				return time.Time{}, nil
 			}
