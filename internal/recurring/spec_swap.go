@@ -220,11 +220,9 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			toAsset: map[string]any{
 				"$ref": "#/definitions/" + asset.Name(),
 			},
-			// TODO: Determine who converts fromAmount to base units (frontend, plugin-marketplace, or DCA consumer)
 			fromAmount: map[string]any{
 				"type": "string",
 			},
-			// TODO: Determine schema type for startDate and endDate (date-time string vs integer Unix ms)
 			startDate: map[string]any{
 				"type":   "string",
 				"format": "date-time",
@@ -269,7 +267,7 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"address": "",
 		},
 		fromAmount: "10",
-		endDate:    int64(1798891200000), // 2026-12-31T12:00:00Z
+		endDate:    "2026-12-31T12:00:00Z",
 		frequency:  daily,
 	})
 	if err != nil {

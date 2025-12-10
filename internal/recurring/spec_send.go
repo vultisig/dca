@@ -208,14 +208,12 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			toAddress: map[string]any{
 				"type": "string",
 			},
-			// TODO: Determine who converts amount to base units (frontend, plugin-marketplace, or DCA consumer)
 			amount: map[string]any{
 				"type": "string",
 			},
 			memo: map[string]any{
 				"type": "string",
 			},
-			// TODO: Determine schema type for startDate and endDate (date-time string vs integer Unix ms)
 			startDate: map[string]any{
 				"type":   "string",
 				"format": "date-time",
@@ -255,7 +253,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"token": "",
 		},
 		amount:    "0.05",
-		endDate:   int64(1798891200000), // 2026-12-31T12:00:00Z
+		endDate:   "2026-12-31T12:00:00Z",
 		frequency: daily,
 	})
 	if err != nil {
@@ -267,7 +265,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
 		},
 		amount:    "10",
-		endDate:   int64(1798891200000), // 2026-12-31T12:00:00Z
+		endDate:   "2026-12-31T12:00:00Z",
 		frequency: daily,
 	})
 	if err != nil {
