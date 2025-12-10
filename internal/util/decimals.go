@@ -53,12 +53,13 @@ func ToBaseUnits(amount string, decimals int) (*big.Int, error) {
 
 	// Split into whole and fractional parts
 	parts := strings.Split(amount, ".")
+	if len(parts) > 2 {
+		return nil, fmt.Errorf("invalid amount format: %s", amount)
+	}
 	whole := parts[0]
 	frac := ""
-	if len(parts) > 1 {
+	if len(parts) == 2 {
 		frac = parts[1]
-	} else if len(parts) > 2 {
-		return nil, fmt.Errorf("invalid amount format: %s", amount)
 	}
 
 	// Pad or truncate fractional part to decimals length

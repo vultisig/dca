@@ -1083,24 +1083,8 @@ func (c *Consumer) handleZcashSwap(
 }
 
 // convertAmountToBaseUnits converts a human-readable amount to base units (e.g., "10" USDC -> "10000000").
-// It detects if the amount is already in base units (no decimal point, large number) and skips conversion.
+// Always converts - if the amount is incorrect, the policy will reject the transaction.
 func (c *Consumer) convertAmountToBaseUnits(ctx context.Context, chain common.Chain, token string, amount string) (string, error) {
-	// Check if amount contains a decimal point - if not, it might already be in base units
-	// We also check if it's a large integer which would indicate base units
-	if !containsDecimal(amount) {
-		// Try to parse as big.Int to check if it's already base units
-		val, ok := new(big.Int).SetString(amount, 10)
-		if ok && val.Cmp(big.NewInt(1_000_000)) >= 0 {
-			// Large integer without decimal - likely already in base units
-			c.logger.WithFields(logrus.Fields{
-				"chain":  chain.String(),
-				"token":  token,
-				"amount": amount,
-			}).Debug("amount appears to already be in base units, skipping conversion")
-			return amount, nil
-		}
-	}
-
 	// Get decimals for the token
 	decimals, err := c.getTokenDecimals(ctx, chain, token)
 	if err != nil {
@@ -1150,14 +1134,4 @@ func (c *Consumer) getTokenDecimals(ctx context.Context, chain common.Chain, tok
 	// For non-EVM chains with tokens, return native decimals as fallback
 	// (most non-EVM tokens use the same decimals as native)
 	return util.GetNativeDecimals(chain)
-}
-
-// containsDecimal checks if a string contains a decimal point
-func containsDecimal(s string) bool {
-	for _, c := range s {
-		if c == '.' {
-			return true
-		}
-	}
-	return false
 }
