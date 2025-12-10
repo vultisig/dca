@@ -51,11 +51,16 @@ spec:
                 configMapKeyRef:
                   name: verifier
                   key: url
-            - name: VERIFIER_TOKEN
+            - name: VERIFIER_SENDTOKEN
               valueFrom:
                 secretKeyRef:
                   name: verifier
-                  key: token
+                  key: send-token
+            - name: VERIFIER_SWAPTOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: verifier
+                  key: swap-token
             - name: VERIFIER_PARTYPREFIX
               valueFrom:
                 configMapKeyRef:

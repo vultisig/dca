@@ -12,33 +12,39 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/vultisig/dca/internal/blockchair"
+
 	"github.com/vultisig/recipes/engine"
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/common"
+
+	"github.com/vultisig/dca/internal/blockchair"
+	"github.com/vultisig/dca/internal/types"
 )
 
 type Network struct {
-	utxo   *blockchair.Client
-	fee    feeProvider
-	swap   *SwapService
-	send   *SendService
-	signer *SignerService
+	utxo       *blockchair.Client
+	fee        feeProvider
+	swap       *SwapService
+	send       *SendService
+	signerSend *SignerService
+	signerSwap *SignerService
 }
 
 func NewNetwork(
 	fee feeProvider,
 	swap *SwapService,
 	send *SendService,
-	signer *SignerService,
+	signerSend *SignerService,
+	signerSwap *SignerService,
 	utxo *blockchair.Client,
 ) *Network {
 	return &Network{
-		utxo:   utxo,
-		fee:    fee,
-		swap:   swap,
-		send:   send,
-		signer: signer,
+		utxo:       utxo,
+		fee:        fee,
+		swap:       swap,
+		send:       send,
+		signerSend: signerSend,
+		signerSwap: signerSwap,
 	}
 }
 
@@ -67,7 +73,7 @@ func (n *Network) Swap(ctx context.Context, policy vtypes.PluginPolicy, from Fro
 		return "", fmt.Errorf("failed to populate psbt metadata: %w", err)
 	}
 
-	txHash, err := n.sendWithSdk(ctx, policy, psbtTx)
+	txHash, err := n.sendWithSdk(ctx, policy, types.OperationSwap, psbtTx)
 	if err != nil {
 		return "", fmt.Errorf("failed to send tx: %w", err)
 	}
@@ -101,14 +107,14 @@ func (n *Network) Send(
 		return "", fmt.Errorf("failed to populate psbt metadata: %w", err)
 	}
 
-	txHash, err := n.sendWithSdk(ctx, policy, psbtTx)
+	txHash, err := n.sendWithSdk(ctx, policy, types.OperationSend, psbtTx)
 	if err != nil {
 		return "", fmt.Errorf("failed to send tx: %w", err)
 	}
 	return txHash, nil
 }
 
-func (n *Network) sendWithSdk(ctx context.Context, policy vtypes.PluginPolicy, tx *psbt.Packet) (string, error) {
+func (n *Network) sendWithSdk(ctx context.Context, policy vtypes.PluginPolicy, op string, tx *psbt.Packet) (string, error) {
 	var bufPsbt bytes.Buffer
 	err := tx.Serialize(&bufPsbt)
 	if err != nil {
@@ -135,9 +141,20 @@ func (n *Network) sendWithSdk(ctx context.Context, policy vtypes.PluginPolicy, t
 		return "", fmt.Errorf("failed to evaluate tx: %w", err)
 	}
 
-	txHash, err := n.signer.SignAndBroadcast(ctx, policy, bufPsbt.Bytes())
-	if err != nil {
-		return "", fmt.Errorf("failed to sign and broadcast: %w", err)
+	var txHash string
+	switch op {
+	case types.OperationSend:
+		txHash, err = n.signerSend.SignAndBroadcast(ctx, policy, bufPsbt.Bytes())
+		if err != nil {
+			return "", fmt.Errorf("failed to sign and broadcast: %w", err)
+		}
+	case types.OperationSwap:
+		txHash, err = n.signerSwap.SignAndBroadcast(ctx, policy, bufPsbt.Bytes())
+		if err != nil {
+			return "", fmt.Errorf("failed to sign and broadcast: %w", err)
+		}
+	default:
+		return "", fmt.Errorf("no signer for operation %s", op)
 	}
 
 	return txHash, nil

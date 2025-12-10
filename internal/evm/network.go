@@ -5,12 +5,14 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/vultisig/dca/internal/status"
+
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	txrpc "github.com/vultisig/verifier/plugin/tx_indexer/pkg/rpc"
 	rcommon "github.com/vultisig/vultisig-go/common"
+
+	"github.com/vultisig/dca/internal/status"
 )
 
 func NewNetwork(
@@ -18,7 +20,8 @@ func NewNetwork(
 	chain rcommon.Chain,
 	rpcUrl string,
 	providers []Provider,
-	signer *keysign.Signer,
+	signerSend *keysign.Signer,
+	signerSwap *keysign.Signer,
 	txIndexer *tx_indexer.Service,
 ) (*Network, error) {
 	evmID, err := chain.EvmID()
@@ -39,11 +42,12 @@ func NewNetwork(
 	}
 
 	return &Network{
-		Approve:  newApproveService(rpc, sdk),
-		Swap:     newSwapService(providers),
-		Send:     newSendService(sdk),
-		Signer:   newSignerService(sdk, chain, signer, txIndexer),
-		Status:   status.NewStatus(rpcCaller),
-		Decimals: newDecimalsService(rpc),
+		Approve:    newApproveService(rpc, sdk),
+		Swap:       newSwapService(providers),
+		Send:       newSendService(sdk),
+		SignerSend: newSignerService(sdk, chain, signerSend, txIndexer),
+		SignerSwap: newSignerService(sdk, chain, signerSwap, txIndexer),
+		Status:     status.NewStatus(rpcCaller),
+		Decimals:   newDecimalsService(rpc),
 	}, nil
 }
