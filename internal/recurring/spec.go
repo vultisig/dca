@@ -27,6 +27,7 @@ var supportedChains = []common.Chain{
 }
 
 const (
+	startDate = "startDate"
 	endDate   = "endDate"
 	frequency = "frequency"
 

@@ -214,6 +214,10 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			memo: map[string]any{
 				"type": "string",
 			},
+			startDate: map[string]any{
+				"type":   "string",
+				"format": "date-time",
+			},
 			endDate: map[string]any{
 				"type":   "string",
 				"format": "date-time",
@@ -248,8 +252,8 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"chain": "Bitcoin",
 			"token": "",
 		},
-		amount:    "5000000",
-		endDate:   "2026-12-25T00:00:00Z",
+		amount:    "0.05",
+		endDate:   "2026-12-31T12:00:00Z",
 		frequency: daily,
 	})
 	if err != nil {
@@ -260,8 +264,8 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			"chain": "Ethereum",
 			"token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
 		},
-		amount:    "10000000",
-		endDate:   "2026-12-25T00:00:00Z",
+		amount:    "10",
+		endDate:   "2026-12-31T12:00:00Z",
 		frequency: daily,
 	})
 	if err != nil {

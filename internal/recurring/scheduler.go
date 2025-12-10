@@ -21,7 +21,23 @@ func NewSchedulerService(repo scheduler.Storage) *SchedulerService {
 }
 
 func (s *SchedulerService) Create(ctx context.Context, policy types.PluginPolicy) error {
-	return s.repo.Create(ctx, policy.ID, time.Now())
+	initialTime := time.Now()
+
+	recipe, err := policy.GetRecipe()
+	if err == nil {
+		cfg := recipe.GetConfiguration().GetFields()
+		if startDateField, exists := cfg[startDate]; exists {
+			startDateStr := startDateField.GetStringValue()
+			if startDateStr != "" {
+				startTime, err := time.Parse(time.RFC3339, startDateStr)
+				if err == nil && startTime.After(time.Now()) {
+					initialTime = startTime
+				}
+			}
+		}
+	}
+
+	return s.repo.Create(ctx, policy.ID, initialTime)
 }
 
 func (s *SchedulerService) Update(_ context.Context, _, _ types.PluginPolicy) error {
