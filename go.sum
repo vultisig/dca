@@ -1004,10 +1004,8 @@ github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4n
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
 github.com/vultisig/recipes v0.0.0-20251205220719-5f7c073df79f h1:LAhQA2FhWUuAUy2B2w32yVHjia/p6RGWpvIsWG4sedI=
 github.com/vultisig/recipes v0.0.0-20251205220719-5f7c073df79f/go.mod h1:DHWFOodBGGLVF5LYExZjrxTWTdnLUP26ty5QTpOz5Ao=
-github.com/vultisig/verifier v0.0.0-20251209033152-90d1f8ff316c h1:l8HL+GmLAtj8QCAy3ahcGGzuPjmro6q2q5ofpSIRdgs=
-github.com/vultisig/verifier v0.0.0-20251209033152-90d1f8ff316c/go.mod h1:B/Dnua+kiVXI1cknHZnGqU7ZDuIHGUx+BfOA9YNiYak=
-github.com/vultisig/verifier v0.0.0-20251209085227-712395e3c6d5 h1:gRlwHoud/HpRgTX2s7PeIakm1Fn+3VPwhsGQyVEINe0=
-github.com/vultisig/verifier v0.0.0-20251209085227-712395e3c6d5/go.mod h1:B/Dnua+kiVXI1cknHZnGqU7ZDuIHGUx+BfOA9YNiYak=
+github.com/vultisig/verifier v0.0.0-20251209132645-41b0b39218d0 h1:AOA3KUqJE3Zqa62sCPcTU8tpcgCIflSFu/mOYAtKUU4=
+github.com/vultisig/verifier v0.0.0-20251209132645-41b0b39218d0/go.mod h1:B/Dnua+kiVXI1cknHZnGqU7ZDuIHGUx+BfOA9YNiYak=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 h1:7WDQ92FAdu08Byjgm3RNS8Sok49sK521PzPcbRpbzCE=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/vultisig/vultisig-go v0.0.0-20251201083443-f9306a44b356 h1:1rX6Ko2uQuvpe+cnhghTLzwfV4VUb+eoXkbVkcYgsSc=

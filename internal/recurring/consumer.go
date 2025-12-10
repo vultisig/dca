@@ -132,6 +132,12 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("failed to parse fromAsset.chain: %w", err)
 	}
 
+	// Convert human-readable amount to base units if needed
+	fromAmountStr, err = c.convertAmountToBaseUnits(ctx, fromChainTyped, fromAssetTokenStr, fromAmountStr)
+	if err != nil {
+		return fmt.Errorf("failed to convert amount to base units: %w", err)
+	}
+
 	toChainStr, ok := toAssetMap["chain"].(string)
 	if !ok {
 		return fmt.Errorf("failed to get toAsset.chain")
@@ -1074,4 +1080,58 @@ func (c *Consumer) handleZcashSwap(
 	c.metrics.RecordSwapTransactionWithFallback("ZEC", toAsset, common.Zcash.String(), toChainTyped.String(), true)
 	c.logger.WithField("txHash", txHash).Info("Zcash swap executed successfully")
 	return nil
+}
+
+// convertAmountToBaseUnits converts a human-readable amount to base units (e.g., "10" USDC -> "10000000").
+// Always converts - if the amount is incorrect, the policy will reject the transaction.
+func (c *Consumer) convertAmountToBaseUnits(ctx context.Context, chain common.Chain, token string, amount string) (string, error) {
+	// Get decimals for the token
+	decimals, err := c.getTokenDecimals(ctx, chain, token)
+	if err != nil {
+		return "", fmt.Errorf("failed to get token decimals: %w", err)
+	}
+
+	// Convert to base units
+	baseUnits, err := util.ToBaseUnits(amount, decimals)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert amount to base units: %w", err)
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"chain":       chain.String(),
+		"token":       token,
+		"humanAmount": amount,
+		"baseUnits":   baseUnits.String(),
+		"decimals":    decimals,
+	}).Debug("converted amount to base units")
+
+	return baseUnits.String(), nil
+}
+
+// getTokenDecimals returns the decimals for a token on a given chain
+func (c *Consumer) getTokenDecimals(ctx context.Context, chain common.Chain, token string) (int, error) {
+	// Check if it's a native token
+	if util.IsNativeToken(token) {
+		return util.GetNativeDecimals(chain)
+	}
+
+	// For EVM chains, fetch decimals from the contract
+	if chain.IsEvm() {
+		network, err := c.evm.Get(chain)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get EVM network: %w", err)
+		}
+
+		tokenAddr := ecommon.HexToAddress(token)
+		decimals, err := network.Decimals.GetDecimals(ctx, tokenAddr)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get ERC20 decimals: %w", err)
+		}
+
+		return int(decimals), nil
+	}
+
+	// For non-EVM chains with tokens, return native decimals as fallback
+	// (most non-EVM tokens use the same decimals as native)
+	return util.GetNativeDecimals(chain)
 }
