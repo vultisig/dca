@@ -208,14 +208,21 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			toAddress: map[string]any{
 				"type": "string",
 			},
+			// TODO: Determine who converts amount to base units (frontend, plugin-marketplace, or DCA consumer)
 			amount: map[string]any{
 				"type": "string",
 			},
 			memo: map[string]any{
 				"type": "string",
 			},
+			// TODO: Determine schema type for startDate and endDate (date-time string vs integer Unix ms)
+			startDate: map[string]any{
+				"type":   "string",
+				"format": "date-time",
+			},
 			endDate: map[string]any{
-				"type": "integer",
+				"type":   "string",
+				"format": "date-time",
 			},
 			frequency: map[string]any{
 				"type": "string",

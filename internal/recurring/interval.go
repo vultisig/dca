@@ -23,10 +23,10 @@ func (i *Interval) FromNowWhenNext(policy types.PluginPolicy) (time.Time, error)
 	cfg := recipe.GetConfiguration().GetFields()
 
 	if endDateField, exists := cfg[endDate]; exists {
-		endDateMs := int64(endDateField.GetNumberValue())
-		if endDateMs > 0 {
-			endTime := time.UnixMilli(endDateMs)
-			if time.Now().After(endTime) {
+		endDateStr := endDateField.GetStringValue()
+		if endDateStr != "" {
+			endTime, err := time.Parse(time.RFC3339, endDateStr)
+			if err == nil && time.Now().After(endTime) {
 				return time.Time{}, nil
 			}
 		}
@@ -54,10 +54,10 @@ func (i *Interval) FromNowWhenNext(policy types.PluginPolicy) (time.Time, error)
 	}
 
 	if endDateField, exists := cfg[endDate]; exists {
-		endDateMs := int64(endDateField.GetNumberValue())
-		if endDateMs > 0 {
-			endTime := time.UnixMilli(endDateMs)
-			if next.After(endTime) {
+		endDateStr := endDateField.GetStringValue()
+		if endDateStr != "" {
+			endTime, err := time.Parse(time.RFC3339, endDateStr)
+			if err == nil && next.After(endTime) {
 				return time.Time{}, nil
 			}
 		}
