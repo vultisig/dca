@@ -7,10 +7,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
-	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/logging"
 	"github.com/vultisig/dca/internal/metrics"
+	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/policy/policy_pg"
@@ -39,7 +39,6 @@ func main() {
 			}
 		}
 	}()
-
 
 	redisConnOpt, err := asynq.ParseRedisURI(cfg.Redis.URI)
 	if err != nil {
@@ -85,7 +84,6 @@ func main() {
 		schedulerMetrics,
 	)
 
-
 	healthServer := health.New(cfg.HealthPort)
 	go func() {
 		er := healthServer.Start(ctx, logger)
@@ -101,7 +99,7 @@ func main() {
 }
 
 type config struct {
-	LogFormat  logging.LogFormat `envconfig:"LOG_FORMAT" default:"text"`
+	LogFormat  logging.LogFormat
 	Postgres   plugin_config.Database
 	Redis      plugin_config.Redis
 	HealthPort int
@@ -116,4 +114,3 @@ func newConfig() (config, error) {
 	}
 	return cfg, nil
 }
-
