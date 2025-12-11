@@ -289,7 +289,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			{
 				Id:          "transaction_signing",
 				Label:       "Access to transaction signing",
-				Description: "The app can initiate transactions to swap assets in your Vault",
+				Description: "The app can initiate transactions to send assets in your Vault",
 			},
 			{
 				Id:          "fee_deduction",
