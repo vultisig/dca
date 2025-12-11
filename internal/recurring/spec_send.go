@@ -285,6 +285,23 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			MinVultisigVersion: 1,
 			SupportedChains:    getSupportedChainStrings(),
 		},
+		Permissions: []*rtypes.Permission{
+			{
+				Id:          "transaction_signing",
+				Label:       "Access to transaction signing",
+				Description: "The app can initiate transactions to send assets in your Vault",
+			},
+			{
+				Id:          "fee_deduction",
+				Label:       "Fee deduction authorization",
+				Description: "The app can automatically deduct incurred fees.",
+			},
+			{
+				Id:          "balance_visibility",
+				Label:       "Vault balance visibility",
+				Description: "The app can view Vault balances",
+			},
+		},
 	}, nil
 }
 
