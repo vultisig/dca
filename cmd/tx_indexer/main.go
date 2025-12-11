@@ -58,7 +58,7 @@ func main() {
 	if err != nil {
 		logger.Fatalf("failed to initialize RPCs: %v", err)
 	}
-	
+
 	txMetrics := metrics.NewTxIndexerMetrics()
 
 	worker := tx_indexer.NewWorker(
@@ -113,7 +113,7 @@ func main() {
 }
 
 type Config struct {
-	LogFormat  logging.LogFormat `envconfig:"LOG_FORMAT" default:"text"`
+	LogFormat  logging.LogFormat
 	Base       config.Config
 	HealthPort int
 	Metrics    metrics.Config

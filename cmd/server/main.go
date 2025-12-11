@@ -143,8 +143,8 @@ func main() {
 }
 
 type config struct {
-	Mode         string            `envconfig:"MODE" required:"true"`
-	LogFormat    logging.LogFormat `envconfig:"LOG_FORMAT" default:"text"`
+	Mode         string `envconfig:"MODE" required:"true"`
+	LogFormat    logging.LogFormat
 	Server       server.Config
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database
