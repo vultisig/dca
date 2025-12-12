@@ -99,9 +99,10 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 
 	cfg := recipe.GetConfiguration().AsMap()
 
+	// fromAmountStr is already in base units from the frontend, no need for conversion
 	fromAmountStr, ok := cfg[fromAmount].(string)
 	if !ok {
-		return fmt.Errorf("failed to get fromAmount: %w", err)
+		return fmt.Errorf("failed to get fromAmount")
 	}
 
 	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
@@ -130,12 +131,6 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	fromChainTyped, err := common.FromString(fromChainStr)
 	if err != nil {
 		return fmt.Errorf("failed to parse fromAsset.chain: %w", err)
-	}
-
-	// Convert human-readable amount to base units if needed
-	fromAmountStr, err = c.convertAmountToBaseUnits(ctx, fromChainTyped, fromAssetTokenStr, fromAmountStr)
-	if err != nil {
-		return fmt.Errorf("failed to convert amount to base units: %w", err)
 	}
 
 	toChainStr, ok := toAssetMap["chain"].(string)
