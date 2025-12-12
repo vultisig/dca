@@ -29,7 +29,7 @@ func (s *SchedulerService) Create(ctx context.Context, policy types.PluginPolicy
 		if startDateField, exists := cfg[startDate]; exists {
 			startDateStr := startDateField.GetStringValue()
 			if startDateStr != "" {
-				startTime, err := time.Parse(time.RFC3339, startDateStr)
+				startTime, err := parseDateTime(startDateStr)
 				if err == nil && startTime.After(time.Now()) {
 					initialTime = startTime
 				}
