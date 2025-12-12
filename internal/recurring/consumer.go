@@ -102,7 +102,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	// fromAmountStr is already in base units from the frontend, no need for conversion
 	fromAmountStr, ok := cfg[fromAmount].(string)
 	if !ok {
-		return fmt.Errorf("failed to get fromAmount: %w", err)
+		return fmt.Errorf("failed to get fromAmount")
 	}
 
 	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
