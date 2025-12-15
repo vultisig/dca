@@ -6,10 +6,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/vultisig/verifier/plugin/libhttp"
@@ -29,44 +27,6 @@ type PushResponse struct {
 	Data struct {
 		TransactionHash string `json:"transaction_hash"`
 	} `json:"data"`
-}
-
-func (c *Client) GetParsedTransaction(txHash *chainhash.Hash) (*btcutil.Tx, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	type dataItem struct {
-		RawTx string `json:"raw_transaction"`
-	}
-
-	type res struct {
-		Data map[string]dataItem `json:"data"`
-	}
-
-	r, err := libhttp.Call[res](
-		ctx,
-		http.MethodGet,
-		c.url+"/bitcoin/raw/transaction/"+txHash.String(),
-		map[string]string{
-			"Content-Type": "application/json",
-		},
-		map[string]string{},
-		map[string]string{},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get raw tx: %w", err)
-	}
-
-	data, ok := r.Data[txHash.String()]
-	if !ok {
-		return nil, fmt.Errorf("failed to get tx from response, hash=%s", txHash.String())
-	}
-
-	tx, err := btcutil.NewTxFromReader(hex.NewDecoder(strings.NewReader(data.RawTx)))
-	if err != nil {
-		return nil, fmt.Errorf("failed to deserialize raw tx: %w", err)
-	}
-	return tx, nil
 }
 
 func (c *Client) SendRawTransaction(tx *wire.MsgTx, _ bool) (*chainhash.Hash, error) {
@@ -109,12 +69,7 @@ type Utxo struct {
 	Value           uint64 `json:"value"`
 }
 
-type UnspentResponse struct {
-	Utxos []Utxo
-	Err   error
-}
-
-// GetAllUnspent fetches all UTXOs for an address (non-streaming).
+// GetAllUnspent fetches all UTXOs for an address.
 func (c *Client) GetAllUnspent(ctx context.Context, address string) ([]Utxo, error) {
 	var allUtxos []Utxo
 	offset := 0
@@ -184,52 +139,6 @@ func (c *Client) GetRawTransaction(txHash string) ([]byte, error) {
 	}
 
 	return hex.DecodeString(data.RawTx)
-}
-
-func (c *Client) GetUnspent(ctx context.Context, address string) <-chan UnspentResponse {
-	ch := make(chan UnspentResponse)
-
-	go func() {
-		defer close(ch)
-
-		offset := 0
-		const limit = 50
-		for ctx.Err() == nil {
-			batch, err := libhttp.Call[addrInfoResponse](
-				ctx,
-				http.MethodGet,
-				c.url+"/bitcoin/dashboards/address/"+address,
-				nil,
-				nil,
-				map[string]string{
-					"offset": fmt.Sprintf("%d", offset),
-					"limit":  fmt.Sprintf("0,%d", limit),
-				},
-			)
-			if err != nil {
-				ch <- UnspentResponse{
-					Err: fmt.Errorf("failed to fetch address info: %w", err),
-				}
-				return
-			}
-
-			val, ok := batch.Data[address]
-			if !ok {
-				return
-			}
-
-			ch <- UnspentResponse{
-				Utxos: val.Utxo,
-			}
-			if len(val.Utxo) < limit {
-				return
-			}
-
-			offset += limit
-		}
-	}()
-
-	return ch
 }
 
 type addrInfoResponse struct {
