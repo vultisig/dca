@@ -31,7 +31,7 @@ type PushResponse struct {
 	} `json:"data"`
 }
 
-func (c *Client) GetRawTransaction(txHash *chainhash.Hash) (*btcutil.Tx, error) {
+func (c *Client) GetParsedTransaction(txHash *chainhash.Hash) (*btcutil.Tx, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -112,6 +112,78 @@ type Utxo struct {
 type UnspentResponse struct {
 	Utxos []Utxo
 	Err   error
+}
+
+// GetAllUnspent fetches all UTXOs for an address (non-streaming).
+func (c *Client) GetAllUnspent(ctx context.Context, address string) ([]Utxo, error) {
+	var allUtxos []Utxo
+	offset := 0
+	const limit = 50
+
+	for {
+		batch, err := libhttp.Call[addrInfoResponse](
+			ctx,
+			http.MethodGet,
+			c.url+"/bitcoin/dashboards/address/"+address,
+			nil,
+			nil,
+			map[string]string{
+				"offset": fmt.Sprintf("%d", offset),
+				"limit":  fmt.Sprintf("0,%d", limit),
+			},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch address info: %w", err)
+		}
+
+		val, ok := batch.Data[address]
+		if !ok {
+			break
+		}
+
+		allUtxos = append(allUtxos, val.Utxo...)
+		if len(val.Utxo) < limit {
+			break
+		}
+		offset += limit
+	}
+
+	return allUtxos, nil
+}
+
+// GetRawTransaction returns raw transaction bytes, implementing the sdk/btc.PrevTxFetcher interface.
+func (c *Client) GetRawTransaction(txHash string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	type dataItem struct {
+		RawTx string `json:"raw_transaction"`
+	}
+
+	type res struct {
+		Data map[string]dataItem `json:"data"`
+	}
+
+	r, err := libhttp.Call[res](
+		ctx,
+		http.MethodGet,
+		c.url+"/bitcoin/raw/transaction/"+txHash,
+		map[string]string{
+			"Content-Type": "application/json",
+		},
+		map[string]string{},
+		map[string]string{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get raw tx: %w", err)
+	}
+
+	data, ok := r.Data[txHash]
+	if !ok {
+		return nil, fmt.Errorf("failed to get tx from response, hash=%s", txHash)
+	}
+
+	return hex.DecodeString(data.RawTx)
 }
 
 func (c *Client) GetUnspent(ctx context.Context, address string) <-chan UnspentResponse {
