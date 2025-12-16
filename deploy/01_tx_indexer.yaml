@@ -22,7 +22,7 @@ spec:
         - name: ghcr
       containers:
         - name: tx-indexer
-          image: busybox
+          image: ghcr.io/vultisig/app-recurring/tx_indexer:dev-5bdc6c048773896a273e7fa46d98b8da6e660b68
           command: ["/app/main"]
           ports:
             - containerPort: 80
