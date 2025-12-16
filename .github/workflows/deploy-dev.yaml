@@ -1,4 +1,4 @@
-name: Build and Update Dev Manifests
+name: Build and Deploy to Dev
 
 on:
   push:
@@ -11,6 +11,8 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  CLUSTER: plugins-dev-k8s
+  NS: plugin-dca
 
 jobs:
   build-server:
@@ -61,20 +63,22 @@ jobs:
       tag: dev-${{ github.sha }}
       additional_tag: dev-latest
 
-  update-manifests:
+  deploy:
     needs: [build-server, build-scheduler, build-worker, build-tx-indexer]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
         with:
-          ref: dev
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.DIGITALOCEAN_CI_TOKEN }}
+
+      - name: Save DigitalOcean kubeconfig
+        run: doctl kubernetes cluster kubeconfig save ${{ env.CLUSTER }}
 
       - name: Update deployment files
         run: |
@@ -86,10 +90,21 @@ jobs:
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${TAG}|" deploy/01_worker.yaml
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tx_indexer:${TAG}|" deploy/01_tx_indexer.yaml
 
-      - name: Commit and push manifest updates
+      - name: Deploy to Kubernetes
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add deploy/base/server/server.yaml deploy/01_scheduler.yaml deploy/01_worker.yaml deploy/01_tx_indexer.yaml
-          git commit -m "Update dev deployment images to dev-${{ github.sha }} [skip ci]"
-          git push origin dev
+          kubectl -n ${{ env.NS }} apply -f deploy/dev
+
+          kubectl -n ${{ env.NS }} apply -k deploy/overlays/send
+          kubectl -n ${{ env.NS }} apply -k deploy/overlays/swap
+
+          kubectl -n ${{ env.NS }} apply -f deploy/01_scheduler.yaml
+          kubectl -n ${{ env.NS }} apply -f deploy/01_worker.yaml
+          kubectl -n ${{ env.NS }} apply -f deploy/01_tx_indexer.yaml
+
+          kubectl -n ${{ env.NS }} apply -f deploy/02_grafana_dashboard.yaml
+
+          kubectl -n ${{ env.NS }} rollout status deployment/server-send --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/server-swap --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/scheduler --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/worker --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/tx-indexer --timeout=300s
