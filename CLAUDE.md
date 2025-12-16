@@ -121,6 +121,202 @@ go test ./internal/recurring/
 3. **Ethereum RPC** - Mainnet or testnet endpoint
 4. **Environment variables** - Configure all services appropriately
 
+## Deployment
+
+The project uses **GitOps with ArgoCD** for automated deployments. The CI/CD pipeline follows a build-commit-sync pattern where GitHub Actions builds images and updates manifests, while ArgoCD handles the actual deployment to Kubernetes.
+
+### Deployment Workflow
+
+#### Development Environment
+
+1. **Trigger**: Push to `dev` branch (excluding `.md` and `.gitignore` files)
+2. **GitHub Actions** (`.github/workflows/deploy-dev.yaml`):
+   - Builds Docker images for all 4 services with tag `dev-${GITHUB_SHA}`
+   - Pushes images to `ghcr.io/vultisig/dca`
+   - Updates deployment manifests with new image tags
+   - Commits changes to `dev` branch with `[skip ci]` to prevent loops
+3. **ArgoCD**:
+   - Detects manifest changes in `dev` branch
+   - Automatically syncs to `plugins-dev-k8s` cluster
+   - Applies resources to `plugin-dca` namespace
+
+#### Production Environment
+
+1. **Trigger**: Push to `main` branch (excluding `.md` and `.gitignore` files)
+2. **GitHub Actions** (`.github/workflows/deploy.yaml`):
+   - Builds Docker images for all 4 services with tag `main-${GITHUB_SHA}`
+   - Pushes images to `ghcr.io/vultisig/dca`
+   - Updates deployment manifests with new image tags
+   - Commits changes to `main` branch with `[skip ci]`
+3. **ArgoCD**:
+   - Detects manifest changes in `main` branch
+   - Automatically syncs to `plugins-prod-k8s` cluster
+   - Applies resources to `plugin-dca` namespace
+
+### ArgoCD Setup
+
+**IMPORTANT:** ArgoCD Application manifests should be stored in a separate GitOps repository or managed directly in the cluster, NOT in this service repository for security reasons.
+
+**Example Application manifest for Dev environment:**
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dca-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/vultisig/dca
+    targetRevision: dev
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: plugin-dca
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+```
+
+**Example Application manifest for Prod environment:**
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dca-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/vultisig/dca
+    targetRevision: main
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: plugin-dca
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+```
+
+**Installation:**
+
+Store these manifests in your infrastructure/GitOps repository and apply them:
+
+```bash
+kubectl apply -f path/to/gitops-repo/applications/dca-dev.yaml
+kubectl apply -f path/to/gitops-repo/applications/dca-prod.yaml
+```
+
+**Configuration:**
+- Auto-sync enabled with self-healing
+- Prune enabled (removes deleted resources)
+- Retry with exponential backoff
+- Ignores replica count differences (for manual scaling/HPA)
+
+### Deployment Structure
+
+```
+deploy/
+├── base/             # Base Kustomize resources
+│   └── server/       # Server deployment base
+├── overlays/         # Kustomize overlays
+│   ├── send/         # Send service variant
+│   └── swap/         # Swap service variant
+├── dev/              # Dev-specific configs (ConfigMaps, Secrets)
+├── prod/             # Prod-specific configs (ConfigMaps, Secrets)
+├── 01_scheduler.yaml # Scheduler deployment
+├── 01_worker.yaml    # Worker deployment
+├── 01_tx_indexer.yaml # TX Indexer deployment
+└── 02_grafana_dashboard.yaml # Grafana dashboard ConfigMap
+```
+
+**Note:** ArgoCD Application manifests should be stored in a separate GitOps/infrastructure repository for security and separation of concerns.
+
+### Image Tagging Strategy
+
+- **Dev**: `dev-${GITHUB_SHA}` and `dev-latest`
+- **Prod**: `main-${GITHUB_SHA}` and `latest`
+
+All images are pushed to GitHub Container Registry: `ghcr.io/vultisig/dca/{service}:{tag}`
+
+### Deployment Files Updated by CI
+
+The following files are automatically updated by GitHub Actions:
+
+- `deploy/base/server/server.yaml` - Server image tag
+- `deploy/01_scheduler.yaml` - Scheduler image tag
+- `deploy/01_worker.yaml` - Worker image tag
+- `deploy/01_tx_indexer.yaml` - TX Indexer image tag
+
+### Rollback Procedures
+
+**Via Git (Recommended):**
+```bash
+git revert <commit-hash>
+git push
+```
+ArgoCD will automatically sync the reverted state.
+
+**Via ArgoCD CLI:**
+```bash
+argocd app rollback dca-dev <REVISION>
+argocd app rollback dca-prod <REVISION>
+```
+
+**Via ArgoCD UI:**
+Navigate to the application and select "Rollback" from the history view.
+
+### Monitoring Deployments
+
+**ArgoCD CLI:**
+```bash
+argocd app list
+argocd app get dca-dev
+argocd app get dca-prod
+argocd app logs dca-dev
+```
+
+**ArgoCD UI:**
+Access the ArgoCD web interface to visualize application state, resource tree, and sync status.
+
+**Kubernetes:**
+```bash
+kubectl -n plugin-dca get deployments
+kubectl -n plugin-dca get pods
+kubectl -n plugin-dca rollout status deployment/server-send
+```
+
 ## Important Implementation Details
 
 ### Transaction Building
