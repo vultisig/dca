@@ -1,16 +1,14 @@
-name: Build and Update Prod Manifests
+name: Build and Deploy
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - '**.md'
-      - '.gitignore'
+  release:
+    types: [published]
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  CLUSTER: plugins-prod-k8s
+  NS: plugin-dca
 
 jobs:
   build-server:
@@ -22,7 +20,7 @@ jobs:
       service: server
       registry: ghcr.io
       image_name: ${{ github.repository }}
-      tag: main-${{ github.sha }}
+      tag: ${{ github.event.release.tag_name }}
       additional_tag: latest
 
   build-scheduler:
@@ -34,7 +32,7 @@ jobs:
       service: scheduler
       registry: ghcr.io
       image_name: ${{ github.repository }}
-      tag: main-${{ github.sha }}
+      tag: ${{ github.event.release.tag_name }}
       additional_tag: latest
 
   build-worker:
@@ -46,7 +44,7 @@ jobs:
       service: worker
       registry: ghcr.io
       image_name: ${{ github.repository }}
-      tag: main-${{ github.sha }}
+      tag: ${{ github.event.release.tag_name }}
       additional_tag: latest
 
   build-tx-indexer:
@@ -58,27 +56,29 @@ jobs:
       service: tx_indexer
       registry: ghcr.io
       image_name: ${{ github.repository }}
-      tag: main-${{ github.sha }}
+      tag: ${{ github.event.release.tag_name }}
       additional_tag: latest
 
-  update-manifests:
+  deploy:
     needs: [build-server, build-scheduler, build-worker, build-tx-indexer]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
         with:
-          ref: main
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.DIGITALOCEAN_CI_TOKEN }}
+
+      - name: Save DigitalOcean kubeconfig
+        run: doctl kubernetes cluster kubeconfig save ${{ env.CLUSTER }}
 
       - name: Update deployment files
         run: |
-          TAG="main-${{ github.sha }}"
+          TAG="${{ github.event.release.tag_name }}"
 
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/server:${TAG}|" deploy/base/server/server.yaml
 
@@ -86,10 +86,21 @@ jobs:
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${TAG}|" deploy/01_worker.yaml
           sed -i "s|image: busybox|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tx_indexer:${TAG}|" deploy/01_tx_indexer.yaml
 
-      - name: Commit and push manifest updates
+      - name: Deploy to Kubernetes
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add deploy/base/server/server.yaml deploy/01_scheduler.yaml deploy/01_worker.yaml deploy/01_tx_indexer.yaml
-          git commit -m "Update prod deployment images to main-${{ github.sha }} [skip ci]"
-          git push origin main
+          kubectl -n ${{ env.NS }} apply -f deploy/prod
+
+          kubectl -n ${{ env.NS }} apply -k deploy/overlays/send
+          kubectl -n ${{ env.NS }} apply -k deploy/overlays/swap
+
+          kubectl -n ${{ env.NS }} apply -f deploy/01_scheduler.yaml
+          kubectl -n ${{ env.NS }} apply -f deploy/01_worker.yaml
+          kubectl -n ${{ env.NS }} apply -f deploy/01_tx_indexer.yaml
+
+          kubectl -n ${{ env.NS }} apply -f deploy/02_grafana_dashboard.yaml
+
+          kubectl -n ${{ env.NS }} rollout status deployment/server-send --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/server-swap --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/scheduler --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/worker --timeout=300s
+          kubectl -n ${{ env.NS }} rollout status deployment/tx-indexer --timeout=300s
