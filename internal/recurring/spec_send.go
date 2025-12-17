@@ -17,11 +17,8 @@ import (
 )
 
 const (
-	asset       = "asset"
-	fromAddress = "fromAddress"
-	toAddress   = "toAddress"
-	amount      = "amount"
-	memo        = "memo"
+	recipients = "recipients"
+	memo       = "memo"
 )
 
 type SendSpec struct {
@@ -73,14 +70,26 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	assetMap, ok := cfg[asset].(map[string]any)
+	// Parse recipients array
+	recipientsList, ok := cfg[recipients].([]any)
+	if !ok || len(recipientsList) == 0 {
+		return nil, fmt.Errorf("'recipients' must be a non-empty array")
+	}
+
+	// Phase 1: Only use first recipient
+	firstRecipient, ok := recipientsList[0].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("'asset' must be an object")
+		return nil, fmt.Errorf("'recipients[0]' must be an object")
+	}
+
+	assetMap, ok := firstRecipient["asset"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'recipients[0].asset' must be an object")
 	}
 
 	chainStr, ok := assetMap["chain"].(string)
-	if !ok {
-		return nil, fmt.Errorf("'asset.chain' could not be empty")
+	if !ok || chainStr == "" {
+		return nil, fmt.Errorf("'recipients[0].asset.chain' could not be empty")
 	}
 
 	chainTyped, err := common.FromString(chainStr)
@@ -112,24 +121,37 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 func (s *SendSpec) createSendMetaRule(cfg map[string]any, chainTyped common.Chain) (*rtypes.Rule, error) {
 	chainLowercase := strings.ToLower(chainTyped.String())
 
-	assetMap, ok := cfg[asset].(map[string]any)
+	// Parse recipients array and get first recipient
+	// Support for multi recipients will be added in subsequent PRs
+	recipientsList, ok := cfg[recipients].([]any)
+	if !ok || len(recipientsList) == 0 {
+		return nil, fmt.Errorf("'recipients' must be a non-empty array")
+	}
+
+	firstRecipient, ok := recipientsList[0].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("'asset' must be an object")
+		return nil, fmt.Errorf("'recipients[0]' must be an object")
 	}
 
-	fromAddressStr, ok := cfg[fromAddress].(string)
+	assetMap, ok := firstRecipient["asset"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'recipients[0].asset' must be an object")
+	}
+
+	// asset.address = sender's address (fromAddress)
+	fromAddressStr, ok := assetMap["address"].(string)
 	if !ok || fromAddressStr == "" {
-		return nil, fmt.Errorf("'fromAddress' could not be empty")
+		return nil, fmt.Errorf("'recipients[0].asset.address' (sender address) could not be empty")
 	}
 
-	toAddressStr, ok := cfg[toAddress].(string)
+	toAddressStr, ok := firstRecipient["toAddress"].(string)
 	if !ok || toAddressStr == "" {
-		return nil, fmt.Errorf("'toAddress' could not be empty")
+		return nil, fmt.Errorf("'recipients[0].toAddress' could not be empty")
 	}
 
-	amountStr := util.GetStr(cfg, amount)
+	amountStr := util.GetStr(firstRecipient, "amount")
 	if amountStr == "" {
-		return nil, fmt.Errorf("'amount' could not be empty")
+		return nil, fmt.Errorf("'recipients[0].amount' could not be empty")
 	}
 
 	tokenStr := util.GetStr(assetMap, "token")
@@ -199,17 +221,32 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		"type":        "object",
 		"definitions": rjsonschema.Definitions(),
 		"properties": map[string]any{
-			asset: map[string]any{
-				"$ref": "#/definitions/" + assetDef.Name(),
-			},
-			fromAddress: map[string]any{
-				"type": "string",
-			},
-			toAddress: map[string]any{
-				"type": "string",
-			},
-			amount: map[string]any{
-				"type": "string",
+			recipients: map[string]any{
+				"type":     "array",
+				"minItems": 1,
+				"maxItems": 10,
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"toAddress": map[string]any{
+							"type":        "string",
+							"description": "Recipient address",
+						},
+						"amount": map[string]any{
+							"type":        "string",
+							"description": "Amount to send",
+						},
+						"asset": map[string]any{
+							"$ref":        "#/definitions/" + assetDef.Name(),
+							"description": "Asset to send (chain, token, address=sender)",
+						},
+						"alias": map[string]any{
+							"type":        "string",
+							"description": "Optional alias for the recipient",
+						},
+					},
+					"required": []any{"toAddress", "amount", "asset"},
+				},
 			},
 			memo: map[string]any{
 				"type": "string",
@@ -237,10 +274,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		},
 		"required": []any{
 			frequency,
-			asset,
-			fromAddress,
-			toAddress,
-			amount,
+			recipients,
 		},
 	})
 	if err != nil {
@@ -248,11 +282,17 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	}
 
 	cfgExample1, err := plugin.RecipeConfiguration(map[string]any{
-		asset: map[string]any{
-			"chain": "Bitcoin",
-			"token": "",
+		recipients: []any{
+			map[string]any{
+				"toAddress": "",
+				"amount":    "0.05",
+				"asset": map[string]any{
+					"chain":   "Bitcoin",
+					"token":   "",
+					"address": "",
+				},
+			},
 		},
-		amount:    "0.05",
 		endDate:   "2026-12-31T12:00:00Z",
 		frequency: daily,
 	})
@@ -260,11 +300,17 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		return nil, fmt.Errorf("failed to build pb recipe config example1: %w", err)
 	}
 	cfgExample2, err := plugin.RecipeConfiguration(map[string]any{
-		asset: map[string]any{
-			"chain": "Ethereum",
-			"token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+		recipients: []any{
+			map[string]any{
+				"toAddress": "",
+				"amount":    "10",
+				"asset": map[string]any{
+					"chain":   "Ethereum",
+					"token":   "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+					"address": "",
+				},
+			},
 		},
-		amount:    "10",
 		endDate:   "2026-12-31T12:00:00Z",
 		frequency: daily,
 	})
