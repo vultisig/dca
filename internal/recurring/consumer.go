@@ -43,6 +43,133 @@ const (
 	toAsset    = "to"
 )
 
+// parsedConfig holds the parsed configuration from either send or swap schema
+type parsedConfig struct {
+	FromChain    common.Chain
+	FromChainStr string
+	FromAsset    string
+	FromAddress  string
+	FromAmount   string
+	ToChainStr   string
+	ToAsset      string
+	ToAddress    string
+	ToAssetMap   map[string]any
+	IsSend       bool
+}
+
+// parseSendConfig parses send schema: asset, fromAddress, toAddress, amount
+func parseSendConfig(cfg map[string]any) (*parsedConfig, error) {
+	assetMap, ok := cfg["asset"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'asset' must be an object")
+	}
+
+	chainStr := util.GetStr(assetMap, "chain")
+	if chainStr == "" {
+		return nil, fmt.Errorf("'asset.chain' could not be empty")
+	}
+
+	chain, err := common.FromString(chainStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse asset.chain: %w", err)
+	}
+
+	token := util.GetStr(assetMap, "token")
+
+	fromAddr := util.GetStr(cfg, "fromAddress")
+	if fromAddr == "" {
+		return nil, fmt.Errorf("'fromAddress' could not be empty")
+	}
+
+	toAddr := util.GetStr(cfg, "toAddress")
+	if toAddr == "" {
+		return nil, fmt.Errorf("'toAddress' could not be empty")
+	}
+
+	amount := util.GetStr(cfg, "amount")
+	if amount == "" {
+		return nil, fmt.Errorf("'amount' could not be empty")
+	}
+
+	return &parsedConfig{
+		FromChain:    chain,
+		FromChainStr: chainStr,
+		FromAsset:    token,
+		FromAddress:  fromAddr,
+		FromAmount:   amount,
+		ToChainStr:   chainStr,
+		ToAsset:      token,
+		ToAddress:    toAddr,
+		ToAssetMap: map[string]any{
+			"chain":   chainStr,
+			"token":   token,
+			"address": toAddr,
+		},
+		IsSend: true,
+	}, nil
+}
+
+// parseSwapConfig parses swap schema: from, to, fromAmount
+func parseSwapConfig(cfg map[string]any) (*parsedConfig, error) {
+	fromAmountStr, ok := cfg[fromAmount].(string)
+	if !ok {
+		return nil, fmt.Errorf("failed to get fromAmount")
+	}
+
+	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'from' must be an object")
+	}
+
+	toAssetMap, ok := cfg[toAsset].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'to' must be an object")
+	}
+
+	fromChainStr, ok := fromAssetMap["chain"].(string)
+	if !ok {
+		return nil, fmt.Errorf("failed to get from.chain")
+	}
+
+	fromChain, err := common.FromString(fromChainStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse from.chain: %w", err)
+	}
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return nil, fmt.Errorf("failed to get to.chain")
+	}
+
+	fromAddressStr, ok := fromAssetMap["address"].(string)
+	if !ok {
+		return nil, fmt.Errorf("failed to get from.address")
+	}
+
+	toAddressStr, ok := toAssetMap["address"].(string)
+	if !ok {
+		return nil, fmt.Errorf("failed to get to.address")
+	}
+
+	fromAssetToken := util.GetStr(fromAssetMap, "token")
+	toAssetToken := util.GetStr(toAssetMap, "token")
+
+	isSend := fromChainStr == toChainStr && fromAssetToken == toAssetToken && fromAddressStr != toAddressStr
+
+	return &parsedConfig{
+		FromChain:    fromChain,
+		FromChainStr: fromChainStr,
+		FromAsset:    fromAssetToken,
+		FromAddress:  fromAddressStr,
+		FromAmount:   fromAmountStr,
+		ToChainStr:   toChainStr,
+		ToAsset:      toAssetToken,
+		ToAddress:    toAddressStr,
+		ToAssetMap:   toAssetMap,
+		IsSend:       isSend,
+	}, nil
+}
+
 type Consumer struct {
 	logger      *logrus.Logger
 	policy      policy.Service
@@ -99,96 +226,61 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 
 	cfg := recipe.GetConfiguration().AsMap()
 
-	// fromAmountStr is already in base units from the frontend, no need for conversion
-	fromAmountStr, ok := cfg[fromAmount].(string)
-	if !ok {
-		return fmt.Errorf("failed to get fromAmount")
+	// Detect config schema: send schema has "asset", swap schema has "to"
+	var pcfg *parsedConfig
+	if _, hasTo := cfg[toAsset].(map[string]any); hasTo {
+		pcfg, err = parseSwapConfig(cfg)
+	} else {
+		pcfg, err = parseSendConfig(cfg)
 	}
-
-	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
-	if !ok {
-		return fmt.Errorf("'fromAsset' must be an object")
-	}
-
-	toAssetMap, ok := cfg[toAsset].(map[string]any)
-	if !ok {
-		return fmt.Errorf("'toAsset' must be an object")
-	}
-
-	fromAssetTokenStr := util.GetStr(fromAssetMap, "token")
-	toAssetTokenStr := util.GetStr(toAssetMap, "token")
-
-	toAddressStr, ok := toAssetMap["address"].(string)
-	if !ok {
-		return fmt.Errorf("failed to get toAsset.address")
-	}
-
-	fromChainStr, ok := fromAssetMap["chain"].(string)
-	if !ok {
-		return fmt.Errorf("failed to get fromAsset.chain")
-	}
-
-	fromChainTyped, err := common.FromString(fromChainStr)
 	if err != nil {
-		return fmt.Errorf("failed to parse fromAsset.chain: %w", err)
+		return fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	toChainStr, ok := toAssetMap["chain"].(string)
-	if !ok {
-		return fmt.Errorf("failed to get toAsset.chain")
-	}
-
-	fromAddressStr, ok := fromAssetMap["address"].(string)
-	if !ok {
-		return fmt.Errorf("failed to get fromAsset.address")
-	}
-
-	isSend := fromChainStr == toChainStr && fromAssetTokenStr == toAssetTokenStr && fromAddressStr != toAddressStr
-
-	if isSend {
+	if pcfg.IsSend {
 		c.logger.WithFields(logrus.Fields{
 			"policyID":    pol.ID.String(),
 			"operation":   "send",
-			"chain":       fromChainStr,
-			"asset":       fromAssetTokenStr,
-			"fromAddress": fromAddressStr,
-			"toAddress":   toAddressStr,
+			"chain":       pcfg.FromChainStr,
+			"asset":       pcfg.FromAsset,
+			"fromAddress": pcfg.FromAddress,
+			"toAddress":   pcfg.ToAddress,
 		}).Info("detected send operation")
 
-		if fromChainTyped.IsEvm() {
-			er := c.handleEvmSend(ctx, pol, fromChainTyped, fromAssetTokenStr, fromAmountStr, toAddressStr)
+		if pcfg.FromChain.IsEvm() {
+			er := c.handleEvmSend(ctx, pol, pcfg.FromChain, pcfg.FromAsset, pcfg.FromAmount, pcfg.ToAddress)
 			if er != nil {
 				return fmt.Errorf("failed to handle EVM send: %w", er)
 			}
 			return nil
 		}
 
-		if fromChainTyped == common.XRP {
-			er := c.handleXrpSend(ctx, pol, fromAssetTokenStr, fromAmountStr, toAddressStr)
+		if pcfg.FromChain == common.XRP {
+			er := c.handleXrpSend(ctx, pol, pcfg.FromAsset, pcfg.FromAmount, pcfg.ToAddress)
 			if er != nil {
 				return fmt.Errorf("failed to handle XRP send: %w", er)
 			}
 			return nil
 		}
 
-		if fromChainTyped == common.Solana {
-			er := c.handleSolanaSend(ctx, pol, fromAssetTokenStr, fromAmountStr, toAddressStr)
+		if pcfg.FromChain == common.Solana {
+			er := c.handleSolanaSend(ctx, pol, pcfg.FromAsset, pcfg.FromAmount, pcfg.ToAddress)
 			if er != nil {
 				return fmt.Errorf("failed to handle Solana send: %w", er)
 			}
 			return nil
 		}
 
-		if fromChainTyped == common.Bitcoin {
-			er := c.handleBtcSend(ctx, pol, fromAmountStr, toAddressStr)
+		if pcfg.FromChain == common.Bitcoin {
+			er := c.handleBtcSend(ctx, pol, pcfg.FromAmount, pcfg.ToAddress)
 			if er != nil {
 				return fmt.Errorf("failed to handle BTC send: %w", er)
 			}
 			return nil
 		}
 
-		if fromChainTyped == common.Zcash {
-			er := c.handleZcashSend(ctx, pol, fromAmountStr, toAddressStr)
+		if pcfg.FromChain == common.Zcash {
+			er := c.handleZcashSend(ctx, pol, pcfg.FromAmount, pcfg.ToAddress)
 			if er != nil {
 				return fmt.Errorf("failed to handle Zcash send: %w", er)
 			}
@@ -196,38 +288,38 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		}
 
 		c.logger.WithFields(logrus.Fields{
-			"chain":     fromChainStr,
+			"chain":     pcfg.FromChainStr,
 			"operation": "send",
 		}).Warn("send operation not yet supported for this chain")
-		return fmt.Errorf("send operation not yet supported for chain: %s", fromChainTyped.String())
+		return fmt.Errorf("send operation not yet supported for chain: %s", pcfg.FromChain.String())
 	}
 
-	if fromChainTyped == common.Bitcoin {
-		er := c.handleBtcSwap(ctx, pol, toAssetMap, fromAmountStr, toAssetTokenStr, toAddressStr)
+	if pcfg.FromChain == common.Bitcoin {
+		er := c.handleBtcSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
 		if er != nil {
 			return fmt.Errorf("failed to handle BTC swap: %w", er)
 		}
 		return nil
 	}
 
-	if fromChainTyped == common.XRP {
-		er := c.handleXrpSwap(ctx, pol, toAssetMap, fromAmountStr, toAssetTokenStr, toAddressStr)
+	if pcfg.FromChain == common.XRP {
+		er := c.handleXrpSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
 		if er != nil {
 			return fmt.Errorf("failed to handle XRP swap: %w", er)
 		}
 		return nil
 	}
 
-	if fromChainTyped == common.Solana {
-		er := c.handleSolanaSwap(ctx, pol, toAssetMap, fromAmountStr, fromAssetTokenStr, toAssetTokenStr, toAddressStr)
+	if pcfg.FromChain == common.Solana {
+		er := c.handleSolanaSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.FromAsset, pcfg.ToAsset, pcfg.ToAddress)
 		if er != nil {
 			return fmt.Errorf("failed to handle Solana swap: %w", er)
 		}
 		return nil
 	}
 
-	if fromChainTyped == common.Zcash {
-		er := c.handleZcashSwap(ctx, pol, toAssetMap, fromAmountStr, toAssetTokenStr, toAddressStr)
+	if pcfg.FromChain == common.Zcash {
+		er := c.handleZcashSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
 		if er != nil {
 			return fmt.Errorf("failed to handle Zcash swap: %w", er)
 		}
@@ -239,12 +331,12 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		pol,
 		recipe,
 		trigger,
-		toAssetMap,
-		fromChainTyped,
-		fromAssetTokenStr,
-		fromAmountStr,
-		toAssetTokenStr,
-		toAddressStr,
+		pcfg.ToAssetMap,
+		pcfg.FromChain,
+		pcfg.FromAsset,
+		pcfg.FromAmount,
+		pcfg.ToAsset,
+		pcfg.ToAddress,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to handle EVM swap: %w", err)
