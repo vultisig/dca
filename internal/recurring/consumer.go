@@ -57,38 +57,50 @@ type parsedConfig struct {
 	IsSend       bool
 }
 
-// parseSendConfig parses send schema: asset, fromAddress, toAddress, amount
+// parseSendConfig parses send schema with recipients array
 func parseSendConfig(cfg map[string]any) (*parsedConfig, error) {
-	assetMap, ok := cfg["asset"].(map[string]any)
+	recipientsList, ok := cfg["recipients"].([]any)
+	if !ok || len(recipientsList) == 0 {
+		return nil, fmt.Errorf("'recipients' must be a non-empty array")
+	}
+
+	// Phase 1: Only use first recipient
+	firstRecipient, ok := recipientsList[0].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("'asset' must be an object")
+		return nil, fmt.Errorf("'recipients[0]' must be an object")
+	}
+
+	assetMap, ok := firstRecipient["asset"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'recipients[0].asset' must be an object")
 	}
 
 	chainStr := util.GetStr(assetMap, "chain")
 	if chainStr == "" {
-		return nil, fmt.Errorf("'asset.chain' could not be empty")
+		return nil, fmt.Errorf("'recipients[0].asset.chain' could not be empty")
 	}
 
 	chain, err := common.FromString(chainStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse asset.chain: %w", err)
+		return nil, fmt.Errorf("failed to parse recipients[0].asset.chain: %w", err)
 	}
 
 	token := util.GetStr(assetMap, "token")
 
-	fromAddr := util.GetStr(cfg, "fromAddress")
+	// asset.address = sender's address (fromAddress)
+	fromAddr := util.GetStr(assetMap, "address")
 	if fromAddr == "" {
-		return nil, fmt.Errorf("'fromAddress' could not be empty")
+		return nil, fmt.Errorf("'recipients[0].asset.address' (sender address) could not be empty")
 	}
 
-	toAddr := util.GetStr(cfg, "toAddress")
+	toAddr := util.GetStr(firstRecipient, "toAddress")
 	if toAddr == "" {
-		return nil, fmt.Errorf("'toAddress' could not be empty")
+		return nil, fmt.Errorf("'recipients[0].toAddress' could not be empty")
 	}
 
-	amount := util.GetStr(cfg, "amount")
+	amount := util.GetStr(firstRecipient, "amount")
 	if amount == "" {
-		return nil, fmt.Errorf("'amount' could not be empty")
+		return nil, fmt.Errorf("'recipients[0].amount' could not be empty")
 	}
 
 	return &parsedConfig{
@@ -226,12 +238,12 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 
 	cfg := recipe.GetConfiguration().AsMap()
 
-	// Detect config schema: send schema has "asset", swap schema has "to"
+	// Detect config schema: send schema has "recipients", swap schema has "to"
 	var pcfg *parsedConfig
-	if _, hasTo := cfg[toAsset].(map[string]any); hasTo {
-		pcfg, err = parseSwapConfig(cfg)
-	} else {
+	if _, hasRecipients := cfg["recipients"].([]any); hasRecipients {
 		pcfg, err = parseSendConfig(cfg)
+	} else {
+		pcfg, err = parseSwapConfig(cfg)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to parse config: %w", err)
