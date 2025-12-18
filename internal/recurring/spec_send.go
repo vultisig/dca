@@ -76,7 +76,7 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("'recipients' must be a non-empty array")
 	}
 
-	// Phase 1: Only use first recipient
+	// Get chain from first recipient for rate limiting
 	firstRecipient, ok := recipientsList[0].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("'recipients[0]' must be an object")
@@ -97,9 +97,10 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("unsupported chain: %s", chainStr)
 	}
 
-	rule, err := s.createSendMetaRule(cfg, chainTyped)
+	// Generate rules for all recipients
+	rules, err := s.createSendMetaRules(cfg, chainTyped)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create send meta rule: %w", err)
+		return nil, fmt.Errorf("failed to create send meta rules: %w", err)
 	}
 
 	freq := cfg[frequency].(string)
@@ -114,104 +115,111 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	return &rtypes.PolicySuggest{
 		RateLimitWindow: conv.Ptr(rateLimitWindow),
 		MaxTxsPerWindow: conv.Ptr(maxTxsPerWindow),
-		Rules:           []*rtypes.Rule{rule},
+		Rules:           rules,
 	}, nil
 }
 
-func (s *SendSpec) createSendMetaRule(cfg map[string]any, chainTyped common.Chain) (*rtypes.Rule, error) {
+// createSendMetaRules generates a rule for each recipient in the recipients list
+func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Chain) ([]*rtypes.Rule, error) {
 	chainLowercase := strings.ToLower(chainTyped.String())
 
-	// Parse recipients array and get first recipient
-	// Support for multi recipients will be added in subsequent PRs
 	recipientsList, ok := cfg[recipients].([]any)
 	if !ok || len(recipientsList) == 0 {
 		return nil, fmt.Errorf("'recipients' must be a non-empty array")
 	}
 
-	firstRecipient, ok := recipientsList[0].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("'recipients[0]' must be an object")
-	}
+	var rules []*rtypes.Rule
 
-	assetMap, ok := firstRecipient["asset"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("'recipients[0].asset' must be an object")
-	}
+	for i, recipientItem := range recipientsList {
+		recipient, ok := recipientItem.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("'recipients[%d]' must be an object", i)
+		}
 
-	// asset.address = sender's address (fromAddress)
-	fromAddressStr, ok := assetMap["address"].(string)
-	if !ok || fromAddressStr == "" {
-		return nil, fmt.Errorf("'recipients[0].asset.address' (sender address) could not be empty")
-	}
+		assetMap, ok := recipient["asset"].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("'recipients[%d].asset' must be an object", i)
+		}
 
-	toAddressStr, ok := firstRecipient["toAddress"].(string)
-	if !ok || toAddressStr == "" {
-		return nil, fmt.Errorf("'recipients[0].toAddress' could not be empty")
-	}
+		// asset.address = sender's address (fromAddress)
+		fromAddressStr, ok := assetMap["address"].(string)
+		if !ok || fromAddressStr == "" {
+			return nil, fmt.Errorf("'recipients[%d].asset.address' (sender address) could not be empty", i)
+		}
 
-	amountStr := util.GetStr(firstRecipient, "amount")
-	if amountStr == "" {
-		return nil, fmt.Errorf("'recipients[0].amount' could not be empty")
-	}
+		toAddressStr, ok := recipient["toAddress"].(string)
+		if !ok || toAddressStr == "" {
+			return nil, fmt.Errorf("'recipients[%d].toAddress' could not be empty", i)
+		}
 
-	tokenStr := util.GetStr(assetMap, "token")
+		amountStr := util.GetStr(recipient, "amount")
+		if amountStr == "" {
+			return nil, fmt.Errorf("'recipients[%d].amount' could not be empty", i)
+		}
 
-	return &rtypes.Rule{
-		Resource: chainLowercase + ".send",
-		Effect:   rtypes.Effect_EFFECT_ALLOW,
-		ParameterConstraints: []*rtypes.ParameterConstraint{
-			{
-				ParameterName: "asset",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: tokenStr,
+		tokenStr := util.GetStr(assetMap, "token")
+
+		rule := &rtypes.Rule{
+			Resource: chainLowercase + ".send",
+			Effect:   rtypes.Effect_EFFECT_ALLOW,
+			ParameterConstraints: []*rtypes.ParameterConstraint{
+				{
+					ParameterName: "asset",
+					Constraint: &rtypes.Constraint{
+						Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Value: &rtypes.Constraint_FixedValue{
+							FixedValue: tokenStr,
+						},
+						Required: false,
 					},
-					Required: false,
 				},
-			},
-			{
-				ParameterName: "from_address",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: fromAddressStr,
+				{
+					ParameterName: "from_address",
+					Constraint: &rtypes.Constraint{
+						Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Value: &rtypes.Constraint_FixedValue{
+							FixedValue: fromAddressStr,
+						},
+						Required: true,
 					},
-					Required: true,
 				},
-			},
-			{
-				ParameterName: "amount",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: amountStr,
+				{
+					ParameterName: "amount",
+					Constraint: &rtypes.Constraint{
+						Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Value: &rtypes.Constraint_FixedValue{
+							FixedValue: amountStr,
+						},
+						Required: true,
 					},
-					Required: true,
 				},
-			},
-			{
-				ParameterName: "to_address",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: toAddressStr,
+				{
+					ParameterName: "to_address",
+					Constraint: &rtypes.Constraint{
+						Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+						Value: &rtypes.Constraint_FixedValue{
+							FixedValue: toAddressStr,
+						},
+						Required: true,
 					},
-					Required: true,
+				},
+				{
+					ParameterName: "memo",
+					Constraint: &rtypes.Constraint{
+						Type:     rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+						Required: false,
+					},
 				},
 			},
-			{
-				ParameterName: "memo",
-				Constraint: &rtypes.Constraint{
-					Type:     rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-					Required: false,
-				},
+			Target: &rtypes.Target{
+				TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
 			},
-		},
-		Target: &rtypes.Target{
-			TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
-		},
-	}, nil
+		}
+
+		rules = append(rules, rule)
+	}
+
+	return rules, nil
 }
 
 func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
