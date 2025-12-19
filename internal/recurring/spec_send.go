@@ -70,26 +70,15 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	// Parse recipients array
-	recipientsList, ok := cfg[recipients].([]any)
-	if !ok || len(recipientsList) == 0 {
-		return nil, fmt.Errorf("'recipients' must be a non-empty array")
-	}
-
-	// Get chain from first recipient for rate limiting
-	firstRecipient, ok := recipientsList[0].(map[string]any)
+	// Parse top-level asset (shared by all recipients)
+	assetMap, ok := cfg["asset"].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("'recipients[0]' must be an object")
-	}
-
-	assetMap, ok := firstRecipient["asset"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("'recipients[0].asset' must be an object")
+		return nil, fmt.Errorf("'asset' must be an object")
 	}
 
 	chainStr, ok := assetMap["chain"].(string)
 	if !ok || chainStr == "" {
-		return nil, fmt.Errorf("'recipients[0].asset.chain' could not be empty")
+		return nil, fmt.Errorf("'asset.chain' could not be empty")
 	}
 
 	chainTyped, err := common.FromString(chainStr)
@@ -123,6 +112,20 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Chain) ([]*rtypes.Rule, error) {
 	chainLowercase := strings.ToLower(chainTyped.String())
 
+	// Get top-level asset (shared by all recipients)
+	assetMap, ok := cfg["asset"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'asset' must be an object")
+	}
+
+	// asset.address = sender's address (fromAddress)
+	fromAddressStr, ok := assetMap["address"].(string)
+	if !ok || fromAddressStr == "" {
+		return nil, fmt.Errorf("'asset.address' (sender address) could not be empty")
+	}
+
+	tokenStr := util.GetStr(assetMap, "token")
+
 	recipientsList, ok := cfg[recipients].([]any)
 	if !ok || len(recipientsList) == 0 {
 		return nil, fmt.Errorf("'recipients' must be a non-empty array")
@@ -136,17 +139,6 @@ func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Cha
 			return nil, fmt.Errorf("'recipients[%d]' must be an object", i)
 		}
 
-		assetMap, ok := recipient["asset"].(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("'recipients[%d].asset' must be an object", i)
-		}
-
-		// asset.address = sender's address (fromAddress)
-		fromAddressStr, ok := assetMap["address"].(string)
-		if !ok || fromAddressStr == "" {
-			return nil, fmt.Errorf("'recipients[%d].asset.address' (sender address) could not be empty", i)
-		}
-
 		toAddressStr, ok := recipient["toAddress"].(string)
 		if !ok || toAddressStr == "" {
 			return nil, fmt.Errorf("'recipients[%d].toAddress' could not be empty", i)
@@ -156,8 +148,6 @@ func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Cha
 		if amountStr == "" {
 			return nil, fmt.Errorf("'recipients[%d].amount' could not be empty", i)
 		}
-
-		tokenStr := util.GetStr(assetMap, "token")
 
 		rule := &rtypes.Rule{
 			Resource: chainLowercase + ".send",
@@ -229,6 +219,10 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		"type":        "object",
 		"definitions": rjsonschema.Definitions(),
 		"properties": map[string]any{
+			"asset": map[string]any{
+				"$ref":        "#/definitions/" + assetDef.Name(),
+				"description": "Asset to send (chain, token, address=sender). Shared by all recipients.",
+			},
 			recipients: map[string]any{
 				"type":     "array",
 				"minItems": 1,
@@ -244,16 +238,12 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 							"type":        "string",
 							"description": "Amount to send",
 						},
-						"asset": map[string]any{
-							"$ref":        "#/definitions/" + assetDef.Name(),
-							"description": "Asset to send (chain, token, address=sender)",
-						},
 						"alias": map[string]any{
 							"type":        "string",
 							"description": "Optional alias for the recipient",
 						},
 					},
-					"required": []any{"toAddress", "amount", "asset"},
+					"required": []any{"toAddress", "amount"},
 				},
 			},
 			memo: map[string]any{
@@ -281,6 +271,7 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 			},
 		},
 		"required": []any{
+			"asset",
 			frequency,
 			recipients,
 		},
@@ -290,15 +281,15 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 	}
 
 	cfgExample1, err := plugin.RecipeConfiguration(map[string]any{
+		"asset": map[string]any{
+			"chain":   "Bitcoin",
+			"token":   "",
+			"address": "",
+		},
 		recipients: []any{
 			map[string]any{
 				"toAddress": "",
 				"amount":    "0.05",
-				"asset": map[string]any{
-					"chain":   "Bitcoin",
-					"token":   "",
-					"address": "",
-				},
 			},
 		},
 		endDate:   "2026-12-31T12:00:00Z",
@@ -308,15 +299,15 @@ func (s *SendSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		return nil, fmt.Errorf("failed to build pb recipe config example1: %w", err)
 	}
 	cfgExample2, err := plugin.RecipeConfiguration(map[string]any{
+		"asset": map[string]any{
+			"chain":   "Ethereum",
+			"token":   "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+			"address": "",
+		},
 		recipients: []any{
 			map[string]any{
 				"toAddress": "",
 				"amount":    "10",
-				"asset": map[string]any{
-					"chain":   "Ethereum",
-					"token":   "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-					"address": "",
-				},
 			},
 		},
 		endDate:   "2026-12-31T12:00:00Z",
