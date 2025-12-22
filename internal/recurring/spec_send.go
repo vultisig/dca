@@ -108,10 +108,22 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	}, nil
 }
 
-// createSendMetaRules generates a rule for each recipient in the recipients list
-func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Chain) ([]*rtypes.Rule, error) {
-	chainLowercase := strings.ToLower(chainTyped.String())
+// isBatchCapable returns true for chains that support multiple recipients in a single transaction.
+// These chains can use the batch_send resource for efficiency.
+// Currently only Bitcoin is supported. Zcash and Solana will be added later.
+func isBatchCapable(chain common.Chain) bool {
+	switch chain {
+	case common.Bitcoin:
+		return true
+	default:
+		return false
+	}
+}
 
+// createSendMetaRules generates rules for send operations.
+// For batch-capable chains (Bitcoin, Zcash, Solana) with multiple recipients: generates a single batch_send rule.
+// For individual-only chains (EVM, XRP) or single recipient: generates N send rules (one per recipient).
+func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Chain) ([]*rtypes.Rule, error) {
 	// Get top-level asset (shared by all recipients)
 	assetMap, ok := cfg["asset"].(map[string]any)
 	if !ok {
@@ -131,6 +143,109 @@ func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Cha
 		return nil, fmt.Errorf("'recipients' must be a non-empty array")
 	}
 
+	// Batch-capable chains with multiple recipients: generate single batch_send rule
+	if isBatchCapable(chainTyped) && len(recipientsList) > 1 {
+		return s.createBatchSendRule(chainTyped, fromAddressStr, tokenStr, recipientsList)
+	}
+
+	// Individual-only chains OR single recipient: generate N send rules
+	return s.createPerRecipientRules(chainTyped, fromAddressStr, tokenStr, recipientsList)
+}
+
+// createBatchSendRule generates a single batch_send rule with indexed recipient parameters.
+// Used for batch-capable chains (Bitcoin, Zcash, Solana) with multiple recipients.
+func (s *SendSpec) createBatchSendRule(chainTyped common.Chain, fromAddressStr, tokenStr string, recipientsList []any) ([]*rtypes.Rule, error) {
+	chainLowercase := strings.ToLower(chainTyped.String())
+
+	constraints := []*rtypes.ParameterConstraint{
+		{
+			ParameterName: "from_address",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: fromAddressStr,
+				},
+				Required: true,
+			},
+		},
+		{
+			ParameterName: "asset",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: tokenStr,
+				},
+				Required: false,
+			},
+		},
+	}
+
+	// Add indexed recipient parameters
+	for i, recipientItem := range recipientsList {
+		recipient, ok := recipientItem.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("'recipients[%d]' must be an object", i)
+		}
+
+		toAddressStr, ok := recipient["toAddress"].(string)
+		if !ok || toAddressStr == "" {
+			return nil, fmt.Errorf("'recipients[%d].toAddress' could not be empty", i)
+		}
+
+		amountStr := util.GetStr(recipient, "amount")
+		if amountStr == "" {
+			return nil, fmt.Errorf("'recipients[%d].amount' could not be empty", i)
+		}
+
+		constraints = append(constraints,
+			&rtypes.ParameterConstraint{
+				ParameterName: fmt.Sprintf("to_address_%d", i),
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: toAddressStr,
+					},
+					Required: true,
+				},
+			},
+			&rtypes.ParameterConstraint{
+				ParameterName: fmt.Sprintf("amount_%d", i),
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: amountStr,
+					},
+					Required: true,
+				},
+			},
+		)
+	}
+
+	// Add optional memo
+	constraints = append(constraints, &rtypes.ParameterConstraint{
+		ParameterName: "memo",
+		Constraint: &rtypes.Constraint{
+			Type:     rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+			Required: false,
+		},
+	})
+
+	rule := &rtypes.Rule{
+		Resource:             chainLowercase + ".batch_send",
+		Effect:               rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: constraints,
+		Target: &rtypes.Target{
+			TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
+		},
+	}
+
+	return []*rtypes.Rule{rule}, nil
+}
+
+// createPerRecipientRules generates one {chain}.send rule per recipient.
+// Used for individual-only chains (EVM, XRP) or single-recipient sends.
+func (s *SendSpec) createPerRecipientRules(chainTyped common.Chain, fromAddressStr, tokenStr string, recipientsList []any) ([]*rtypes.Rule, error) {
+	chainLowercase := strings.ToLower(chainTyped.String())
 	var rules []*rtypes.Rule
 
 	for i, recipientItem := range recipientsList {
@@ -355,46 +470,107 @@ func (s *SendSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 	for _, chain := range supportedChains {
 		chainNameLower := strings.ToLower(chain.String())
 
-		resources = append(resources, &rtypes.ResourcePattern{
-			ResourcePath: &rtypes.ResourcePath{
-				ChainId:    chainNameLower,
-				ProtocolId: "send",
-				FunctionId: "Access to transaction signing",
-				Full:       chainNameLower + ".send",
-			},
-			Target: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
-			ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
-				{
-					ParameterName:  "asset",
-					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       false,
-				},
-				{
-					ParameterName:  "from_address",
-					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       true,
-				},
-				{
-					ParameterName:  "amount",
-					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       true,
-				},
-				{
-					ParameterName:  "to_address",
-					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       true,
-				},
-				{
-					ParameterName:  "memo",
-					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-					Required:       false,
-				},
-			},
-			Required: true,
-		})
+		// Add {chain}.send for all chains
+		resources = append(resources, s.buildSendResource(chainNameLower))
+
+		// Add {chain}.batch_send for batch-capable chains only
+		if isBatchCapable(chain) {
+			resources = append(resources, s.buildBatchSendResource(chainNameLower))
+		}
 	}
 
 	return resources
+}
+
+// buildSendResource creates a ResourcePattern for single-recipient sends.
+func (s *SendSpec) buildSendResource(chainName string) *rtypes.ResourcePattern {
+	return &rtypes.ResourcePattern{
+		ResourcePath: &rtypes.ResourcePath{
+			ChainId:    chainName,
+			ProtocolId: "send",
+			FunctionId: "Access to transaction signing",
+			Full:       chainName + ".send",
+		},
+		Target: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
+		ParameterCapabilities: []*rtypes.ParameterConstraintCapability{
+			{
+				ParameterName:  "asset",
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Required:       false,
+			},
+			{
+				ParameterName:  "from_address",
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Required:       true,
+			},
+			{
+				ParameterName:  "amount",
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Required:       true,
+			},
+			{
+				ParameterName:  "to_address",
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Required:       true,
+			},
+			{
+				ParameterName:  "memo",
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+				Required:       false,
+			},
+		},
+		Required: true,
+	}
+}
+
+// buildBatchSendResource creates a ResourcePattern for multi-recipient batch sends.
+// Declares indexed params for up to 10 recipients (to_address_0..9, amount_0..9).
+func (s *SendSpec) buildBatchSendResource(chainName string) *rtypes.ResourcePattern {
+	capabilities := []*rtypes.ParameterConstraintCapability{
+		{
+			ParameterName:  "from_address",
+			SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+			Required:       true,
+		},
+		{
+			ParameterName:  "asset",
+			SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+			Required:       false,
+		},
+		{
+			ParameterName:  "memo",
+			SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+			Required:       false,
+		},
+	}
+
+	// Declare indexed params for up to 10 recipients
+	for i := 0; i < 10; i++ {
+		capabilities = append(capabilities,
+			&rtypes.ParameterConstraintCapability{
+				ParameterName:  fmt.Sprintf("to_address_%d", i),
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Required:       i == 0, // Only first recipient required
+			},
+			&rtypes.ParameterConstraintCapability{
+				ParameterName:  fmt.Sprintf("amount_%d", i),
+				SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Required:       i == 0,
+			},
+		)
+	}
+
+	return &rtypes.ResourcePattern{
+		ResourcePath: &rtypes.ResourcePath{
+			ChainId:    chainName,
+			ProtocolId: "batch_send",
+			FunctionId: "Access to batch transaction signing",
+			Full:       chainName + ".batch_send",
+		},
+		Target:                rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
+		ParameterCapabilities: capabilities,
+		Required:              true,
+	}
 }
 
 func (s *SendSpec) ValidatePluginPolicy(pol types.PluginPolicy) error {

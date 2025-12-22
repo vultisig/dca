@@ -712,44 +712,44 @@ func (c *Consumer) handleBtcSend(
 	if len(recipients) == 0 {
 		return fmt.Errorf("recipients list is empty")
 	}
-	if len(recipients) > 1 {
-		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
-	}
-
-	// Extract first recipient for now
-	recipient := recipients[0]
-	fromAmount := recipient.Amount
-	toAddress := recipient.ToAddress
 
 	fromAddressTyped, childPub, err := c.btcPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get BTC address from policy PublicKey: %w", err)
 	}
 
-	fromAmountInt, ok := new(big.Int).SetString(fromAmount, 10)
-	if !ok {
-		return fmt.Errorf("failed to parse fromAmount: %s", fromAmount)
+	// Build address and amount slices, calculate total amount
+	toAddresses := make([]string, len(recipients))
+	amounts := make([]uint64, len(recipients))
+	var totalAmount uint64
+	for i, r := range recipients {
+		amountInt, ok := new(big.Int).SetString(r.Amount, 10)
+		if !ok {
+			return fmt.Errorf("failed to parse recipient[%d] amount: %s", i, r.Amount)
+		}
+		if !amountInt.IsUint64() {
+			return fmt.Errorf("recipient[%d] amount too large for uint64: %s", i, r.Amount)
+		}
+		toAddresses[i] = r.ToAddress
+		amounts[i] = amountInt.Uint64()
+		totalAmount += amounts[i]
 	}
-	if !fromAmountInt.IsUint64() {
-		return fmt.Errorf("fromAmount too large for uint64: %s", fromAmount)
-	}
-	fromAmountSats := fromAmountInt.Uint64()
 
 	from := btc.From{
 		PubKey:  childPub,
 		Address: fromAddressTyped,
-		Amount:  fromAmountSats,
+		Amount:  totalAmount,
 	}
 
 	c.logger.WithFields(logrus.Fields{
-		"policyID":    pol.ID.String(),
-		"operation":   "send",
-		"fromAddress": fromAddressTyped.String(),
-		"toAddress":   toAddress,
-		"amount":      fromAmountSats,
+		"policyID":       pol.ID.String(),
+		"operation":      "send",
+		"fromAddress":    fromAddressTyped.String(),
+		"recipientCount": len(recipients),
+		"totalAmount":    totalAmount,
 	}).Info("handling BTC send")
 
-	txHash, err := c.btc.Send(ctx, *pol, from, toAddress, fromAmountSats)
+	txHash, err := c.btc.Send(ctx, *pol, from, toAddresses, amounts)
 	if err != nil {
 		return fmt.Errorf("failed to execute BTC send: %w", err)
 	}
