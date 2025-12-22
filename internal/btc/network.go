@@ -71,10 +71,10 @@ func (n *Network) Send(
 	ctx context.Context,
 	policy vtypes.PluginPolicy,
 	from From,
-	toAddress string,
-	amount uint64,
+	toAddresses []string,
+	amounts []uint64,
 ) (string, error) {
-	outputs, changeOutputIndex, err := n.send.BuildTransfer(toAddress, from.Address, amount)
+	outputs, changeOutputIndex, err := n.send.BuildTransfer(toAddresses, amounts, from.Address)
 	if err != nil {
 		return "", fmt.Errorf("failed to build transfer outputs: %w", err)
 	}
