@@ -43,6 +43,12 @@ const (
 	toAsset    = "to"
 )
 
+// Recipient holds the parsed data for a single send recipient
+type Recipient struct {
+	ToAddress string
+	Amount    string
+}
+
 // parsedConfig holds the parsed configuration from either send or swap schema
 type parsedConfig struct {
 	FromChain    common.Chain
@@ -55,34 +61,29 @@ type parsedConfig struct {
 	ToAddress    string
 	ToAssetMap   map[string]any
 	IsSend       bool
+
+	// Recipients holds all parsed recipients for send operations.
+	// Chain handlers can use this for multi-recipient support,
+	// or use the single-recipient fields above for backward compatibility.
+	Recipients []Recipient
 }
 
-// parseSendConfig parses send schema with recipients array
+// parseSendConfig parses send schema with top-level asset and recipients array.
 func parseSendConfig(cfg map[string]any) (*parsedConfig, error) {
-	recipientsList, ok := cfg["recipients"].([]any)
-	if !ok || len(recipientsList) == 0 {
-		return nil, fmt.Errorf("'recipients' must be a non-empty array")
-	}
-
-	// Phase 1: Only use first recipient
-	firstRecipient, ok := recipientsList[0].(map[string]any)
+	// Parse top-level asset (shared by all recipients)
+	assetMap, ok := cfg["asset"].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("'recipients[0]' must be an object")
-	}
-
-	assetMap, ok := firstRecipient["asset"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("'recipients[0].asset' must be an object")
+		return nil, fmt.Errorf("'asset' must be an object")
 	}
 
 	chainStr := util.GetStr(assetMap, "chain")
 	if chainStr == "" {
-		return nil, fmt.Errorf("'recipients[0].asset.chain' could not be empty")
+		return nil, fmt.Errorf("'asset.chain' could not be empty")
 	}
 
 	chain, err := common.FromString(chainStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse recipients[0].asset.chain: %w", err)
+		return nil, fmt.Errorf("failed to parse asset.chain: %w", err)
 	}
 
 	token := util.GetStr(assetMap, "token")
@@ -90,34 +91,57 @@ func parseSendConfig(cfg map[string]any) (*parsedConfig, error) {
 	// asset.address = sender's address (fromAddress)
 	fromAddr := util.GetStr(assetMap, "address")
 	if fromAddr == "" {
-		return nil, fmt.Errorf("'recipients[0].asset.address' (sender address) could not be empty")
+		return nil, fmt.Errorf("'asset.address' (sender address) could not be empty")
 	}
 
-	toAddr := util.GetStr(firstRecipient, "toAddress")
-	if toAddr == "" {
-		return nil, fmt.Errorf("'recipients[0].toAddress' could not be empty")
+	// Parse recipients array
+	recipientsList, ok := cfg["recipients"].([]any)
+	if !ok || len(recipientsList) == 0 {
+		return nil, fmt.Errorf("'recipients' must be a non-empty array")
 	}
 
-	amount := util.GetStr(firstRecipient, "amount")
-	if amount == "" {
-		return nil, fmt.Errorf("'recipients[0].amount' could not be empty")
+	var recipients []Recipient
+	for i, recipientItem := range recipientsList {
+		recipient, ok := recipientItem.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("'recipients[%d]' must be an object", i)
+		}
+
+		toAddr := util.GetStr(recipient, "toAddress")
+		if toAddr == "" {
+			return nil, fmt.Errorf("'recipients[%d].toAddress' could not be empty", i)
+		}
+
+		amount := util.GetStr(recipient, "amount")
+		if amount == "" {
+			return nil, fmt.Errorf("'recipients[%d].amount' could not be empty", i)
+		}
+
+		recipients = append(recipients, Recipient{
+			ToAddress: toAddr,
+			Amount:    amount,
+		})
 	}
+
+	// Use first recipient for backward-compatible single-recipient fields
+	firstRecipient := recipients[0]
 
 	return &parsedConfig{
 		FromChain:    chain,
 		FromChainStr: chainStr,
 		FromAsset:    token,
 		FromAddress:  fromAddr,
-		FromAmount:   amount,
+		FromAmount:   firstRecipient.Amount,
 		ToChainStr:   chainStr,
 		ToAsset:      token,
-		ToAddress:    toAddr,
+		ToAddress:    firstRecipient.ToAddress,
 		ToAssetMap: map[string]any{
 			"chain":   chainStr,
 			"token":   token,
-			"address": toAddr,
+			"address": firstRecipient.ToAddress,
 		},
-		IsSend: true,
+		IsSend:     true,
+		Recipients: recipients,
 	}, nil
 }
 
@@ -260,7 +284,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		}).Info("detected send operation")
 
 		if pcfg.FromChain.IsEvm() {
-			er := c.handleEvmSend(ctx, pol, pcfg.FromChain, pcfg.FromAsset, pcfg.FromAmount, pcfg.ToAddress)
+			er := c.handleEvmSend(ctx, pol, pcfg.FromChain, pcfg.FromAsset, pcfg.Recipients)
 			if er != nil {
 				return fmt.Errorf("failed to handle EVM send: %w", er)
 			}
@@ -268,7 +292,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		}
 
 		if pcfg.FromChain == common.XRP {
-			er := c.handleXrpSend(ctx, pol, pcfg.FromAsset, pcfg.FromAmount, pcfg.ToAddress)
+			er := c.handleXrpSend(ctx, pol, pcfg.FromAsset, pcfg.Recipients)
 			if er != nil {
 				return fmt.Errorf("failed to handle XRP send: %w", er)
 			}
@@ -276,7 +300,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		}
 
 		if pcfg.FromChain == common.Solana {
-			er := c.handleSolanaSend(ctx, pol, pcfg.FromAsset, pcfg.FromAmount, pcfg.ToAddress)
+			er := c.handleSolanaSend(ctx, pol, pcfg.FromAsset, pcfg.Recipients)
 			if er != nil {
 				return fmt.Errorf("failed to handle Solana send: %w", er)
 			}
@@ -284,7 +308,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		}
 
 		if pcfg.FromChain == common.Bitcoin {
-			er := c.handleBtcSend(ctx, pol, pcfg.FromAmount, pcfg.ToAddress)
+			er := c.handleBtcSend(ctx, pol, pcfg.Recipients)
 			if er != nil {
 				return fmt.Errorf("failed to handle BTC send: %w", er)
 			}
@@ -292,7 +316,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		}
 
 		if pcfg.FromChain == common.Zcash {
-			er := c.handleZcashSend(ctx, pol, pcfg.FromAmount, pcfg.ToAddress)
+			er := c.handleZcashSend(ctx, pol, pcfg.Recipients)
 			if er != nil {
 				return fmt.Errorf("failed to handle Zcash send: %w", er)
 			}
@@ -476,9 +500,20 @@ func (c *Consumer) handleXrpSend(
 	ctx context.Context,
 	pol *types.PluginPolicy,
 	fromAsset string,
-	fromAmount string,
-	toAddress string,
+	recipients []Recipient,
 ) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+	if len(recipients) > 1 {
+		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
+	}
+
+	// Extract first recipient for now
+	recipient := recipients[0]
+	fromAmount := recipient.Amount
+	toAddress := recipient.ToAddress
+
 	// Validate that only native XRP is supported
 	if fromAsset != "" {
 		return fmt.Errorf("XRP send only supports native XRP, got token: %q", fromAsset)
@@ -672,9 +707,20 @@ func (c *Consumer) handleBtcSwap(
 func (c *Consumer) handleBtcSend(
 	ctx context.Context,
 	pol *types.PluginPolicy,
-	fromAmount string,
-	toAddress string,
+	recipients []Recipient,
 ) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+	if len(recipients) > 1 {
+		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
+	}
+
+	// Extract first recipient for now
+	recipient := recipients[0]
+	fromAmount := recipient.Amount
+	toAddress := recipient.ToAddress
+
 	fromAddressTyped, childPub, err := c.btcPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get BTC address from policy PublicKey: %w", err)
@@ -776,9 +822,20 @@ func (c *Consumer) handleSolanaSend(
 	ctx context.Context,
 	pol *types.PluginPolicy,
 	fromAsset string,
-	fromAmount string,
-	toAddress string,
+	recipients []Recipient,
 ) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+	if len(recipients) > 1 {
+		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
+	}
+
+	// Extract first recipient for now
+	recipient := recipients[0]
+	fromAmount := recipient.Amount
+	toAddress := recipient.ToAddress
+
 	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get Solana address from policy PublicKey: %w", err)
@@ -947,9 +1004,20 @@ func (c *Consumer) handleEvmSend(
 	pol *types.PluginPolicy,
 	fromChain common.Chain,
 	fromAsset string,
-	fromAmount string,
-	toAddress string,
+	recipients []Recipient,
 ) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+	if len(recipients) > 1 {
+		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
+	}
+
+	// Extract first recipient for now
+	recipient := recipients[0]
+	fromAmount := recipient.Amount
+	toAddress := recipient.ToAddress
+
 	fromAsset = util.IfEmptyElse(fromAsset, evmsdk.ZeroAddress.String())
 
 	fromAssetTyped := ecommon.HexToAddress(fromAsset)
@@ -1082,9 +1150,20 @@ func (c *Consumer) zcashPubToAddress(rootPub string, pluginID string) (string, [
 func (c *Consumer) handleZcashSend(
 	ctx context.Context,
 	pol *types.PluginPolicy,
-	fromAmount string,
-	toAddress string,
+	recipients []Recipient,
 ) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+	if len(recipients) > 1 {
+		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
+	}
+
+	// Extract first recipient for now
+	recipient := recipients[0]
+	fromAmount := recipient.Amount
+	toAddress := recipient.ToAddress
+
 	fromAddressStr, pubKeyBytes, err := c.zcashPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get Zcash address from policy PublicKey: %w", err)

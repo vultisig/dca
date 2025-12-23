@@ -8,12 +8,12 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-    - secretName: plugin-dca-tls
+    - secretName: plugin-dca-v2-tls
       hosts:
-        - plugin-dca-send.lb.services.1conf.com
-        - plugin-dca-swap.lb.services.1conf.com
+        - plugin-dca-send.prod.plugins.vultisig.com
+        - plugin-dca-swap.prod.plugins.vultisig.com
   rules:
-    - host: plugin-dca-send.lb.services.1conf.com
+    - host: plugin-dca-send.prod.plugins.vultisig.com
       http:
         paths:
           - path: /
@@ -23,7 +23,7 @@ spec:
                 name: server-send
                 port:
                   number: 80
-    - host: plugin-dca-swap.lb.services.1conf.com
+    - host: plugin-dca-swap.prod.plugins.vultisig.com
       http:
         paths:
           - path: /
