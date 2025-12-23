@@ -24,8 +24,9 @@ func (s *sendService) BuildNativeTransfer(
 	from ecommon.Address,
 	to ecommon.Address,
 	amount *big.Int,
+	nonceOffset uint64,
 ) ([]byte, error) {
-	tx, err := s.sdk.MakeTxTransferNative(ctx, from, to, amount)
+	tx, err := s.sdk.MakeTxTransferNative(ctx, from, to, amount, nonceOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make native transfer tx: %w", err)
 	}
@@ -39,8 +40,9 @@ func (s *sendService) BuildERC20Transfer(
 	from ecommon.Address,
 	to ecommon.Address,
 	amount *big.Int,
+	nonceOffset uint64,
 ) ([]byte, error) {
-	tx, err := s.sdk.MakeTxTransferERC20(ctx, from, to, token, amount)
+	tx, err := s.sdk.MakeTxTransferERC20(ctx, from, to, token, amount, nonceOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make ERC20 transfer tx: %w", err)
 	}

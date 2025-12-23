@@ -86,6 +86,13 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("unsupported chain: %s", chainStr)
 	}
 
+	// Get recipients count for rate limiting
+	recipientsList, ok := cfg[recipients].([]any)
+	if !ok || len(recipientsList) == 0 {
+		return nil, fmt.Errorf("'recipients' must be a non-empty array")
+	}
+	recipientCount := len(recipientsList)
+
 	// Generate rules for all recipients
 	rules, err := s.createSendMetaRules(cfg, chainTyped)
 	if err != nil {
@@ -99,7 +106,7 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	}
 
 	tokenStr := util.GetStr(assetMap, "token")
-	maxTxsPerWindow := getMaxTxsForSend(chainTyped, tokenStr)
+	maxTxsPerWindow := getMaxTxsForSend(chainTyped, tokenStr, recipientCount)
 
 	return &rtypes.PolicySuggest{
 		RateLimitWindow: conv.Ptr(rateLimitWindow),

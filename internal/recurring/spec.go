@@ -61,11 +61,15 @@ func getRateLimitWindow(freq string) (uint32, error) {
 	}
 }
 
-func getMaxTxsForSend(chain common.Chain, token string) uint32 {
+func getMaxTxsForSend(chain common.Chain, token string, recipientCount int) uint32 {
+	// Base transactions per recipient
+	baseTxs := uint32(1)
 	if chain == common.Solana && token != "" {
-		return 2
+		// Solana SPL token transfers may need associated token account creation
+		baseTxs = 2
 	}
-	return 1
+	// Multiply by number of recipients (one tx per recipient)
+	return baseTxs * uint32(recipientCount)
 }
 
 func getMaxTxsForSwap(chain common.Chain) uint32 {
