@@ -3,4 +3,4 @@ kind: ConfigMap
 metadata:
   name: relay
 data:
-  url: "https://api.vultisig.com/router"
+  url: "http://router.relay.svc.cluster.local"
