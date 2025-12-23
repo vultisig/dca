@@ -1009,29 +1009,15 @@ func (c *Consumer) handleEvmSend(
 	if len(recipients) == 0 {
 		return fmt.Errorf("recipients list is empty")
 	}
-	if len(recipients) > 1 {
-		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
-	}
 
-	// Extract first recipient for now
-	recipient := recipients[0]
-	fromAmount := recipient.Amount
-	toAddress := recipient.ToAddress
-
+	// Pre-compute shared values (once, outside loop)
 	fromAsset = util.IfEmptyElse(fromAsset, evmsdk.ZeroAddress.String())
-
 	fromAssetTyped := ecommon.HexToAddress(fromAsset)
+
 	fromAddressTyped, err := c.evmPubToAddress(fromChain, pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to parse policy PublicKey: %w", err)
 	}
-
-	fromAmountTyped, ok := new(big.Int).SetString(fromAmount, 10)
-	if !ok {
-		return fmt.Errorf("failed to parse fromAmount %q as integer", fromAmount)
-	}
-
-	toAddressTyped := ecommon.HexToAddress(toAddress)
 
 	network, err := c.evm.Get(fromChain)
 	if err != nil {
@@ -1040,28 +1026,79 @@ func (c *Consumer) handleEvmSend(
 
 	isNative := fromAssetTyped == evmsdk.ZeroAddress
 
+	c.logger.WithFields(logrus.Fields{
+		"operation":       "send",
+		"policyID":        pol.ID.String(),
+		"chain":           fromChain.String(),
+		"fromAddress":     fromAddressTyped.String(),
+		"asset":           fromAssetTyped.String(),
+		"isNative":        isNative,
+		"recipientCount":  len(recipients),
+	}).Info("processing EVM send for multiple recipients")
+
+	// Process each recipient sequentially
+	for i, recipient := range recipients {
+		err := c.sendToEvmRecipient(
+			ctx,
+			pol,
+			network,
+			fromChain,
+			fromAssetTyped,
+			fromAddressTyped,
+			isNative,
+			recipient,
+			i,
+		)
+		if err != nil {
+			c.logger.WithFields(logrus.Fields{
+				"recipientIndex": i,
+				"toAddress":      recipient.ToAddress,
+				"amount":         recipient.Amount,
+			}).WithError(err).Error("failed to send to recipient, stopping")
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
+	}
+
+	c.logger.WithField("recipientCount", len(recipients)).Info("all EVM sends completed successfully")
+	return nil
+}
+
+// sendToEvmRecipient sends to a single recipient. Extracted for clarity.
+func (c *Consumer) sendToEvmRecipient(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	network *evm.Network,
+	fromChain common.Chain,
+	fromAssetTyped ecommon.Address,
+	fromAddressTyped ecommon.Address,
+	isNative bool,
+	recipient Recipient,
+	recipientIndex int,
+) error {
+	fromAmountTyped, ok := new(big.Int).SetString(recipient.Amount, 10)
+	if !ok {
+		return fmt.Errorf("failed to parse amount %q as integer", recipient.Amount)
+	}
+
+	toAddressTyped := ecommon.HexToAddress(recipient.ToAddress)
+
 	l := c.logger.WithFields(logrus.Fields{
-		"operation":   "send",
-		"policyID":    pol.ID.String(),
-		"chain":       fromChain.String(),
-		"fromAddress": fromAddressTyped.String(),
-		"toAddress":   toAddressTyped.String(),
-		"asset":       fromAssetTyped.String(),
-		"amount":      fromAmountTyped.String(),
-		"isNative":    isNative,
+		"recipientIndex": recipientIndex,
+		"toAddress":      toAddressTyped.String(),
+		"amount":         fromAmountTyped.String(),
 	})
 
 	var sendTx []byte
+	var err error
+
 	if isNative {
-		l.Info("building native token transfer")
+		l.Debug("building native token transfer")
 		sendTx, err = network.Send.BuildNativeTransfer(ctx, fromAddressTyped, toAddressTyped, fromAmountTyped)
 		if err != nil {
-			l.WithError(err).Error("failed to build native transfer")
 			return fmt.Errorf("failed to build native transfer: %w", err)
 		}
-		l.Debug("native transfer tx built successfully")
 	} else {
-		l.Info("building ERC20 token transfer")
+		l.Debug("building ERC20 token transfer")
 		sendTx, err = network.Send.BuildERC20Transfer(
 			ctx,
 			fromAssetTyped,
@@ -1070,19 +1107,16 @@ func (c *Consumer) handleEvmSend(
 			fromAmountTyped,
 		)
 		if err != nil {
-			l.WithError(err).Error("failed to build ERC20 transfer")
 			return fmt.Errorf("failed to build ERC20 transfer: %w", err)
 		}
-		l.Debug("ERC20 transfer tx built successfully")
 	}
 
 	txHash, err := network.SignerSend.SignAndBroadcast(ctx, fromChain, *pol, sendTx)
 	if err != nil {
-		l.WithError(err).Error("failed to sign & broadcast send tx")
-		return fmt.Errorf("failed to sign & broadcast send: %w", err)
+		return fmt.Errorf("failed to sign & broadcast: %w", err)
 	}
 
-	l.WithField("txHash", txHash).Info("send tx signed & broadcasted successfully")
+	l.WithField("txHash", txHash).Info("send tx broadcasted successfully")
 	return nil
 }
 
