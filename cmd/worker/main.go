@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
-	"github.com/vultisig/verifier/safety"
 
 	"github.com/vultisig/dca/internal/blockchair"
 	"github.com/vultisig/dca/internal/btc"
@@ -117,7 +116,6 @@ func main() {
 		client,
 		vaultStorage,
 		txIndexerService,
-		safety.NewManager(Temp{}, logger),
 	)
 	if err != nil {
 		logger.Fatalf("failed to create vault service: %v", err)
@@ -318,7 +316,7 @@ func main() {
 }
 
 type config struct {
-	LogFormat    logging.LogFormat
+	LogFormat    logging.LogFormat `envconfig:"LOG_FORMAT" default:"text"`
 	VaultService vault_config.Config
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database
@@ -395,12 +393,4 @@ func newConfig() (config, error) {
 		return config{}, fmt.Errorf("failed to process env var: %w", err)
 	}
 	return cfg, nil
-}
-
-// TODO: rework
-type Temp struct {
-}
-
-func (Temp) GetControlFlags(ctx context.Context, k1 string, k2 string) (map[string]bool, error) {
-	return map[string]bool{}, nil
 }
