@@ -1091,9 +1091,11 @@ func (c *Consumer) sendToEvmRecipient(
 	var sendTx []byte
 	var err error
 
+	nonceOffset := uint64(recipientIndex)
+
 	if isNative {
 		l.Debug("building native token transfer")
-		sendTx, err = network.Send.BuildNativeTransfer(ctx, fromAddressTyped, toAddressTyped, fromAmountTyped)
+		sendTx, err = network.Send.BuildNativeTransfer(ctx, fromAddressTyped, toAddressTyped, fromAmountTyped, nonceOffset)
 		if err != nil {
 			return fmt.Errorf("failed to build native transfer: %w", err)
 		}
@@ -1105,6 +1107,7 @@ func (c *Consumer) sendToEvmRecipient(
 			fromAddressTyped,
 			toAddressTyped,
 			fromAmountTyped,
+			nonceOffset,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to build ERC20 transfer: %w", err)

@@ -99,6 +99,7 @@ func (p *Provider) MakeTx(
 		routerAddr,
 		txValue,
 		txData,
+		0, // nonceOffset: swaps don't need offset
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build unsigned tx: %w", err)
