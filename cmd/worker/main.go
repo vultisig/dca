@@ -316,7 +316,7 @@ func main() {
 }
 
 type config struct {
-	LogFormat    logging.LogFormat `envconfig:"LOG_FORMAT" default:"text"`
+	LogFormat    logging.LogFormat
 	VaultService vault_config.Config
 	BlockStorage vault_config.BlockStorage
 	Postgres     plugin_config.Database
