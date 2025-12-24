@@ -724,39 +724,28 @@ func (c *Consumer) handleBtcSend(
 		Address: fromAddressTyped,
 	}
 
-	c.logger.WithFields(logrus.Fields{
-		"policyID":       pol.ID.String(),
-		"operation":      "send",
-		"fromAddress":    fromAddressTyped.String(),
-		"recipientCount": len(recipients),
-	}).Info("processing BTC multi-send")
-
 	// Fetch all UTXOs once
 	availableUTXOs, err := c.btc.FetchUTXOs(ctx, fromAddressTyped.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch UTXOs: %w", err)
 	}
 
-	c.logger.WithField("utxoCount", len(availableUTXOs)).Debug("fetched UTXOs for multi-recipient send")
-
 	// Process each recipient sequentially
 	for i, recipient := range recipients {
-		txHash, usedUTXOs, changeUTXO, err := c.sendToBtcRecipient(ctx, pol, from, recipient, i, availableUTXOs)
+		txHash, usedUTXOs, changeUTXO, err := c.sendToBtcRecipient(ctx, pol, from, recipient, availableUTXOs)
 		if err != nil {
 			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
 		}
 
 		c.logger.WithFields(logrus.Fields{
-			"recipientIndex": i,
-			"toAddress":      recipient.ToAddress,
-			"txHash":         txHash,
-		}).Info("BTC send tx broadcasted successfully")
+			"policyID":  pol.ID.String(),
+			"toAddress": recipient.ToAddress,
+			"txHash":    txHash,
+		}).Info("BTC send completed")
 
 		// Update available UTXOs: remove used, add change
 		availableUTXOs = btc.UpdateAvailableUTXOs(availableUTXOs, usedUTXOs, changeUTXO)
 	}
-
-	c.logger.WithField("recipientCount", len(recipients)).Info("all BTC sends completed successfully")
 	return nil
 }
 
@@ -765,7 +754,6 @@ func (c *Consumer) sendToBtcRecipient(
 	pol *types.PluginPolicy,
 	from btc.From,
 	recipient Recipient,
-	recipientIndex int,
 	availableUTXOs []btcsdk.UTXO,
 ) (string, []btcsdk.UTXO, *btcsdk.UTXO, error) {
 	amountInt, ok := new(big.Int).SetString(recipient.Amount, 10)
@@ -777,22 +765,7 @@ func (c *Consumer) sendToBtcRecipient(
 	}
 	amountSats := amountInt.Uint64()
 
-	l := c.logger.WithFields(logrus.Fields{
-		"recipientIndex": recipientIndex,
-		"toAddress":      recipient.ToAddress,
-		"amount":         amountSats,
-		"availableUTXOs": len(availableUTXOs),
-	})
-
-	l.Info("sending to BTC recipient")
-
-	txHash, usedUTXOs, changeUTXO, err := c.btc.Send(ctx, *pol, from, recipient.ToAddress, amountSats, availableUTXOs)
-	if err != nil {
-		l.WithError(err).Error("failed to send to recipient")
-		return "", nil, nil, err
-	}
-
-	return txHash, usedUTXOs, changeUTXO, nil
+	return c.btc.Send(ctx, *pol, from, recipient.ToAddress, amountSats, availableUTXOs)
 }
 
 func (c *Consumer) handleSolanaSwap(
