@@ -26,6 +26,7 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/recipes/metarule"
 	"github.com/vultisig/recipes/resolver"
+	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin/policy"
@@ -712,50 +713,86 @@ func (c *Consumer) handleBtcSend(
 	if len(recipients) == 0 {
 		return fmt.Errorf("recipients list is empty")
 	}
-	if len(recipients) > 1 {
-		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
-	}
-
-	// Extract first recipient for now
-	recipient := recipients[0]
-	fromAmount := recipient.Amount
-	toAddress := recipient.ToAddress
 
 	fromAddressTyped, childPub, err := c.btcPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get BTC address from policy PublicKey: %w", err)
 	}
 
-	fromAmountInt, ok := new(big.Int).SetString(fromAmount, 10)
-	if !ok {
-		return fmt.Errorf("failed to parse fromAmount: %s", fromAmount)
-	}
-	if !fromAmountInt.IsUint64() {
-		return fmt.Errorf("fromAmount too large for uint64: %s", fromAmount)
-	}
-	fromAmountSats := fromAmountInt.Uint64()
-
 	from := btc.From{
 		PubKey:  childPub,
 		Address: fromAddressTyped,
-		Amount:  fromAmountSats,
 	}
 
 	c.logger.WithFields(logrus.Fields{
-		"policyID":    pol.ID.String(),
-		"operation":   "send",
-		"fromAddress": fromAddressTyped.String(),
-		"toAddress":   toAddress,
-		"amount":      fromAmountSats,
-	}).Info("handling BTC send")
+		"policyID":       pol.ID.String(),
+		"operation":      "send",
+		"fromAddress":    fromAddressTyped.String(),
+		"recipientCount": len(recipients),
+	}).Info("processing BTC multi-send")
 
-	txHash, err := c.btc.Send(ctx, *pol, from, toAddress, fromAmountSats)
+	// Fetch all UTXOs once
+	availableUTXOs, err := c.btc.FetchUTXOs(ctx, fromAddressTyped.String())
 	if err != nil {
-		return fmt.Errorf("failed to execute BTC send: %w", err)
+		return fmt.Errorf("failed to fetch UTXOs: %w", err)
 	}
 
-	c.logger.WithField("txHash", txHash).Info("BTC send executed successfully")
+	c.logger.WithField("utxoCount", len(availableUTXOs)).Debug("fetched UTXOs for multi-recipient send")
+
+	// Process each recipient sequentially
+	for i, recipient := range recipients {
+		txHash, usedUTXOs, changeUTXO, err := c.sendToBtcRecipient(ctx, pol, from, recipient, i, availableUTXOs)
+		if err != nil {
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"recipientIndex": i,
+			"toAddress":      recipient.ToAddress,
+			"txHash":         txHash,
+		}).Info("BTC send tx broadcasted successfully")
+
+		// Update available UTXOs: remove used, add change
+		availableUTXOs = btc.UpdateAvailableUTXOs(availableUTXOs, usedUTXOs, changeUTXO)
+	}
+
+	c.logger.WithField("recipientCount", len(recipients)).Info("all BTC sends completed successfully")
 	return nil
+}
+
+func (c *Consumer) sendToBtcRecipient(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	from btc.From,
+	recipient Recipient,
+	recipientIndex int,
+	availableUTXOs []btcsdk.UTXO,
+) (string, []btcsdk.UTXO, *btcsdk.UTXO, error) {
+	amountInt, ok := new(big.Int).SetString(recipient.Amount, 10)
+	if !ok {
+		return "", nil, nil, fmt.Errorf("failed to parse amount: %s", recipient.Amount)
+	}
+	if !amountInt.IsUint64() {
+		return "", nil, nil, fmt.Errorf("amount too large for uint64: %s", recipient.Amount)
+	}
+	amountSats := amountInt.Uint64()
+
+	l := c.logger.WithFields(logrus.Fields{
+		"recipientIndex": recipientIndex,
+		"toAddress":      recipient.ToAddress,
+		"amount":         amountSats,
+		"availableUTXOs": len(availableUTXOs),
+	})
+
+	l.Info("sending to BTC recipient")
+
+	txHash, usedUTXOs, changeUTXO, err := c.btc.Send(ctx, *pol, from, recipient.ToAddress, amountSats, availableUTXOs)
+	if err != nil {
+		l.WithError(err).Error("failed to send to recipient")
+		return "", nil, nil, err
+	}
+
+	return txHash, usedUTXOs, changeUTXO, nil
 }
 
 func (c *Consumer) handleSolanaSwap(

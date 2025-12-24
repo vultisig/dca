@@ -67,28 +67,113 @@ func (n *Network) Swap(ctx context.Context, policy vtypes.PluginPolicy, from Fro
 	return txHash, nil
 }
 
+// Send sends BTC using the provided UTXOs and returns the used UTXOs and change UTXO.
+// The changeUTXO can be used immediately for subsequent sends (spending unconfirmed change).
 func (n *Network) Send(
 	ctx context.Context,
 	policy vtypes.PluginPolicy,
 	from From,
 	toAddress string,
 	amount uint64,
-) (string, error) {
+	availableUTXOs []btcsdk.UTXO,
+) (txHash string, usedUTXOs []btcsdk.UTXO, changeUTXO *btcsdk.UTXO, err error) {
 	outputs, changeOutputIndex, err := n.send.BuildTransfer(toAddress, from.Address, amount)
 	if err != nil {
-		return "", fmt.Errorf("failed to build transfer outputs: %w", err)
+		return "", nil, nil, fmt.Errorf("failed to build transfer outputs: %w", err)
 	}
 
-	psbtTx, err := n.buildPSBT(ctx, from, outputs, changeOutputIndex)
+	buildResult, err := n.buildPSBTWithUTXOs(ctx, from, outputs, changeOutputIndex, availableUTXOs)
 	if err != nil {
-		return "", fmt.Errorf("failed to build psbt: %w", err)
+		return "", nil, nil, fmt.Errorf("failed to build psbt: %w", err)
 	}
 
-	txHash, err := n.sendWithSdk(ctx, policy, types.OperationSend, psbtTx)
+	hash, err := n.sendWithSdk(ctx, policy, types.OperationSend, buildResult.Packet)
 	if err != nil {
-		return "", fmt.Errorf("failed to send tx: %w", err)
+		return "", nil, nil, fmt.Errorf("failed to send tx: %w", err)
 	}
-	return txHash, nil
+
+	// Construct change UTXO if there's change
+	if buildResult.ChangeAmount > 0 {
+		changeUTXO = &btcsdk.UTXO{
+			TxHash: hash,
+			Index:  uint32(buildResult.ChangeIndex),
+			Value:  uint64(buildResult.ChangeAmount),
+		}
+	}
+
+	return hash, buildResult.SelectedUTXOs, changeUTXO, nil
+}
+
+// FetchUTXOs fetches all unspent outputs for an address and converts to SDK format.
+func (n *Network) FetchUTXOs(ctx context.Context, address string) ([]btcsdk.UTXO, error) {
+	blockchairUtxos, err := n.utxo.GetAllUnspent(ctx, address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get UTXOs: %w", err)
+	}
+
+	utxos := make([]btcsdk.UTXO, len(blockchairUtxos))
+	for i, u := range blockchairUtxos {
+		utxos[i] = btcsdk.UTXO{
+			TxHash: u.TransactionHash,
+			Index:  u.Index,
+			Value:  u.Value,
+		}
+	}
+	return utxos, nil
+}
+
+// UpdateAvailableUTXOs removes used UTXOs and adds the change UTXO (if any) to the available list.
+func UpdateAvailableUTXOs(available, used []btcsdk.UTXO, change *btcsdk.UTXO) []btcsdk.UTXO {
+	usedSet := make(map[string]struct{}, len(used))
+	for _, u := range used {
+		key := fmt.Sprintf("%s:%d", u.TxHash, u.Index)
+		usedSet[key] = struct{}{}
+	}
+
+	result := make([]btcsdk.UTXO, 0, len(available)-len(used)+1)
+	for _, u := range available {
+		key := fmt.Sprintf("%s:%d", u.TxHash, u.Index)
+		if _, ok := usedSet[key]; !ok {
+			result = append(result, u)
+		}
+	}
+
+	// Add change UTXO if present (allows spending unconfirmed change)
+	if change != nil {
+		result = append(result, *change)
+	}
+
+	return result
+}
+
+// buildPSBTWithUTXOs builds a PSBT using the provided UTXOs instead of fetching them.
+// Returns the full BuildResult containing PSBT, selected UTXOs, and change info.
+func (n *Network) buildPSBTWithUTXOs(
+	ctx context.Context,
+	from From,
+	outputs []*wire.TxOut,
+	changeOutputIndex int,
+	availableUTXOs []btcsdk.UTXO,
+) (*btcsdk.BuildResult, error) {
+	satsPerByte, err := n.fee.SatsPerByte(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sats per byte: %w", err)
+	}
+
+	builder := btcsdk.Mainnet()
+	pubKey := from.PubKey.PubKey().SerializeCompressed()
+
+	result, err := builder.Build(availableUTXOs, outputs, changeOutputIndex, satsPerByte, pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build tx: %w", err)
+	}
+
+	err = btcsdk.PopulatePSBTMetadata(result, n.utxo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to populate psbt metadata: %w", err)
+	}
+
+	return result, nil
 }
 
 func (n *Network) buildPSBT(
