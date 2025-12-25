@@ -197,6 +197,7 @@ func (p *ProviderEvm) MakeTx(
 		routerAddr,
 		value,
 		data,
+		0, // nonceOffset: swaps don't need offset
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build tx: %w", err)
