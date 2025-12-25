@@ -11,6 +11,24 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 
+	btcsdk "github.com/vultisig/recipes/sdk/btc"
+	evmsdk "github.com/vultisig/recipes/sdk/evm"
+	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
+	"github.com/vultisig/verifier/plugin"
+	plugin_config "github.com/vultisig/verifier/plugin/config"
+	"github.com/vultisig/verifier/plugin/keysign"
+	"github.com/vultisig/verifier/plugin/policy"
+	"github.com/vultisig/verifier/plugin/policy/policy_pg"
+	"github.com/vultisig/verifier/plugin/scheduler/scheduler_pg"
+	"github.com/vultisig/verifier/plugin/tasks"
+	"github.com/vultisig/verifier/plugin/tx_indexer"
+	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
+	"github.com/vultisig/verifier/safety"
+	"github.com/vultisig/verifier/vault"
+	"github.com/vultisig/verifier/vault_config"
+	"github.com/vultisig/vultisig-go/common"
+	"github.com/vultisig/vultisig-go/relay"
+
 	"github.com/vultisig/dca/internal/blockchair"
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/evm"
@@ -25,22 +43,6 @@ import (
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/dca/internal/zcash"
-	btcsdk "github.com/vultisig/recipes/sdk/btc"
-	evmsdk "github.com/vultisig/recipes/sdk/evm"
-	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
-	"github.com/vultisig/verifier/plugin"
-	plugin_config "github.com/vultisig/verifier/plugin/config"
-	"github.com/vultisig/verifier/plugin/keysign"
-	"github.com/vultisig/verifier/plugin/policy"
-	"github.com/vultisig/verifier/plugin/policy/policy_pg"
-	"github.com/vultisig/verifier/plugin/scheduler/scheduler_pg"
-	"github.com/vultisig/verifier/plugin/tasks"
-	"github.com/vultisig/verifier/plugin/tx_indexer"
-	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
-	"github.com/vultisig/verifier/vault"
-	"github.com/vultisig/verifier/vault_config"
-	"github.com/vultisig/vultisig-go/common"
-	"github.com/vultisig/vultisig-go/relay"
 )
 
 func main() {
@@ -116,6 +118,7 @@ func main() {
 		client,
 		vaultStorage,
 		txIndexerService,
+		safety.NewManager(Temp{}, logger),
 	)
 	if err != nil {
 		logger.Fatalf("failed to create vault service: %v", err)
@@ -393,4 +396,12 @@ func newConfig() (config, error) {
 		return config{}, fmt.Errorf("failed to process env var: %w", err)
 	}
 	return cfg, nil
+}
+
+// TODO: rework
+type Temp struct {
+}
+
+func (Temp) GetControlFlags(ctx context.Context, k1 string, k2 string) (map[string]bool, error) {
+	return map[string]bool{}, nil
 }
