@@ -506,14 +506,6 @@ func (c *Consumer) handleXrpSend(
 	if len(recipients) == 0 {
 		return fmt.Errorf("recipients list is empty")
 	}
-	if len(recipients) > 1 {
-		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
-	}
-
-	// Extract first recipient for now
-	recipient := recipients[0]
-	fromAmount := recipient.Amount
-	toAddress := recipient.ToAddress
 
 	// Validate that only native XRP is supported
 	if fromAsset != "" {
@@ -525,36 +517,55 @@ func (c *Consumer) handleXrpSend(
 		return fmt.Errorf("failed to get XRP address from policy PublicKey: %w", err)
 	}
 
-	fromAmountDrops, err := parseUint64(fromAmount)
+	// Fetch sequence once
+	sequence, err := c.xrp.Send.GetSequence(ctx, fromAddressStr)
 	if err != nil {
-		return fmt.Errorf("failed to parse fromAmount: %w", err)
+		return fmt.Errorf("failed to get XRP sequence: %w", err)
 	}
 
-	l := c.logger.WithFields(logrus.Fields{
-		"operation":   "send",
-		"policyID":    pol.ID.String(),
-		"fromAddress": fromAddressStr,
-		"toAddress":   toAddress,
-		"amount":      fromAmountDrops,
-		"asset":       fromAsset,
-	})
+	// Process each recipient sequentially
+	for i, recipient := range recipients {
+		txHash, err := c.sendToXrpRecipient(ctx, pol, fromAddressStr, childPubKey, recipient, sequence)
+		if err != nil {
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
 
-	l.Info("building XRP payment transaction")
-	sendTx, err := c.xrp.Send.BuildPayment(ctx, fromAddressStr, toAddress, fromAmountDrops, childPubKey)
-	if err != nil {
-		l.WithError(err).Error("failed to build XRP payment")
-		return fmt.Errorf("failed to build XRP payment: %w", err)
+		c.logger.WithFields(logrus.Fields{
+			"policyID":  pol.ID.String(),
+			"toAddress": recipient.ToAddress,
+			"txHash":    txHash,
+		}).Info("XRP send completed")
+
+		// Increment sequence for next transaction
+		sequence++
 	}
-	l.Debug("XRP payment tx built successfully")
+	return nil
+}
+
+func (c *Consumer) sendToXrpRecipient(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	fromAddress string,
+	childPubKey string,
+	recipient Recipient,
+	sequence uint32,
+) (string, error) {
+	amountDrops, err := parseUint64(recipient.Amount)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse amount: %w", err)
+	}
+
+	sendTx, err := c.xrp.Send.BuildPaymentWithSequence(ctx, fromAddress, recipient.ToAddress, amountDrops, childPubKey, sequence)
+	if err != nil {
+		return "", fmt.Errorf("failed to build XRP payment: %w", err)
+	}
 
 	txHash, err := c.xrp.SignerSend.SignAndBroadcast(ctx, *pol, sendTx)
 	if err != nil {
-		l.WithError(err).Error("failed to sign & broadcast XRP send tx")
-		return fmt.Errorf("failed to sign & broadcast XRP send: %w", err)
+		return "", fmt.Errorf("failed to sign & broadcast: %w", err)
 	}
 
-	l.WithField("txHash", txHash).Info("XRP send tx signed & broadcasted successfully")
-	return nil
+	return txHash, nil
 }
 
 func (c *Consumer) handleXrpSwap(
