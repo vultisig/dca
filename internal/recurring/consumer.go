@@ -848,23 +848,10 @@ func (c *Consumer) handleSolanaSend(
 	if len(recipients) == 0 {
 		return fmt.Errorf("recipients list is empty")
 	}
-	if len(recipients) > 1 {
-		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
-	}
-
-	// Extract first recipient for now
-	recipient := recipients[0]
-	fromAmount := recipient.Amount
-	toAddress := recipient.ToAddress
 
 	fromAddressTyped, err := c.solanaPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
 		return fmt.Errorf("failed to get Solana address from policy PublicKey: %w", err)
-	}
-
-	fromAmountTyped, err := parseUint64(fromAmount)
-	if err != nil {
-		return fmt.Errorf("failed to parse fromAmount: %w", err)
 	}
 
 	fromPubKey, err := solanasdk.PublicKeyFromBase58(fromAddressTyped)
@@ -872,34 +859,56 @@ func (c *Consumer) handleSolanaSend(
 		return fmt.Errorf("failed to parse from address: %w", err)
 	}
 
-	toPubKey, err := solanasdk.PublicKeyFromBase58(toAddress)
-	if err != nil {
-		return fmt.Errorf("failed to parse to address: %w", err)
+	c.logger.WithFields(logrus.Fields{
+		"operation":      "send",
+		"policyID":       pol.ID.String(),
+		"chain":          "solana",
+		"fromAddress":    fromAddressTyped,
+		"asset":          fromAsset,
+		"recipientCount": len(recipients),
+	}).Info("processing Solana send for multiple recipients")
+
+	// Process each recipient sequentially
+	// Solana uses blockhash (not nonce/sequence), so each tx is independent
+	for i, recipient := range recipients {
+		txHash, err := c.sendToSolanaRecipient(ctx, pol, fromPubKey, fromAsset, recipient)
+		if err != nil {
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"policyID":  pol.ID.String(),
+			"toAddress": recipient.ToAddress,
+			"txHash":    txHash,
+		}).Info("Solana send completed")
 	}
 
-	isNative := fromAsset == ""
-
-	l := c.logger.WithFields(logrus.Fields{
-		"operation":   "send",
-		"policyID":    pol.ID.String(),
-		"chain":       "solana",
-		"fromAddress": fromAddressTyped,
-		"toAddress":   toAddress,
-		"asset":       fromAsset,
-		"amount":      fromAmountTyped,
-		"isNative":    isNative,
-	})
-
-	l.Info("handling Solana send")
-
-	txHash, err := c.solana.Send(ctx, *pol, fromPubKey, toPubKey, fromAsset, fromAmountTyped)
-	if err != nil {
-		l.WithError(err).Error("failed to execute Solana send")
-		return fmt.Errorf("failed to execute Solana send: %w", err)
-	}
-
-	l.WithField("txHash", txHash).Info("Solana send executed successfully")
 	return nil
+}
+
+func (c *Consumer) sendToSolanaRecipient(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	fromPubKey solanasdk.PublicKey,
+	fromAsset string,
+	recipient Recipient,
+) (string, error) {
+	amount, err := parseUint64(recipient.Amount)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse amount: %w", err)
+	}
+
+	toPubKey, err := solanasdk.PublicKeyFromBase58(recipient.ToAddress)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse to address: %w", err)
+	}
+
+	txHash, err := c.solana.Send(ctx, *pol, fromPubKey, toPubKey, fromAsset, amount)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute Solana send: %w", err)
+	}
+
+	return txHash, nil
 }
 
 func (c *Consumer) handleEvmSwap(
