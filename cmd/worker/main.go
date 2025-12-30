@@ -23,7 +23,6 @@ import (
 	"github.com/vultisig/verifier/plugin/tasks"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
-	"github.com/vultisig/verifier/safety"
 	"github.com/vultisig/verifier/vault"
 	"github.com/vultisig/verifier/vault_config"
 	"github.com/vultisig/vultisig-go/common"
@@ -118,7 +117,7 @@ func main() {
 		client,
 		vaultStorage,
 		txIndexerService,
-		safety.NewManager(Temp{}, logger),
+		nil,
 	)
 	if err != nil {
 		logger.Fatalf("failed to create vault service: %v", err)
