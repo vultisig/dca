@@ -10,7 +10,6 @@ import (
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/logging"
 	"github.com/vultisig/dca/internal/metrics"
-	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/policy/policy_pg"
@@ -79,7 +78,7 @@ func main() {
 		tasks.TypePluginTransaction,
 		tasks.QUEUE_NAME,
 		schedulerStorage,
-		recurring.NewSchedulerInterval(),
+		scheduler.NewDefaultInterval(),
 		policyStorage,
 		schedulerMetrics,
 	)
