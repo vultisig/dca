@@ -21,7 +21,7 @@ require (
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
 	github.com/vultisig/recipes v0.0.0-20251223082240-b676aac36c74
 	github.com/vultisig/verifier v0.0.0-20260103141447-1b4fb464afef
-	github.com/vultisig/vultisig-go v0.0.0-20251201083443-f9306a44b356
+	github.com/vultisig/vultisig-go v0.0.0-20260105232826-8224bf35e503
 	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
 	golang.org/x/crypto v0.45.0
 	golang.org/x/sync v0.18.0

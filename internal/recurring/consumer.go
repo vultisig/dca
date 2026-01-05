@@ -21,6 +21,7 @@ import (
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/util"
+	"github.com/vultisig/dca/internal/utxo"
 	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/dca/internal/zcash"
 	"github.com/vultisig/mobile-tss-lib/tss"
@@ -212,6 +213,9 @@ type Consumer struct {
 	policy      policy.Service
 	evm         *evm.Manager
 	btc         *btc.Network
+	ltc         *utxo.Network
+	doge        *utxo.Network
+	bch         *utxo.Network
 	xrp         *xrp.Network
 	solana      *solana.Network
 	zcash       *zcash.Network
@@ -225,6 +229,9 @@ func NewConsumer(
 	policy policy.Service,
 	evm *evm.Manager,
 	btc *btc.Network,
+	ltc *utxo.Network,
+	doge *utxo.Network,
+	bch *utxo.Network,
 	solana *solana.Network,
 	xrp *xrp.Network,
 	zcash *zcash.Network,
@@ -236,6 +243,9 @@ func NewConsumer(
 		policy:      policy,
 		evm:         evm,
 		btc:         btc,
+		ltc:         ltc,
+		doge:        doge,
+		bch:         bch,
 		xrp:         xrp,
 		solana:      solana,
 		zcash:       zcash,
@@ -324,6 +334,30 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 			return nil
 		}
 
+		if pcfg.FromChain == common.Litecoin {
+			er := c.handleLtcSend(ctx, pol, pcfg.Recipients)
+			if er != nil {
+				return fmt.Errorf("failed to handle LTC send: %w", er)
+			}
+			return nil
+		}
+
+		if pcfg.FromChain == common.Dogecoin {
+			er := c.handleDogeSend(ctx, pol, pcfg.Recipients)
+			if er != nil {
+				return fmt.Errorf("failed to handle DOGE send: %w", er)
+			}
+			return nil
+		}
+
+		if pcfg.FromChain == common.BitcoinCash {
+			er := c.handleBchSend(ctx, pol, pcfg.Recipients)
+			if er != nil {
+				return fmt.Errorf("failed to handle BCH send: %w", er)
+			}
+			return nil
+		}
+
 		c.logger.WithFields(logrus.Fields{
 			"chain":     pcfg.FromChainStr,
 			"operation": "send",
@@ -359,6 +393,30 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		er := c.handleZcashSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
 		if er != nil {
 			return fmt.Errorf("failed to handle Zcash swap: %w", er)
+		}
+		return nil
+	}
+
+	if pcfg.FromChain == common.Litecoin {
+		er := c.handleLtcSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
+		if er != nil {
+			return fmt.Errorf("failed to handle LTC swap: %w", er)
+		}
+		return nil
+	}
+
+	if pcfg.FromChain == common.Dogecoin {
+		er := c.handleDogeSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
+		if er != nil {
+			return fmt.Errorf("failed to handle DOGE swap: %w", er)
+		}
+		return nil
+	}
+
+	if pcfg.FromChain == common.BitcoinCash {
+		er := c.handleBchSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
+		if er != nil {
+			return fmt.Errorf("failed to handle BCH swap: %w", er)
 		}
 		return nil
 	}
@@ -1379,4 +1437,493 @@ func (c *Consumer) getTokenDecimals(ctx context.Context, chain common.Chain, tok
 	// For non-EVM chains with tokens, return native decimals as fallback
 	// (most non-EVM tokens use the same decimals as native)
 	return util.GetNativeDecimals(chain)
+}
+
+// ============================================================================
+// Litecoin (LTC) handlers
+// ============================================================================
+
+func (c *Consumer) ltcPubToAddress(rootPub string, pluginID string) (btcutil.Address, []byte, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
+	if err != nil {
+		return nil, nil, fmt.Errorf("[LTC] failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[LTC] failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.Litecoin.GetDerivePath(), false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[LTC] failed to get derived pubkey: %w", err)
+	}
+
+	addr, err := address.GetLitecoinAddress(childPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[LTC] failed to get address: %w", err)
+	}
+
+	ltcAddr, err := btcutil.DecodeAddress(addr, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[LTC] failed to decode address: %w", err)
+	}
+
+	pubKeyBytes, err := hex.DecodeString(childPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[LTC] invalid derived ECDSA public key: %w", err)
+	}
+
+	return ltcAddr, pubKeyBytes, nil
+}
+
+func (c *Consumer) handleLtcSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	recipients []Recipient,
+) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+
+	fromAddressTyped, childPub, err := c.ltcPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get LTC address from policy PublicKey: %w", err)
+	}
+
+	from := utxo.From{
+		PubKey:  childPub,
+		Address: fromAddressTyped,
+	}
+
+	// Fetch all UTXOs once
+	availableUTXOs, err := c.ltc.FetchUTXOs(ctx, fromAddressTyped.String())
+	if err != nil {
+		return fmt.Errorf("failed to fetch UTXOs: %w", err)
+	}
+
+	// Process each recipient sequentially
+	for i, recipient := range recipients {
+		txHash, usedUTXOs, changeUTXO, err := c.sendToLtcRecipient(ctx, pol, from, recipient, availableUTXOs)
+		if err != nil {
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"policyID":  pol.ID.String(),
+			"toAddress": recipient.ToAddress,
+			"txHash":    txHash,
+		}).Info("LTC send completed")
+
+		// Update available UTXOs: remove used, add change
+		availableUTXOs = utxo.UpdateAvailableUTXOs(availableUTXOs, usedUTXOs, changeUTXO)
+	}
+	return nil
+}
+
+func (c *Consumer) sendToLtcRecipient(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	from utxo.From,
+	recipient Recipient,
+	availableUTXOs []btcsdk.UTXO,
+) (string, []btcsdk.UTXO, *btcsdk.UTXO, error) {
+	amountInt, ok := new(big.Int).SetString(recipient.Amount, 10)
+	if !ok {
+		return "", nil, nil, fmt.Errorf("failed to parse amount: %s", recipient.Amount)
+	}
+	if !amountInt.IsUint64() {
+		return "", nil, nil, fmt.Errorf("amount too large for uint64: %s", recipient.Amount)
+	}
+	amountSats := amountInt.Uint64()
+
+	return c.ltc.Send(ctx, *pol, from, recipient.ToAddress, amountSats, availableUTXOs)
+}
+
+func (c *Consumer) handleLtcSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	toAssetMap map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressTyped, childPub, err := c.ltcPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get LTC address from policy PublicKey: %w", err)
+	}
+
+	fromAmountInt, ok := new(big.Int).SetString(fromAmount, 10)
+	if !ok {
+		return fmt.Errorf("failed to parse fromAmount: %s", fromAmount)
+	}
+	if !fromAmountInt.IsUint64() {
+		return fmt.Errorf("fromAmount too large for uint64: %s", fromAmount)
+	}
+	fromAmountSats := fromAmountInt.Uint64()
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
+	}
+
+	from := utxo.From{
+		PubKey:  childPub,
+		Address: fromAddressTyped,
+		Amount:  fromAmountSats,
+	}
+
+	to := utxo.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressTyped.String(),
+		"fromAmount":  fromAmountSats,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling LTC swap")
+
+	txHash, err := c.ltc.Swap(ctx, *pol, from, to)
+	if err != nil {
+		c.metrics.RecordSwapTransactionWithFallback("LTC", toAsset, common.Litecoin.String(), toChainTyped.String(), false)
+		return fmt.Errorf("failed to execute LTC swap: %w", err)
+	}
+
+	c.metrics.RecordSwapTransactionWithFallback("LTC", toAsset, common.Litecoin.String(), toChainTyped.String(), true)
+	c.logger.WithField("txHash", txHash).Info("LTC swap executed successfully")
+	return nil
+}
+
+// ============================================================================
+// Dogecoin (DOGE) handlers
+// ============================================================================
+
+func (c *Consumer) dogePubToAddress(rootPub string, pluginID string) (btcutil.Address, []byte, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
+	if err != nil {
+		return nil, nil, fmt.Errorf("[DOGE] failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[DOGE] failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.Dogecoin.GetDerivePath(), false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[DOGE] failed to get derived pubkey: %w", err)
+	}
+
+	addr, err := address.GetDogecoinAddress(childPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[DOGE] failed to get address: %w", err)
+	}
+
+	dogeAddr, err := btcutil.DecodeAddress(addr, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[DOGE] failed to decode address: %w", err)
+	}
+
+	pubKeyBytes, err := hex.DecodeString(childPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[DOGE] invalid derived ECDSA public key: %w", err)
+	}
+
+	return dogeAddr, pubKeyBytes, nil
+}
+
+func (c *Consumer) handleDogeSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	recipients []Recipient,
+) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+
+	fromAddressTyped, childPub, err := c.dogePubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get DOGE address from policy PublicKey: %w", err)
+	}
+
+	from := utxo.From{
+		PubKey:  childPub,
+		Address: fromAddressTyped,
+	}
+
+	// Fetch all UTXOs once
+	availableUTXOs, err := c.doge.FetchUTXOs(ctx, fromAddressTyped.String())
+	if err != nil {
+		return fmt.Errorf("failed to fetch UTXOs: %w", err)
+	}
+
+	// Process each recipient sequentially
+	for i, recipient := range recipients {
+		txHash, usedUTXOs, changeUTXO, err := c.sendToDogeRecipient(ctx, pol, from, recipient, availableUTXOs)
+		if err != nil {
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"policyID":  pol.ID.String(),
+			"toAddress": recipient.ToAddress,
+			"txHash":    txHash,
+		}).Info("DOGE send completed")
+
+		// Update available UTXOs: remove used, add change
+		availableUTXOs = utxo.UpdateAvailableUTXOs(availableUTXOs, usedUTXOs, changeUTXO)
+	}
+	return nil
+}
+
+func (c *Consumer) sendToDogeRecipient(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	from utxo.From,
+	recipient Recipient,
+	availableUTXOs []btcsdk.UTXO,
+) (string, []btcsdk.UTXO, *btcsdk.UTXO, error) {
+	amountInt, ok := new(big.Int).SetString(recipient.Amount, 10)
+	if !ok {
+		return "", nil, nil, fmt.Errorf("failed to parse amount: %s", recipient.Amount)
+	}
+	if !amountInt.IsUint64() {
+		return "", nil, nil, fmt.Errorf("amount too large for uint64: %s", recipient.Amount)
+	}
+	amountSats := amountInt.Uint64()
+
+	return c.doge.Send(ctx, *pol, from, recipient.ToAddress, amountSats, availableUTXOs)
+}
+
+func (c *Consumer) handleDogeSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	toAssetMap map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressTyped, childPub, err := c.dogePubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get DOGE address from policy PublicKey: %w", err)
+	}
+
+	fromAmountInt, ok := new(big.Int).SetString(fromAmount, 10)
+	if !ok {
+		return fmt.Errorf("failed to parse fromAmount: %s", fromAmount)
+	}
+	if !fromAmountInt.IsUint64() {
+		return fmt.Errorf("fromAmount too large for uint64: %s", fromAmount)
+	}
+	fromAmountSats := fromAmountInt.Uint64()
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
+	}
+
+	from := utxo.From{
+		PubKey:  childPub,
+		Address: fromAddressTyped,
+		Amount:  fromAmountSats,
+	}
+
+	to := utxo.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressTyped.String(),
+		"fromAmount":  fromAmountSats,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling DOGE swap")
+
+	txHash, err := c.doge.Swap(ctx, *pol, from, to)
+	if err != nil {
+		c.metrics.RecordSwapTransactionWithFallback("DOGE", toAsset, common.Dogecoin.String(), toChainTyped.String(), false)
+		return fmt.Errorf("failed to execute DOGE swap: %w", err)
+	}
+
+	c.metrics.RecordSwapTransactionWithFallback("DOGE", toAsset, common.Dogecoin.String(), toChainTyped.String(), true)
+	c.logger.WithField("txHash", txHash).Info("DOGE swap executed successfully")
+	return nil
+}
+
+// ============================================================================
+// Bitcoin Cash (BCH) handlers
+// ============================================================================
+
+func (c *Consumer) bchPubToAddress(rootPub string, pluginID string) (btcutil.Address, []byte, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
+	if err != nil {
+		return nil, nil, fmt.Errorf("[BCH] failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[BCH] failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.BitcoinCash.GetDerivePath(), false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[BCH] failed to get derived pubkey: %w", err)
+	}
+
+	addr, err := address.GetBitcoinCashAddress(childPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[BCH] failed to get address: %w", err)
+	}
+
+	bchAddr, err := btcutil.DecodeAddress(addr, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[BCH] failed to decode address: %w", err)
+	}
+
+	pubKeyBytes, err := hex.DecodeString(childPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("[BCH] invalid derived ECDSA public key: %w", err)
+	}
+
+	return bchAddr, pubKeyBytes, nil
+}
+
+func (c *Consumer) handleBchSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	recipients []Recipient,
+) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+
+	fromAddressTyped, childPub, err := c.bchPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get BCH address from policy PublicKey: %w", err)
+	}
+
+	from := utxo.From{
+		PubKey:  childPub,
+		Address: fromAddressTyped,
+	}
+
+	// Fetch all UTXOs once
+	availableUTXOs, err := c.bch.FetchUTXOs(ctx, fromAddressTyped.String())
+	if err != nil {
+		return fmt.Errorf("failed to fetch UTXOs: %w", err)
+	}
+
+	// Process each recipient sequentially
+	for i, recipient := range recipients {
+		txHash, usedUTXOs, changeUTXO, err := c.sendToBchRecipient(ctx, pol, from, recipient, availableUTXOs)
+		if err != nil {
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"policyID":  pol.ID.String(),
+			"toAddress": recipient.ToAddress,
+			"txHash":    txHash,
+		}).Info("BCH send completed")
+
+		// Update available UTXOs: remove used, add change
+		availableUTXOs = utxo.UpdateAvailableUTXOs(availableUTXOs, usedUTXOs, changeUTXO)
+	}
+	return nil
+}
+
+func (c *Consumer) sendToBchRecipient(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	from utxo.From,
+	recipient Recipient,
+	availableUTXOs []btcsdk.UTXO,
+) (string, []btcsdk.UTXO, *btcsdk.UTXO, error) {
+	amountInt, ok := new(big.Int).SetString(recipient.Amount, 10)
+	if !ok {
+		return "", nil, nil, fmt.Errorf("failed to parse amount: %s", recipient.Amount)
+	}
+	if !amountInt.IsUint64() {
+		return "", nil, nil, fmt.Errorf("amount too large for uint64: %s", recipient.Amount)
+	}
+	amountSats := amountInt.Uint64()
+
+	return c.bch.Send(ctx, *pol, from, recipient.ToAddress, amountSats, availableUTXOs)
+}
+
+func (c *Consumer) handleBchSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	toAssetMap map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressTyped, childPub, err := c.bchPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get BCH address from policy PublicKey: %w", err)
+	}
+
+	fromAmountInt, ok := new(big.Int).SetString(fromAmount, 10)
+	if !ok {
+		return fmt.Errorf("failed to parse fromAmount: %s", fromAmount)
+	}
+	if !fromAmountInt.IsUint64() {
+		return fmt.Errorf("fromAmount too large for uint64: %s", fromAmount)
+	}
+	fromAmountSats := fromAmountInt.Uint64()
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
+	}
+
+	from := utxo.From{
+		PubKey:  childPub,
+		Address: fromAddressTyped,
+		Amount:  fromAmountSats,
+	}
+
+	to := utxo.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressTyped.String(),
+		"fromAmount":  fromAmountSats,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling BCH swap")
+
+	txHash, err := c.bch.Swap(ctx, *pol, from, to)
+	if err != nil {
+		c.metrics.RecordSwapTransactionWithFallback("BCH", toAsset, common.BitcoinCash.String(), toChainTyped.String(), false)
+		return fmt.Errorf("failed to execute BCH swap: %w", err)
+	}
+
+	c.metrics.RecordSwapTransactionWithFallback("BCH", toAsset, common.BitcoinCash.String(), toChainTyped.String(), true)
+	c.logger.WithField("txHash", txHash).Info("BCH swap executed successfully")
+	return nil
 }
