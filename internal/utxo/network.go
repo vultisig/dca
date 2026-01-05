@@ -192,19 +192,9 @@ func (n *Network) buildPSBT(
 	}
 
 	// Fetch all UTXOs
-	blockchairUtxos, err := n.utxo.GetAllUnspent(ctx, from.Address.String())
+	utxos, err := n.FetchUTXOs(ctx, from.Address.String())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get utxos: %w", err)
-	}
-
-	// Convert to SDK UTXO format
-	utxos := make([]btcsdk.UTXO, len(blockchairUtxos))
-	for i, u := range blockchairUtxos {
-		utxos[i] = btcsdk.UTXO{
-			TxHash: u.TransactionHash,
-			Index:  u.Index,
-			Value:  u.Value,
-		}
+		return nil, err
 	}
 
 	// Build using SDK with chain-specific parameters
@@ -274,15 +264,15 @@ func (n *Network) sendWithSdk(ctx context.Context, policy vtypes.PluginPolicy, o
 	case types.OperationSend:
 		txHash, err = n.signerSend.SignAndBroadcast(ctx, policy, bufPsbt.Bytes())
 		if err != nil {
-			return "", fmt.Errorf("failed to sign and broadcast: %w", err)
+			return "", fmt.Errorf("[%s] failed to sign and broadcast: %w", n.chain.String(), err)
 		}
 	case types.OperationSwap:
 		txHash, err = n.signerSwap.SignAndBroadcast(ctx, policy, bufPsbt.Bytes())
 		if err != nil {
-			return "", fmt.Errorf("failed to sign and broadcast: %w", err)
+			return "", fmt.Errorf("[%s] failed to sign and broadcast: %w", n.chain.String(), err)
 		}
 	default:
-		return "", fmt.Errorf("no signer for operation %s", op)
+		return "", fmt.Errorf("[%s] no signer for operation %s", n.chain.String(), op)
 	}
 
 	return txHash, nil

@@ -53,12 +53,12 @@ func (s *SignerService) SignAndBroadcast(
 
 	signatures, err := s.signer.Sign(ctx, keysignRequest)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign transaction: %w", err)
+		return "", fmt.Errorf("[%s] failed to get TSS signatures: %w", s.chain.String(), err)
 	}
 
 	signedTx, err := s.sdk.Sign(psbtUnsigned, signatures)
 	if err != nil {
-		return "", fmt.Errorf("failed to sign transaction: %w", err)
+		return "", fmt.Errorf("[%s] failed to apply signatures to PSBT: %w", s.chain.String(), err)
 	}
 
 	err = s.sdk.Broadcast(signedTx)

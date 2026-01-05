@@ -64,7 +64,7 @@ func (c *Client) SendRawTransaction(tx *wire.MsgTx, _ bool) (*chainhash.Hash, er
 		map[string]string{},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to push tx: %w", err)
+		return nil, fmt.Errorf("[%s] failed to push tx: %w", c.chainPath, err)
 	}
 
 	hash, err := chainhash.NewHashFromStr(res.Data.TransactionHash)
@@ -100,7 +100,7 @@ func (c *Client) GetAllUnspent(ctx context.Context, address string) ([]Utxo, err
 			},
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch address info: %w", err)
+			return nil, fmt.Errorf("[%s] failed to fetch address info: %w", c.chainPath, err)
 		}
 
 		val, ok := batch.Data[address]
@@ -142,12 +142,12 @@ func (c *Client) GetRawTransaction(txHash string) ([]byte, error) {
 		map[string]string{},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get raw tx: %w", err)
+		return nil, fmt.Errorf("[%s] failed to get raw tx: %w", c.chainPath, err)
 	}
 
 	data, ok := r.Data[txHash]
 	if !ok {
-		return nil, fmt.Errorf("failed to get tx from response, hash=%s", txHash)
+		return nil, fmt.Errorf("[%s] failed to get tx from response, hash=%s", c.chainPath, txHash)
 	}
 
 	return hex.DecodeString(data.RawTx)
