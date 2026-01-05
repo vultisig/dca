@@ -285,34 +285,38 @@ func main() {
 		logger.Fatalf("failed to initialize Solana network: %v", err)
 	}
 
-	// Initialize LTC network
-	// Note: THORChain supports LTC swaps, we reuse the provider pattern
+	// Initialize chain-specific THORChain providers for UTXO chains
+	thorchainLtc := thorchain.NewProviderLtc(thorchainClient)
+	thorchainDoge := thorchain.NewProviderDoge(thorchainClient)
+	thorchainBch := thorchain.NewProviderBch(thorchainClient)
+
+	// Initialize LTC network with chain-specific provider
 	ltcNetwork := utxo.NewNetwork(
 		common.Litecoin,
-		thorchainBtc, // THORChain supports LTC
-		utxo.NewSwapService(nil), // TODO: Add LTC swap providers when available
+		thorchainLtc,
+		utxo.NewSwapService([]utxo.SwapProvider{thorchainLtc}),
 		utxo.NewSendService(),
 		utxo.NewSignerService(common.Litecoin, btcsdk.NewSDK(blockchairLtcClient), signerSend, txIndexerService),
 		utxo.NewSignerService(common.Litecoin, btcsdk.NewSDK(blockchairLtcClient), signerSwap, txIndexerService),
 		blockchairLtcClient,
 	)
 
-	// Initialize DOGE network
+	// Initialize DOGE network with chain-specific provider
 	dogeNetwork := utxo.NewNetwork(
 		common.Dogecoin,
-		thorchainBtc, // THORChain supports DOGE
-		utxo.NewSwapService(nil), // TODO: Add DOGE swap providers when available
+		thorchainDoge,
+		utxo.NewSwapService([]utxo.SwapProvider{thorchainDoge}),
 		utxo.NewSendService(),
 		utxo.NewSignerService(common.Dogecoin, btcsdk.NewSDK(blockchairDogeClient), signerSend, txIndexerService),
 		utxo.NewSignerService(common.Dogecoin, btcsdk.NewSDK(blockchairDogeClient), signerSwap, txIndexerService),
 		blockchairDogeClient,
 	)
 
-	// Initialize BCH network
+	// Initialize BCH network with chain-specific provider
 	bchNetwork := utxo.NewNetwork(
 		common.BitcoinCash,
-		thorchainBtc, // THORChain supports BCH
-		utxo.NewSwapService(nil), // TODO: Add BCH swap providers when available
+		thorchainBch,
+		utxo.NewSwapService([]utxo.SwapProvider{thorchainBch}),
 		utxo.NewSendService(),
 		utxo.NewSignerService(common.BitcoinCash, btcsdk.NewSDK(blockchairBchClient), signerSend, txIndexerService),
 		utxo.NewSignerService(common.BitcoinCash, btcsdk.NewSDK(blockchairBchClient), signerSwap, txIndexerService),

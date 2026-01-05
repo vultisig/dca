@@ -16,6 +16,12 @@ func parseThorNetwork(c common.Chain) (thorNetwork, error) {
 	switch c {
 	case common.Bitcoin:
 		return btc, nil
+	case common.Litecoin:
+		return ltc, nil
+	case common.Dogecoin:
+		return doge, nil
+	case common.BitcoinCash:
+		return bch, nil
 	case common.Ethereum:
 		return eth, nil
 	case common.BscChain:
@@ -46,6 +52,9 @@ type thorNetwork string
 
 const (
 	btc  thorNetwork = "BTC"
+	ltc  thorNetwork = "LTC"
+	doge thorNetwork = "DOGE"
+	bch  thorNetwork = "BCH"
 	eth  thorNetwork = "ETH"
 	bsc  thorNetwork = "BSC"
 	base thorNetwork = "BASE"

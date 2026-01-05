@@ -10,7 +10,9 @@ import (
 
 // From represents the source of a UTXO transaction.
 type From struct {
-	PubKey  *btcutil.AddressPubKey
+	// PubKey is the compressed ECDSA public key (33 bytes).
+	// This is chain-agnostic and used for signing.
+	PubKey  []byte
 	Address btcutil.Address
 	Amount  uint64
 }

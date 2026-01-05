@@ -165,12 +165,11 @@ func (n *Network) buildPSBTWithUTXOs(
 		return nil, fmt.Errorf("failed to get sats per byte: %w", err)
 	}
 
-	builder := btcsdk.Mainnet()
-	pubKey := from.PubKey.PubKey().SerializeCompressed()
-
-	result, err := builder.Build(availableUTXOs, outputs, changeOutputIndex, satsPerByte, pubKey)
+	builder := n.getBuilder()
+	
+	result, err := builder.Build(availableUTXOs, outputs, changeOutputIndex, satsPerByte, from.PubKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build tx: %w", err)
+		return nil, fmt.Errorf("[%s] failed to build tx: %w", n.chain.String(), err)
 	}
 
 	err = btcsdk.PopulatePSBTMetadata(result, n.utxo)
@@ -208,13 +207,12 @@ func (n *Network) buildPSBT(
 		}
 	}
 
-	// Build using SDK
-	builder := btcsdk.Mainnet()
-	pubKey := from.PubKey.PubKey().SerializeCompressed()
-
-	result, err := builder.Build(utxos, outputs, changeOutputIndex, satsPerByte, pubKey)
+	// Build using SDK with chain-specific parameters
+	builder := n.getBuilder()
+	
+	result, err := builder.Build(utxos, outputs, changeOutputIndex, satsPerByte, from.PubKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build tx: %w", err)
+		return nil, fmt.Errorf("[%s] failed to build tx: %w", n.chain.String(), err)
 	}
 
 	// Populate PSBT metadata
@@ -224,6 +222,24 @@ func (n *Network) buildPSBT(
 	}
 
 	return result.Packet, nil
+}
+
+// getBuilder returns a chain-specific builder with the correct dust limit.
+func (n *Network) getBuilder() *btcsdk.Builder {
+	switch n.chain {
+	case common.Litecoin:
+		// Litecoin SegWit dust limit (P2WPKH)
+		return btcsdk.NewBuilder(5460)
+	case common.Dogecoin:
+		// Dogecoin dust limit (1 DOGE minimum to avoid spam)
+		return btcsdk.NewBuilder(100000000)
+	case common.BitcoinCash:
+		// BCH uses same dust limit as BTC (forked from BTC)
+		return btcsdk.NewBuilder(546)
+	default:
+		// Default to Bitcoin mainnet parameters
+		return btcsdk.Mainnet()
+	}
 }
 
 func (n *Network) sendWithSdk(ctx context.Context, policy vtypes.PluginPolicy, op string, tx *psbt.Packet) (string, error) {

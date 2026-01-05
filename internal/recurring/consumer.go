@@ -1443,42 +1443,38 @@ func (c *Consumer) getTokenDecimals(ctx context.Context, chain common.Chain, tok
 // Litecoin (LTC) handlers
 // ============================================================================
 
-func (c *Consumer) ltcPubToAddress(rootPub string, pluginID string) (btcutil.Address, *btcutil.AddressPubKey, error) {
+func (c *Consumer) ltcPubToAddress(rootPub string, pluginID string) (btcutil.Address, []byte, error) {
 	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get vault content: %w", err)
+		return nil, nil, fmt.Errorf("[LTC] failed to get vault content: %w", err)
 	}
 
 	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decrypt vault: %w", err)
+		return nil, nil, fmt.Errorf("[LTC] failed to decrypt vault: %w", err)
 	}
 
 	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.Litecoin.GetDerivePath(), false)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get derived pubkey: %w", err)
+		return nil, nil, fmt.Errorf("[LTC] failed to get derived pubkey: %w", err)
 	}
 
 	addr, err := address.GetLitecoinAddress(childPub)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get address: %w", err)
+		return nil, nil, fmt.Errorf("[LTC] failed to get address: %w", err)
 	}
 
 	ltcAddr, err := btcutil.DecodeAddress(addr, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decode LTC address: %w", err)
+		return nil, nil, fmt.Errorf("[LTC] failed to decode address: %w", err)
 	}
 
 	pubKeyBytes, err := hex.DecodeString(childPub)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid derived ECDSA public key: %w", err)
-	}
-	pub, err := btcutil.NewAddressPubKey(pubKeyBytes, &chaincfg.MainNetParams)
-	if err != nil {
-		return nil, nil, fmt.Errorf("fail to get public key hash: %w", err)
+		return nil, nil, fmt.Errorf("[LTC] invalid derived ECDSA public key: %w", err)
 	}
 
-	return ltcAddr, pub, nil
+	return ltcAddr, pubKeyBytes, nil
 }
 
 func (c *Consumer) handleLtcSend(
@@ -1610,42 +1606,38 @@ func (c *Consumer) handleLtcSwap(
 // Dogecoin (DOGE) handlers
 // ============================================================================
 
-func (c *Consumer) dogePubToAddress(rootPub string, pluginID string) (btcutil.Address, *btcutil.AddressPubKey, error) {
+func (c *Consumer) dogePubToAddress(rootPub string, pluginID string) (btcutil.Address, []byte, error) {
 	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get vault content: %w", err)
+		return nil, nil, fmt.Errorf("[DOGE] failed to get vault content: %w", err)
 	}
 
 	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decrypt vault: %w", err)
+		return nil, nil, fmt.Errorf("[DOGE] failed to decrypt vault: %w", err)
 	}
 
 	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.Dogecoin.GetDerivePath(), false)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get derived pubkey: %w", err)
+		return nil, nil, fmt.Errorf("[DOGE] failed to get derived pubkey: %w", err)
 	}
 
 	addr, err := address.GetDogecoinAddress(childPub)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get address: %w", err)
+		return nil, nil, fmt.Errorf("[DOGE] failed to get address: %w", err)
 	}
 
 	dogeAddr, err := btcutil.DecodeAddress(addr, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decode DOGE address: %w", err)
+		return nil, nil, fmt.Errorf("[DOGE] failed to decode address: %w", err)
 	}
 
 	pubKeyBytes, err := hex.DecodeString(childPub)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid derived ECDSA public key: %w", err)
-	}
-	pub, err := btcutil.NewAddressPubKey(pubKeyBytes, &chaincfg.MainNetParams)
-	if err != nil {
-		return nil, nil, fmt.Errorf("fail to get public key hash: %w", err)
+		return nil, nil, fmt.Errorf("[DOGE] invalid derived ECDSA public key: %w", err)
 	}
 
-	return dogeAddr, pub, nil
+	return dogeAddr, pubKeyBytes, nil
 }
 
 func (c *Consumer) handleDogeSend(
@@ -1777,42 +1769,38 @@ func (c *Consumer) handleDogeSwap(
 // Bitcoin Cash (BCH) handlers
 // ============================================================================
 
-func (c *Consumer) bchPubToAddress(rootPub string, pluginID string) (btcutil.Address, *btcutil.AddressPubKey, error) {
+func (c *Consumer) bchPubToAddress(rootPub string, pluginID string) (btcutil.Address, []byte, error) {
 	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get vault content: %w", err)
+		return nil, nil, fmt.Errorf("[BCH] failed to get vault content: %w", err)
 	}
 
 	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decrypt vault: %w", err)
+		return nil, nil, fmt.Errorf("[BCH] failed to decrypt vault: %w", err)
 	}
 
 	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.BitcoinCash.GetDerivePath(), false)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get derived pubkey: %w", err)
+		return nil, nil, fmt.Errorf("[BCH] failed to get derived pubkey: %w", err)
 	}
 
 	addr, err := address.GetBitcoinCashAddress(childPub)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get address: %w", err)
+		return nil, nil, fmt.Errorf("[BCH] failed to get address: %w", err)
 	}
 
 	bchAddr, err := btcutil.DecodeAddress(addr, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decode BCH address: %w", err)
+		return nil, nil, fmt.Errorf("[BCH] failed to decode address: %w", err)
 	}
 
 	pubKeyBytes, err := hex.DecodeString(childPub)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid derived ECDSA public key: %w", err)
-	}
-	pub, err := btcutil.NewAddressPubKey(pubKeyBytes, &chaincfg.MainNetParams)
-	if err != nil {
-		return nil, nil, fmt.Errorf("fail to get public key hash: %w", err)
+		return nil, nil, fmt.Errorf("[BCH] invalid derived ECDSA public key: %w", err)
 	}
 
-	return bchAddr, pub, nil
+	return bchAddr, pubKeyBytes, nil
 }
 
 func (c *Consumer) handleBchSend(
