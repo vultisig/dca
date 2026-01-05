@@ -299,7 +299,7 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 		ConfigurationExample: cfgExamples,
 		Requirements: &rtypes.PluginRequirements{
 			MinVultisigVersion: 1,
-			SupportedChains:    getSupportedChainStrings(),
+			SupportedChains:    getSupportedSwapChainStrings(),
 		},
 		Permissions: []*rtypes.Permission{
 			{
@@ -323,7 +323,7 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 
 func (s *SwapSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 	var resources []*rtypes.ResourcePattern
-	for _, chain := range supportedChains {
+	for _, chain := range supportedSwapChains {
 		chainNameLower := strings.ToLower(chain.String())
 
 		resources = append(resources, &rtypes.ResourcePattern{
