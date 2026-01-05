@@ -191,8 +191,10 @@ func main() {
 		{common.BscChain, cfg.Rpc.BSC.URL},
 		{common.Base, cfg.Rpc.Base.URL},
 		{common.Blast, cfg.Rpc.Blast.URL},
+		{common.CronosChain, cfg.Rpc.Cronos.URL},
 		{common.Optimism, cfg.Rpc.Optimism.URL},
 		{common.Polygon, cfg.Rpc.Polygon.URL},
+		{common.Zksync, cfg.Rpc.Zksync.URL},
 	}
 
 	for _, c := range networkConfigs {
@@ -354,8 +356,10 @@ type rpc struct {
 	BSC       rpcItem
 	Base      rpcItem
 	Blast     rpcItem
+	Cronos    rpcItem
 	Optimism  rpcItem
 	Polygon   rpcItem
+	Zksync    rpcItem
 	XRP       rpcItem
 	Solana    rpcItem
 }

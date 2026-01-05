@@ -61,8 +61,8 @@ func TestIsMayachainSupported(t *testing.T) {
 func TestSupportedEVMChains(t *testing.T) {
 	chains := SupportedEVMChains()
 
-	// Should contain exactly 5 chains
-	require.Len(t, chains, 5)
+	// Should contain exactly 10 chains
+	require.Len(t, chains, 10)
 
 	// Check that all expected chains are present
 	chainSet := make(map[common.Chain]bool)
@@ -71,10 +71,15 @@ func TestSupportedEVMChains(t *testing.T) {
 	}
 
 	require.True(t, chainSet[common.Ethereum], "Ethereum should be supported")
-	require.True(t, chainSet[common.Base], "Base should be supported")
-	require.True(t, chainSet[common.BscChain], "BSC should be supported")
-	require.True(t, chainSet[common.Avalanche], "Avalanche should be supported")
 	require.True(t, chainSet[common.Arbitrum], "Arbitrum should be supported")
+	require.True(t, chainSet[common.Avalanche], "Avalanche should be supported")
+	require.True(t, chainSet[common.BscChain], "BSC should be supported")
+	require.True(t, chainSet[common.Base], "Base should be supported")
+	require.True(t, chainSet[common.Blast], "Blast should be supported")
+	require.True(t, chainSet[common.CronosChain], "Cronos should be supported")
+	require.True(t, chainSet[common.Optimism], "Optimism should be supported")
+	require.True(t, chainSet[common.Polygon], "Polygon should be supported")
+	require.True(t, chainSet[common.Zksync], "zkSync should be supported")
 }
 
 // MockProvider implements Provider interface for testing
@@ -164,7 +169,9 @@ func TestSwapService_FindBestAmountOut(t *testing.T) {
 
 func TestChainProviderMapping(t *testing.T) {
 	// Test that each supported chain has the correct provider(s)
-	// ETH routes through THORChain only (no dual routing)
+	// ETH/BSC/BASE/AVAX route through THORChain
+	// ARB routes through MayaChain
+	// Other chains support direct sends only
 	tests := []struct {
 		chain        common.Chain
 		hasThorchain bool
@@ -176,6 +183,11 @@ func TestChainProviderMapping(t *testing.T) {
 		{common.BscChain, true, false, "BSC supported by THORChain only"},
 		{common.Avalanche, true, false, "AVAX supported by THORChain only"},
 		{common.Arbitrum, false, true, "ARB supported by MayaChain only"},
+		{common.Blast, false, false, "Blast - sends only, no swap routing"},
+		{common.CronosChain, false, false, "Cronos - sends only, no swap routing"},
+		{common.Optimism, false, false, "Optimism - sends only, no swap routing"},
+		{common.Polygon, false, false, "Polygon - sends only, no swap routing"},
+		{common.Zksync, false, false, "zkSync - sends only, no swap routing"},
 	}
 
 	for _, tt := range tests {
