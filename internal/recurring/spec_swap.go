@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kaptinlin/jsonschema"
+	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/util"
 	rjsonschema "github.com/vultisig/recipes/jsonschema"
 	rtypes "github.com/vultisig/recipes/types"
@@ -126,6 +127,18 @@ func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.
 	toChainStr, ok := toAssetMap["chain"].(string)
 	if !ok || toChainStr == "" {
 		return nil, fmt.Errorf("'to.chain' could not be empty")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return nil, fmt.Errorf("unsupported chain: %s", toChainStr)
+	}
+
+	// Cross-chain swaps require THORChain support for both chains
+	if fromChainTyped != toChainTyped {
+		if !thorchain.IsThorChainSupported(fromChainTyped, toChainTyped) {
+			return nil, fmt.Errorf("cross-chain swaps between %s and %s are not supported", fromChainTyped, toChainTyped)
+		}
 	}
 
 	fromAmountStr := util.GetStr(cfg, fromAmount)
