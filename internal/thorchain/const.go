@@ -31,6 +31,17 @@ func parseThorNetwork(c common.Chain) (thorNetwork, error) {
 	}
 }
 
+// IsThorChainSupported checks if all provided chains are supported by the
+// THORChain router for cross-chain swaps.
+func IsThorChainSupported(chains ...common.Chain) bool {
+	for _, c := range chains {
+		if _, err := parseThorNetwork(c); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
 type thorNetwork string
 
 const (
