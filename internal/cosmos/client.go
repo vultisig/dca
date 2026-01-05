@@ -80,7 +80,7 @@ func (c *Client) GetAccount(ctx context.Context, address string) (*AccountInfo, 
 	if err != nil {
 		return nil, fmt.Errorf("cosmos: failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -122,7 +122,7 @@ func (c *Client) GetLatestBlock(ctx context.Context) (*BlockInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cosmos: failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

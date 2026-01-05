@@ -129,7 +129,7 @@ func (c *Client) GetAccount(ctx context.Context, address string) (*AccountInfo, 
 	if err != nil {
 		return nil, fmt.Errorf("tron: failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -156,7 +156,7 @@ func (c *Client) GetNowBlock(ctx context.Context) (*Block, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tron: failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -188,7 +188,7 @@ func (c *Client) CreateTransaction(ctx context.Context, transferReq *TransferReq
 	if err != nil {
 		return nil, fmt.Errorf("tron: failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
