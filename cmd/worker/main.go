@@ -23,6 +23,7 @@ import (
 	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
+	"github.com/vultisig/dca/internal/utxo"
 	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/dca/internal/zcash"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
@@ -226,7 +227,12 @@ func main() {
 	}
 
 	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
-	blockchairClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
+	blockchairBtcClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
+
+	// Initialize Blockchair clients for other UTXO chains
+	blockchairLtcClient := blockchair.NewClientForChain(cfg.LTC.BlockchairURL, "litecoin")
+	blockchairDogeClient := blockchair.NewClientForChain(cfg.DOGE.BlockchairURL, "dogecoin")
+	blockchairBchClient := blockchair.NewClientForChain(cfg.BCH.BlockchairURL, "bitcoin-cash")
 
 	// Initialize XRP network
 	xrpClient := xrp.NewClient(cfg.Rpc.XRP.URL)
@@ -279,6 +285,40 @@ func main() {
 		logger.Fatalf("failed to initialize Solana network: %v", err)
 	}
 
+	// Initialize LTC network
+	// Note: THORChain supports LTC swaps, we reuse the provider pattern
+	ltcNetwork := utxo.NewNetwork(
+		common.Litecoin,
+		thorchainBtc, // THORChain supports LTC
+		utxo.NewSwapService(nil), // TODO: Add LTC swap providers when available
+		utxo.NewSendService(),
+		utxo.NewSignerService(common.Litecoin, btcsdk.NewSDK(blockchairLtcClient), signerSend, txIndexerService),
+		utxo.NewSignerService(common.Litecoin, btcsdk.NewSDK(blockchairLtcClient), signerSwap, txIndexerService),
+		blockchairLtcClient,
+	)
+
+	// Initialize DOGE network
+	dogeNetwork := utxo.NewNetwork(
+		common.Dogecoin,
+		thorchainBtc, // THORChain supports DOGE
+		utxo.NewSwapService(nil), // TODO: Add DOGE swap providers when available
+		utxo.NewSendService(),
+		utxo.NewSignerService(common.Dogecoin, btcsdk.NewSDK(blockchairDogeClient), signerSend, txIndexerService),
+		utxo.NewSignerService(common.Dogecoin, btcsdk.NewSDK(blockchairDogeClient), signerSwap, txIndexerService),
+		blockchairDogeClient,
+	)
+
+	// Initialize BCH network
+	bchNetwork := utxo.NewNetwork(
+		common.BitcoinCash,
+		thorchainBtc, // THORChain supports BCH
+		utxo.NewSwapService(nil), // TODO: Add BCH swap providers when available
+		utxo.NewSendService(),
+		utxo.NewSignerService(common.BitcoinCash, btcsdk.NewSDK(blockchairBchClient), signerSend, txIndexerService),
+		utxo.NewSignerService(common.BitcoinCash, btcsdk.NewSDK(blockchairBchClient), signerSwap, txIndexerService),
+		blockchairBchClient,
+	)
+
 	recurringConsumer := recurring.NewConsumer(
 		logger,
 		policyService,
@@ -287,10 +327,13 @@ func main() {
 			thorchainBtc,
 			btc.NewSwapService([]btc.SwapProvider{thorchainBtc}),
 			btc.NewSendService(),
-			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signerSend, txIndexerService),
-			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signerSwap, txIndexerService),
-			blockchairClient,
+			btc.NewSignerService(btcsdk.NewSDK(blockchairBtcClient), signerSend, txIndexerService),
+			btc.NewSignerService(btcsdk.NewSDK(blockchairBtcClient), signerSwap, txIndexerService),
+			blockchairBtcClient,
 		),
+		ltcNetwork,
+		dogeNetwork,
+		bchNetwork,
 		solanaNetwork,
 		xrpNetwork,
 		zcashNetwork,
@@ -328,6 +371,9 @@ type config struct {
 	ThorChain    thorChainConfig
 	MayaChain    mayaChainConfig
 	BTC          btcConfig
+	LTC          ltcConfig
+	DOGE         dogeConfig
+	BCH          bchConfig
 	XRP          xrpConfig
 	ZEC          zecConfig
 	Solana       solanaConfig
@@ -365,6 +411,18 @@ type rpcItem struct {
 }
 
 type btcConfig struct {
+	BlockchairURL string
+}
+
+type ltcConfig struct {
+	BlockchairURL string
+}
+
+type dogeConfig struct {
+	BlockchairURL string
+}
+
+type bchConfig struct {
 	BlockchairURL string
 }
 

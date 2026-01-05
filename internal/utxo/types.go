@@ -1,0 +1,35 @@
+package utxo
+
+import (
+	"context"
+
+	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/wire"
+	"github.com/vultisig/vultisig-go/common"
+)
+
+// From represents the source of a UTXO transaction.
+type From struct {
+	PubKey  *btcutil.AddressPubKey
+	Address btcutil.Address
+	Amount  uint64
+}
+
+// To represents the destination of a UTXO swap.
+type To struct {
+	Chain   common.Chain
+	AssetID string
+	Address string
+}
+
+// FeeProvider provides fee rate information for a UTXO chain.
+type FeeProvider interface {
+	SatsPerByte(ctx context.Context) (uint64, error)
+}
+
+// SwapProvider provides swap functionality for a UTXO chain.
+type SwapProvider interface {
+	MakeOutputs(ctx context.Context, from From, to To) (uint64, []*wire.TxOut, error)
+	ChangeOutputIndex() int
+}
+
