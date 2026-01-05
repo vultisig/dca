@@ -11,6 +11,7 @@ const (
 	PluginRecurringSwaps = "vultisig-dca-0000"
 )
 
+// supportedChains lists all chains supported for sends
 var supportedChains = []common.Chain{
 	common.Ethereum,
 	common.Arbitrum,
@@ -18,12 +19,28 @@ var supportedChains = []common.Chain{
 	common.BscChain,
 	common.Base,
 	common.Blast,
+	common.CronosChain,
 	common.Optimism,
 	common.Polygon,
+	common.Zksync,
 	common.Bitcoin,
 	common.Solana,
 	common.XRP,
 	common.Zcash,
+}
+
+// supportedSwapChains lists chains that support cross-chain swaps
+// via THORChain (ETH, BSC, BASE, AVAX) or MayaChain (ARB)
+var supportedSwapChains = []common.Chain{
+	common.Ethereum,  // THORChain
+	common.Arbitrum,  // MayaChain
+	common.Avalanche, // THORChain
+	common.BscChain,  // THORChain
+	common.Base,      // THORChain
+	common.Bitcoin,   // THORChain
+	common.Solana,    // Jupiter
+	common.XRP,       // THORChain
+	common.Zcash,     // THORChain
 }
 
 const (
@@ -90,6 +107,14 @@ func getMaxTxsForSwap(chain common.Chain) uint32 {
 func getSupportedChainStrings() []string {
 	var cc []string
 	for _, c := range supportedChains {
+		cc = append(cc, c.String())
+	}
+	return cc
+}
+
+func getSupportedSwapChainStrings() []string {
+	var cc []string
+	for _, c := range supportedSwapChains {
 		cc = append(cc, c.String())
 	}
 	return cc
