@@ -27,6 +27,9 @@ var supportedChains = []common.Chain{
 	common.Solana,
 	common.XRP,
 	common.Zcash,
+	common.GaiaChain,
+	common.MayaChain,
+	common.Tron,
 }
 
 const (
@@ -82,6 +85,12 @@ func getMaxTxsForSwap(chain common.Chain) uint32 {
 	case chain == common.XRP:
 		return 1
 	case chain == common.Zcash:
+		return 1
+	case chain == common.GaiaChain:
+		return 1
+	case chain == common.MayaChain:
+		return 1
+	case chain == common.Tron:
 		return 1
 	case chain.IsEvm():
 		return 2

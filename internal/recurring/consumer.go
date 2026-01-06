@@ -17,9 +17,12 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/btc"
+	"github.com/vultisig/dca/internal/cosmos"
 	"github.com/vultisig/dca/internal/evm"
+	"github.com/vultisig/dca/internal/maya"
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/solana"
+	"github.com/vultisig/dca/internal/tron"
 	"github.com/vultisig/dca/internal/util"
 	"github.com/vultisig/dca/internal/utxo"
 	"github.com/vultisig/dca/internal/xrp"
@@ -219,6 +222,9 @@ type Consumer struct {
 	xrp         *xrp.Network
 	solana      *solana.Network
 	zcash       *zcash.Network
+	cosmos      *cosmos.Network
+	maya        *maya.Network
+	tron        *tron.Network
 	vault       vault.Storage
 	vaultSecret string
 	metrics     *metrics.WorkerMetrics
@@ -235,6 +241,9 @@ func NewConsumer(
 	solana *solana.Network,
 	xrp *xrp.Network,
 	zcash *zcash.Network,
+	cosmos *cosmos.Network,
+	maya *maya.Network,
+	tron *tron.Network,
 	vault vault.Storage,
 	vaultSecret string,
 ) *Consumer {
@@ -249,6 +258,9 @@ func NewConsumer(
 		xrp:         xrp,
 		solana:      solana,
 		zcash:       zcash,
+		cosmos:      cosmos,
+		maya:        maya,
+		tron:        tron,
 		vault:       vault,
 		vaultSecret: vaultSecret,
 		metrics:     metrics.NewWorkerMetrics(),
@@ -358,6 +370,30 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 			return nil
 		}
 
+		if pcfg.FromChain == common.GaiaChain {
+			er := c.handleCosmosSend(ctx, pol, pcfg.Recipients)
+			if er != nil {
+				return fmt.Errorf("failed to handle Cosmos send: %w", er)
+			}
+			return nil
+		}
+
+		if pcfg.FromChain == common.MayaChain {
+			er := c.handleMayaSend(ctx, pol, pcfg.Recipients)
+			if er != nil {
+				return fmt.Errorf("failed to handle Maya send: %w", er)
+			}
+			return nil
+		}
+
+		if pcfg.FromChain == common.Tron {
+			er := c.handleTronSend(ctx, pol, pcfg.Recipients)
+			if er != nil {
+				return fmt.Errorf("failed to handle Tron send: %w", er)
+			}
+			return nil
+		}
+
 		c.logger.WithFields(logrus.Fields{
 			"chain":     pcfg.FromChainStr,
 			"operation": "send",
@@ -417,6 +453,30 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		er := c.handleBchSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
 		if er != nil {
 			return fmt.Errorf("failed to handle BCH swap: %w", er)
+		}
+		return nil
+	}
+
+	if pcfg.FromChain == common.GaiaChain {
+		er := c.handleCosmosSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
+		if er != nil {
+			return fmt.Errorf("failed to handle Cosmos swap: %w", er)
+		}
+		return nil
+	}
+
+	if pcfg.FromChain == common.MayaChain {
+		er := c.handleMayaSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
+		if er != nil {
+			return fmt.Errorf("failed to handle Maya swap: %w", er)
+		}
+		return nil
+	}
+
+	if pcfg.FromChain == common.Tron {
+		er := c.handleTronSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
+		if er != nil {
+			return fmt.Errorf("failed to handle Tron swap: %w", er)
 		}
 		return nil
 	}
@@ -1925,5 +1985,382 @@ func (c *Consumer) handleBchSwap(
 
 	c.metrics.RecordSwapTransactionWithFallback("BCH", toAsset, common.BitcoinCash.String(), toChainTyped.String(), true)
 	c.logger.WithField("txHash", txHash).Info("BCH swap executed successfully")
+	return nil
+}
+
+// ============================================================================
+// Cosmos (Gaia) handlers
+// ============================================================================
+
+// cosmosPubToAddress derives a Cosmos (Gaia) address from the root public key
+func (c *Consumer) cosmosPubToAddress(rootPub string, pluginID string) (string, string, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.GaiaChain.GetDerivePath(), false)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get derived pubkey: %w", err)
+	}
+
+	addr, _, _, err := address.GetAddress(rootPub, vlt.GetHexChainCode(), common.GaiaChain)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get Cosmos address: %w", err)
+	}
+
+	return addr, childPub, nil
+}
+
+// handleCosmosSend handles Cosmos (Gaia) send operations
+func (c *Consumer) handleCosmosSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	recipients []Recipient,
+) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+
+	fromAddressStr, childPubKey, err := c.cosmosPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get Cosmos address from policy PublicKey: %w", err)
+	}
+
+	// Process each recipient sequentially
+	for i, recipient := range recipients {
+		amountUatom, err := parseUint64(recipient.Amount)
+		if err != nil {
+			return fmt.Errorf("failed to parse amount for recipient[%d]: %w", i, err)
+		}
+
+		txHash, err := c.cosmos.SendPayment(ctx, *pol, fromAddressStr, recipient.ToAddress, amountUatom, childPubKey)
+		if err != nil {
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"policyID":  pol.ID.String(),
+			"toAddress": recipient.ToAddress,
+			"txHash":    txHash,
+		}).Info("Cosmos send completed")
+	}
+	return nil
+}
+
+// handleCosmosSwap handles Cosmos (Gaia) swap operations via THORChain
+func (c *Consumer) handleCosmosSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	toAssetMap map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressStr, childPubKey, err := c.cosmosPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get Cosmos address from policy PublicKey: %w", err)
+	}
+
+	fromAmountUatom, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
+	}
+
+	from := cosmos.From{
+		Address: fromAddressStr,
+		Amount:  fromAmountUatom,
+		PubKey:  childPubKey,
+	}
+
+	to := cosmos.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"fromAmount":  fromAmountUatom,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling Cosmos swap")
+
+	txHash, err := c.cosmos.SwapAssets(ctx, *pol, from, to)
+	if err != nil {
+		c.metrics.RecordSwapTransactionWithFallback("ATOM", toAsset, common.GaiaChain.String(), toChainTyped.String(), false)
+		return fmt.Errorf("failed to execute Cosmos swap: %w", err)
+	}
+
+	c.metrics.RecordSwapTransactionWithFallback("ATOM", toAsset, common.GaiaChain.String(), toChainTyped.String(), true)
+	c.logger.WithField("txHash", txHash).Info("Cosmos swap executed successfully")
+	return nil
+}
+
+// ============================================================================
+// MayaChain handlers
+// ============================================================================
+
+// mayaPubToAddress derives a MayaChain address from the root public key
+func (c *Consumer) mayaPubToAddress(rootPub string, pluginID string) (string, string, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.MayaChain.GetDerivePath(), false)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get derived pubkey: %w", err)
+	}
+
+	addr, _, _, err := address.GetAddress(rootPub, vlt.GetHexChainCode(), common.MayaChain)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get Maya address: %w", err)
+	}
+
+	return addr, childPub, nil
+}
+
+// handleMayaSend handles MayaChain send operations
+func (c *Consumer) handleMayaSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	recipients []Recipient,
+) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+
+	fromAddressStr, childPubKey, err := c.mayaPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get Maya address from policy PublicKey: %w", err)
+	}
+
+	// Process each recipient sequentially
+	for i, recipient := range recipients {
+		amount, err := parseUint64(recipient.Amount)
+		if err != nil {
+			return fmt.Errorf("failed to parse amount for recipient[%d]: %w", i, err)
+		}
+
+		txHash, err := c.maya.SendPayment(ctx, *pol, fromAddressStr, recipient.ToAddress, amount, childPubKey)
+		if err != nil {
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"policyID":  pol.ID.String(),
+			"toAddress": recipient.ToAddress,
+			"txHash":    txHash,
+		}).Info("Maya send completed")
+	}
+	return nil
+}
+
+// handleMayaSwap handles MayaChain swap operations
+func (c *Consumer) handleMayaSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	toAssetMap map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressStr, childPubKey, err := c.mayaPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get Maya address from policy PublicKey: %w", err)
+	}
+
+	fromAmountCacao, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
+	}
+
+	from := maya.From{
+		Address: fromAddressStr,
+		Amount:  fromAmountCacao,
+		PubKey:  childPubKey,
+	}
+
+	to := maya.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"fromAmount":  fromAmountCacao,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling Maya swap")
+
+	txHash, err := c.maya.SwapAssets(ctx, *pol, from, to)
+	if err != nil {
+		c.metrics.RecordSwapTransactionWithFallback("CACAO", toAsset, common.MayaChain.String(), toChainTyped.String(), false)
+		return fmt.Errorf("failed to execute Maya swap: %w", err)
+	}
+
+	c.metrics.RecordSwapTransactionWithFallback("CACAO", toAsset, common.MayaChain.String(), toChainTyped.String(), true)
+	c.logger.WithField("txHash", txHash).Info("Maya swap executed successfully")
+	return nil
+}
+
+// ============================================================================
+// TRON handlers
+// ============================================================================
+
+// tronPubToAddress derives a TRON address from the root public key
+func (c *Consumer) tronPubToAddress(rootPub string, pluginID string) (string, []byte, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.Tron.GetDerivePath(), false)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get derived pubkey: %w", err)
+	}
+
+	addr, _, _, err := address.GetAddress(rootPub, vlt.GetHexChainCode(), common.Tron)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get Tron address: %w", err)
+	}
+
+	pubKeyBytes, err := hex.DecodeString(childPub)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to decode pubkey: %w", err)
+	}
+
+	return addr, pubKeyBytes, nil
+}
+
+// handleTronSend handles TRON send operations
+func (c *Consumer) handleTronSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	recipients []Recipient,
+) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+
+	fromAddressStr, pubKeyBytes, err := c.tronPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get Tron address from policy PublicKey: %w", err)
+	}
+
+	// Process each recipient sequentially
+	for i, recipient := range recipients {
+		amountSun, err := parseUint64(recipient.Amount)
+		if err != nil {
+			return fmt.Errorf("failed to parse amount for recipient[%d]: %w", i, err)
+		}
+
+		txHash, err := c.tron.SendPayment(ctx, *pol, fromAddressStr, recipient.ToAddress, amountSun, pubKeyBytes)
+		if err != nil {
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"policyID":  pol.ID.String(),
+			"toAddress": recipient.ToAddress,
+			"txHash":    txHash,
+		}).Info("Tron send completed")
+	}
+	return nil
+}
+
+// handleTronSwap handles TRON swap operations via THORChain
+func (c *Consumer) handleTronSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	toAssetMap map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressStr, pubKeyBytes, err := c.tronPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get Tron address from policy PublicKey: %w", err)
+	}
+
+	fromAmountSun, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
+	}
+
+	from := tron.From{
+		Address: fromAddressStr,
+		Amount:  fromAmountSun,
+		PubKey:  hex.EncodeToString(pubKeyBytes),
+	}
+
+	to := tron.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"fromAmount":  fromAmountSun,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling Tron swap")
+
+	txHash, err := c.tron.SwapAssets(ctx, *pol, from, to, pubKeyBytes)
+	if err != nil {
+		c.metrics.RecordSwapTransactionWithFallback("TRX", toAsset, common.Tron.String(), toChainTyped.String(), false)
+		return fmt.Errorf("failed to execute Tron swap: %w", err)
+	}
+
+	c.metrics.RecordSwapTransactionWithFallback("TRX", toAsset, common.Tron.String(), toChainTyped.String(), true)
+	c.logger.WithField("txHash", txHash).Info("Tron swap executed successfully")
 	return nil
 }

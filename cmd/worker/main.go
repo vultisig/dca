@@ -20,14 +20,19 @@ import (
 	"github.com/vultisig/dca/internal/mayachain"
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/oneinch"
+	"github.com/vultisig/dca/internal/cosmos"
+	"github.com/vultisig/dca/internal/maya"
 	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
+	"github.com/vultisig/dca/internal/tron"
 	"github.com/vultisig/dca/internal/utxo"
 	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/dca/internal/zcash"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
+	cosmossdk "github.com/vultisig/recipes/sdk/cosmos"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
+	tronsdk "github.com/vultisig/recipes/sdk/tron"
 	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
@@ -323,6 +328,45 @@ func main() {
 		blockchairBchClient,
 	)
 
+	// Initialize Cosmos network
+	cosmosClient := cosmos.NewClient(cfg.Rpc.Cosmos.URL)
+	cosmosRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.Rpc.Cosmos.URL})
+	cosmosSDK := cosmossdk.NewSDK(cosmosRpcClient)
+
+	cosmosNetwork := cosmos.NewNetwork(
+		cosmos.NewSwapService([]cosmos.SwapProvider{}), // THORChain provider can be added later
+		cosmos.NewSendService(cosmosClient, cosmos.CosmosHubChainID),
+		cosmos.NewSignerService(cosmosSDK, signerSend, txIndexerService, common.GaiaChain),
+		cosmos.NewSignerService(cosmosSDK, signerSwap, txIndexerService, common.GaiaChain),
+		cosmosClient,
+	)
+
+	// Initialize Maya network
+	mayaClient := maya.NewClient(cfg.Rpc.Maya.URL)
+	mayaRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.Rpc.Maya.URL})
+	mayaSDK := cosmossdk.NewSDK(mayaRpcClient)
+
+	mayaNetwork := maya.NewNetwork(
+		maya.NewSwapService([]maya.SwapProvider{}), // Maya DEX provider can be added later
+		maya.NewSendService(mayaClient, maya.MayaChainID),
+		maya.NewSignerService(mayaSDK, signerSend, txIndexerService),
+		maya.NewSignerService(mayaSDK, signerSwap, txIndexerService),
+		mayaClient,
+	)
+
+	// Initialize TRON network
+	tronClient := tron.NewClient(cfg.Rpc.Tron.URL)
+	tronRpcClient := tronsdk.NewHTTPRPCClient([]string{cfg.Rpc.Tron.URL})
+	tronSDK := tronsdk.NewSDK(tronRpcClient)
+
+	tronNetwork := tron.NewNetwork(
+		tron.NewSwapService([]tron.SwapProvider{}), // THORChain provider can be added later
+		tron.NewSendService(tronClient),
+		tron.NewSignerService(tronSDK, signerSend, txIndexerService),
+		tron.NewSignerService(tronSDK, signerSwap, txIndexerService),
+		tronClient,
+	)
+
 	recurringConsumer := recurring.NewConsumer(
 		logger,
 		policyService,
@@ -341,6 +385,9 @@ func main() {
 		solanaNetwork,
 		xrpNetwork,
 		zcashNetwork,
+		cosmosNetwork,
+		mayaNetwork,
+		tronNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
@@ -408,6 +455,9 @@ type rpc struct {
 	Polygon   rpcItem
 	XRP       rpcItem
 	Solana    rpcItem
+	Cosmos    rpcItem
+	Maya      rpcItem
+	Tron      rpcItem
 }
 
 type rpcItem struct {
