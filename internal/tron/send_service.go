@@ -98,37 +98,30 @@ func (s *SendService) BuildTRC20Transfer(
 }
 
 // encodeTRC20TransferParameter encodes the parameters for TRC-20 transfer function
-// Format: 32 bytes address + 32 bytes amount
+// Format: 32 bytes address (20 bytes left-padded) + 32 bytes amount
 func encodeTRC20TransferParameter(to string, amount *big.Int) string {
-	// Convert TRON address to hex (remove T prefix and convert from base58)
-	toHex := tronAddressToHex(to)
+	// For TRC-20 transfer ABI encoding with visible=true:
+	// TronGrid handles the address format conversion internally
+	// We pass the address as-is since visible=true is set in the request
+	// The API will convert T... addresses to proper hex format
 
-	// Pad address to 32 bytes (left pad with zeros, skip first byte 0x41)
-	addressPadded := fmt.Sprintf("%064s", toHex[2:]) // Skip 0x41 prefix
+	// For addresses already in hex format (41...), extract the 20-byte portion
+	addressHex := to
+	if len(addressHex) == 42 && strings.HasPrefix(addressHex, "41") {
+		// Remove 41 prefix to get 20-byte address (40 hex chars)
+		addressHex = addressHex[2:]
+	}
+
+	// Left-pad address to 32 bytes (64 hex chars) with zeros
+	// Note: When visible=true, TronGrid handles T... addresses
+	addressPadded := fmt.Sprintf("%064s", addressHex)
+	// Replace spaces with zeros (Sprintf %s pads with spaces, not zeros)
+	addressPadded = strings.ReplaceAll(addressPadded, " ", "0")
 
 	// Pad amount to 32 bytes
 	amountHex := fmt.Sprintf("%064x", amount)
 
 	return addressPadded + amountHex
-}
-
-// tronAddressToHex converts a TRON address (T...) to hex format
-func tronAddressToHex(address string) string {
-	// If already hex (starts with 41), return as is
-	if strings.HasPrefix(address, "41") && len(address) == 42 {
-		return address
-	}
-
-	// For base58 addresses starting with T, we need to decode
-	// For simplicity, if the address is already in visible format from API,
-	// the API handles conversion. This is a passthrough.
-	if strings.HasPrefix(address, "T") {
-		// The TronGrid API with visible=true handles address conversion
-		// We pass the address as-is and let the API convert it
-		return address
-	}
-
-	return address
 }
 
 // GetBalance fetches the TRX balance for an address

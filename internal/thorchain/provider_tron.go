@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"strings"
 
 	tron_swap "github.com/vultisig/dca/internal/tron"
 	"github.com/vultisig/vultisig-go/common"
@@ -223,22 +224,29 @@ func (b *TronSDKTxBuilder) CreateTRC20TransactionWithMemo(
 	return txData, nil
 }
 
-// encodeTRC20TransferWithMemo encodes TRC-20 transfer parameters
-// Format: 32 bytes address + 32 bytes amount
+// encodeTRC20TransferWithMemo encodes TRC-20 transfer parameters for ABI
+// Format: 32 bytes address (without 41 prefix) + 32 bytes amount
 func encodeTRC20TransferWithMemo(to string, amount *big.Int, _ string) string {
-	// For standard TRC-20 transfer, we just need address and amount
-	// Memo handling for THORChain TRC-20 swaps may require router integration
-	toHex := tronAddressToHexForSwap(to)
-	addressPadded := fmt.Sprintf("%064s", toHex)
+	// For TRC-20 transfer ABI encoding:
+	// - Address must be 20 bytes (40 hex chars) left-padded to 32 bytes (64 hex chars)
+	// - Amount must be 32 bytes (64 hex chars)
+	// TRON addresses with visible=true are passed as-is to TronGrid which handles conversion
+	// For ABI encoding, we need the hex representation without the 41 prefix
+
+	// Extract 20-byte address (40 hex chars) - TronGrid handles T... to hex conversion
+	// When visible=true, addresses are handled by the API
+	addressHex := to
+	if len(addressHex) == 42 && strings.HasPrefix(addressHex, "41") {
+		// Remove 41 prefix to get 20-byte address
+		addressHex = addressHex[2:]
+	}
+
+	// Left-pad address to 32 bytes (64 hex chars) with zeros
+	addressPadded := fmt.Sprintf("%064s", addressHex)
+	// Replace spaces with zeros (Sprintf %s pads with spaces)
+	addressPadded = strings.ReplaceAll(addressPadded, " ", "0")
+
 	amountHex := fmt.Sprintf("%064x", amount)
 	return addressPadded + amountHex
-}
-
-// tronAddressToHexForSwap converts TRON address to hex for contract calls
-func tronAddressToHexForSwap(address string) string {
-	// TRON addresses in visible format start with 'T'
-	// In hex format, they start with '41'
-	// The TronGrid API handles conversion when visible=true
-	return address
 }
 

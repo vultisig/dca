@@ -101,6 +101,7 @@ func (p *ProviderRune) MakeTransaction(
 	// Build the THORChain deposit transaction with memo
 	txData, signBytes, err = p.buildDepositTransaction(
 		from.Address,
+		quote.InboundAddress,
 		from.Amount,
 		from.PubKey,
 		from.AccountNumber,
@@ -124,6 +125,7 @@ func (p *ProviderRune) MakeTransaction(
 // THORChain swaps are initiated by sending RUNE to the THORChain module with a memo
 func (p *ProviderRune) buildDepositTransaction(
 	from string,
+	inboundAddress string,
 	amountRune uint64,
 	pubKeyHex string,
 	accountNumber uint64,
@@ -136,10 +138,11 @@ func (p *ProviderRune) buildDepositTransaction(
 		return nil, nil, fmt.Errorf("invalid from address: %w", err)
 	}
 
-	// For THORChain swaps, we send to the pool module address
-	// The memo specifies the swap details
-	// Using MsgSend with memo is the standard approach
-	toAddr := fromAddr // Will be replaced with actual pool address from quote
+	// Parse inbound address (THORChain vault address)
+	toAddr, err := cosmostypes.AccAddressFromBech32(inboundAddress)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid inbound address: %w", err)
+	}
 
 	// Create send message - the memo in txBody handles the swap routing
 	coins := cosmostypes.NewCoins(cosmostypes.NewCoin(runeDenom, math.NewIntFromUint64(amountRune)))
@@ -197,10 +200,10 @@ func (p *ProviderRune) buildDepositTransaction(
 		Fee:         fee,
 	}
 
-	// Create tx body with memo (memo is already in deposit message but add to body for clarity)
+	// Create tx body with memo for swap routing
 	txBody := &tx.TxBody{
 		Messages: []*codectypes.Any{msgAny},
-		Memo:     "",
+		Memo:     memo,
 	}
 
 	// Marshal body and auth info

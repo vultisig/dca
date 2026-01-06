@@ -3,6 +3,7 @@ package mayachain
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/btcsuite/btcd/txscript"
@@ -117,6 +118,10 @@ func (p *ProviderDash) MakeOutputs(
 
 	if from.Amount < dustThreshold {
 		return 0, nil, fmt.Errorf("amount %d below dust threshold %d", from.Amount, dustThreshold)
+	}
+
+	if from.Amount > math.MaxInt64 {
+		return 0, nil, fmt.Errorf("dash: amount %d exceeds maximum int64 value", from.Amount)
 	}
 
 	outputs := []*wire.TxOut{

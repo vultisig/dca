@@ -180,6 +180,17 @@ func (c *Client) TriggerSmartContract(ctx context.Context, req *TRC20TransferReq
 		return nil, fmt.Errorf("tron: failed to trigger smart contract: %w", err)
 	}
 
+	// Validate the execution result
+	if resp.Result != nil {
+		if result, ok := resp.Result["result"].(bool); ok && !result {
+			message := "unknown error"
+			if msg, ok := resp.Result["message"].(string); ok {
+				message = msg
+			}
+			return nil, fmt.Errorf("tron: smart contract execution failed: %s", message)
+		}
+	}
+
 	if resp.Transaction == nil {
 		return nil, fmt.Errorf("tron: no transaction in response")
 	}
