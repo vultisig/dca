@@ -71,7 +71,10 @@ func (s *SendService) BuildTRC20Transfer(
 ) ([]byte, string, error) {
 	// Encode the transfer function call: transfer(address,uint256)
 	// Function selector: a9059cbb
-	parameter := encodeTRC20TransferParameter(to, amount)
+	parameter, err := encodeTransferParams(to, amount)
+	if err != nil {
+		return nil, "", fmt.Errorf("tron: failed to encode transfer params: %w", err)
+	}
 
 	tx, err := s.trc20Client.TriggerSmartContract(ctx, &TRC20TransferRequest{
 		OwnerAddress:     from,
@@ -97,31 +100,47 @@ func (s *SendService) BuildTRC20Transfer(
 	return rawDataBytes, tx.TxID, nil
 }
 
-// encodeTRC20TransferParameter encodes the parameters for TRC-20 transfer function
+// encodeTransferParams encodes the parameters for TRC-20 transfer function
 // Format: 32 bytes address (20 bytes left-padded) + 32 bytes amount
-func encodeTRC20TransferParameter(to string, amount *big.Int) string {
-	// For TRC-20 transfer ABI encoding with visible=true:
-	// TronGrid handles the address format conversion internally
-	// We pass the address as-is since visible=true is set in the request
-	// The API will convert T... addresses to proper hex format
-
-	// For addresses already in hex format (41...), extract the 20-byte portion
-	addressHex := to
-	if len(addressHex) == 42 && strings.HasPrefix(addressHex, "41") {
-		// Remove 41 prefix to get 20-byte address (40 hex chars)
-		addressHex = addressHex[2:]
+func encodeTransferParams(to string, amount *big.Int) (string, error) {
+	// Convert address to 20-byte hex format for ABI encoding
+	// The Parameter field is encoded locally, so we must handle Base58 conversion
+	addressHex, err := addressTo20ByteHex(to)
+	if err != nil {
+		return "", err
 	}
 
 	// Left-pad address to 32 bytes (64 hex chars) with zeros
-	// Note: When visible=true, TronGrid handles T... addresses
 	addressPadded := fmt.Sprintf("%064s", addressHex)
-	// Replace spaces with zeros (Sprintf %s pads with spaces, not zeros)
 	addressPadded = strings.ReplaceAll(addressPadded, " ", "0")
 
 	// Pad amount to 32 bytes
 	amountHex := fmt.Sprintf("%064x", amount)
 
-	return addressPadded + amountHex
+	return addressPadded + amountHex, nil
+}
+
+// addressTo20ByteHex converts a TRON address (Base58 or hex) to 20-byte hex
+func addressTo20ByteHex(addr string) (string, error) {
+	// Check if address is already in hex format (starts with 41)
+	if len(addr) == 42 && strings.HasPrefix(addr, "41") {
+		// Hex format with 41 prefix - remove prefix to get 20-byte address
+		return addr[2:], nil
+	}
+
+	// Base58 format (T...) - decode to hex
+	if strings.HasPrefix(addr, "T") {
+		addressBytes, err := DecodeBase58Address(addr)
+		if err != nil {
+			return "", fmt.Errorf("tron: failed to decode base58 address: %w", err)
+		}
+		if len(addressBytes) != 20 {
+			return "", fmt.Errorf("tron: invalid address length: expected 20 bytes, got %d", len(addressBytes))
+		}
+		return hex.EncodeToString(addressBytes), nil
+	}
+
+	return "", fmt.Errorf("tron: unknown address format: %s", addr)
 }
 
 // GetBalance fetches the TRX balance for an address
