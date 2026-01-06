@@ -8,7 +8,10 @@
 // Usage:
 //
 //	// Create adapter for a specific chain
-//	adapter := canonical.NewSwapAdapter("Ethereum")
+//	adapter, err := canonical.NewSwapAdapter("Ethereum")
+//	if err != nil {
+//	    // handle unsupported chain
+//	}
 //
 //	// Use it like any other provider
 //	amountOut, txData, err := adapter.MakeTx(ctx, from, to)
@@ -22,6 +25,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/sirupsen/logrus"
 	"github.com/vultisig/recipes/sdk/swap"
 )
 
@@ -33,11 +37,15 @@ type SwapAdapter struct {
 }
 
 // NewSwapAdapter creates a new swap adapter for a specific chain.
-func NewSwapAdapter(chain string) *SwapAdapter {
+// Returns an error if the chain is not supported by the canonical router.
+func NewSwapAdapter(chain string) (*SwapAdapter, error) {
+	if !IsChainSupported(chain) {
+		return nil, fmt.Errorf("unsupported chain: %s", chain)
+	}
 	return &SwapAdapter{
 		chainAdapter: swap.NewChainAdapter(chain),
 		chain:        chain,
-	}
+	}, nil
 }
 
 // From represents the source of a swap (matches evm.From pattern).
@@ -61,6 +69,20 @@ type To struct {
 // MakeTx creates a swap transaction using the canonical router.
 // This method matches the Provider interface signature in app-recurring.
 func (a *SwapAdapter) MakeTx(ctx context.Context, from From, to To) (*big.Int, []byte, error) {
+	toChain := to.Chain
+	if toChain == "" {
+		toChain = a.chain
+	}
+
+	log := logrus.WithFields(logrus.Fields{
+		"from_chain":  a.chain,
+		"from_symbol": from.Symbol,
+		"to_chain":    toChain,
+		"to_symbol":   to.Symbol,
+		"amount":      from.Amount.String(),
+	})
+	log.Debug("Building swap transaction")
+
 	input := swap.SwapInput{
 		FromToken:    from.Token,
 		FromSymbol:   from.Symbol,
@@ -75,21 +97,37 @@ func (a *SwapAdapter) MakeTx(ctx context.Context, from From, to To) (*big.Int, [
 		ToAddress:  to.Address,
 	}
 
-	return a.chainAdapter.MakeTx(ctx, input)
+	amountOut, txData, err := a.chainAdapter.MakeTx(ctx, input)
+	if err != nil {
+		log.WithError(err).Warn("Failed to build swap transaction")
+		return nil, nil, fmt.Errorf("chain %s: failed to build swap transaction: %w", a.chain, err)
+	}
+
+	log.WithField("amount_out", amountOut.String()).Info("Swap transaction built successfully")
+	return amountOut, txData, nil
 }
 
 // GetQuote gets a quote without building the transaction.
 func (a *SwapAdapter) GetQuote(ctx context.Context, from From, to To) (*swap.Quote, error) {
+	toChain := to.Chain
+	if toChain == "" {
+		toChain = a.chain
+	}
+
+	log := logrus.WithFields(logrus.Fields{
+		"from_chain":  a.chain,
+		"from_symbol": from.Symbol,
+		"to_chain":    toChain,
+		"to_symbol":   to.Symbol,
+		"amount":      from.Amount.String(),
+	})
+	log.Debug("Fetching swap quote")
+
 	fromAsset := swap.Asset{
 		Chain:    a.chain,
 		Symbol:   from.Symbol,
 		Address:  from.Token,
 		Decimals: from.Decimals,
-	}
-
-	toChain := to.Chain
-	if toChain == "" {
-		toChain = a.chain
 	}
 
 	toAsset := swap.Asset{
@@ -99,13 +137,23 @@ func (a *SwapAdapter) GetQuote(ctx context.Context, from From, to To) (*swap.Quo
 		Decimals: to.Decimals,
 	}
 
-	return swap.GetQuote(ctx, swap.QuoteRequest{
+	quote, err := swap.GetQuote(ctx, swap.QuoteRequest{
 		From:        fromAsset,
 		To:          toAsset,
 		Amount:      from.Amount,
 		Sender:      from.Address,
 		Destination: to.Address,
 	})
+	if err != nil {
+		log.WithError(err).Warn("Failed to get swap quote")
+		return nil, fmt.Errorf("chain %s: failed to get quote: %w", a.chain, err)
+	}
+
+	log.WithFields(logrus.Fields{
+		"provider":   quote.Provider,
+		"amount_out": quote.ExpectedOutput.String(),
+	}).Info("Swap quote fetched successfully")
+	return quote, nil
 }
 
 // IsChainSupported checks if the canonical router supports a chain.
@@ -139,18 +187,27 @@ func GetProviderStatus(ctx context.Context, provider, chain string) (*swap.Provi
 // ValidateCrossChainRoute validates that a cross-chain swap route is available.
 // This replaces the direct thorchain.IsThorChainSupported checks.
 func ValidateCrossChainRoute(ctx context.Context, fromChain, toChain string) error {
+	log := logrus.WithFields(logrus.Fields{
+		"from_chain": fromChain,
+		"to_chain":   toChain,
+	})
+	log.Debug("Validating cross-chain route")
+
 	from := swap.Asset{Chain: fromChain}
 	to := swap.Asset{Chain: toChain}
 
 	route, err := swap.FindRoute(ctx, from, to)
 	if err != nil {
+		log.WithError(err).Warn("Failed to find cross-chain route")
 		return fmt.Errorf("no route available from %s to %s: %w", fromChain, toChain, err)
 	}
 
 	if !route.IsSupported {
+		log.Warn("Cross-chain route not supported")
 		return fmt.Errorf("route from %s to %s not supported", fromChain, toChain)
 	}
 
+	log.WithField("provider", route.Provider).Info("Cross-chain route validated successfully")
 	return nil
 }
 
