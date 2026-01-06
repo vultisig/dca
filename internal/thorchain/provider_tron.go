@@ -16,7 +16,8 @@ import (
 // TronTxBuilder interface for building TRON transactions with memos
 type TronTxBuilder interface {
 	CreateTransactionWithMemo(ctx context.Context, from, to string, amount int64, memo string) ([]byte, error)
-	CreateTRC20TransactionWithMemo(ctx context.Context, from, to, contractAddress string, amount *big.Int, memo string) ([]byte, error)
+	// CreateTRC20TransactionWithMemo creates a TRC-20 transfer to the inbound address with memo in tx data field
+	CreateTRC20TransactionWithMemo(ctx context.Context, from, inboundAddress, contractAddress string, amount *big.Int, memo string) ([]byte, error)
 }
 
 // ProviderTron implements the tron.SwapProvider interface for THORChain swaps
@@ -72,6 +73,10 @@ func (p *ProviderTron) MakeTransaction(
 
 	// TRON uses 6 decimals, THORChain uses 8 decimals
 	// Convert from sun (6 decimals) to THORChain (8 decimals)
+	// Check for overflow before multiplication
+	if from.Amount > math.MaxUint64/100 {
+		return nil, 0, fmt.Errorf("[TRON] amount %d would overflow during decimal conversion", from.Amount)
+	}
 	thorAmount := from.Amount * 100 // 6 -> 8 decimals
 
 	// Get quote from THORChain
@@ -100,12 +105,14 @@ func (p *ProviderTron) MakeTransaction(
 
 	var txData []byte
 	if isTRC20 {
-		// Create TRC-20 transaction to router address with memo
+		// For TRC-20 swaps:
+		// 1. Do standard transfer(address,uint256) to the inbound address
+		// 2. Memo goes in the transaction's data field (protobuf field 10)
 		txData, err = p.txBuilder.CreateTRC20TransactionWithMemo(
 			ctx,
 			from.Address,
-			quote.Router, // For TRC-20, we use the router address
-			from.AssetID, // Contract address
+			quote.InboundAddress, // Transfer TO the inbound address
+			from.AssetID,         // TRC-20 contract address
 			new(big.Int).SetUint64(from.Amount),
 			quote.Memo,
 		)
@@ -166,24 +173,123 @@ func (b *TronSDKTxBuilder) CreateTransactionWithMemo(
 		Visible:      true,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %w", err)
+		return nil, fmt.Errorf("tron: failed to create transaction: %w", err)
 	}
 
 	// Decode raw_data_hex
 	txData, err := hex.DecodeString(tx.RawDataHex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode tx data: %w", err)
+		return nil, fmt.Errorf("tron: failed to decode tx data: %w", err)
 	}
 
 	// If memo is provided, inject it into the protobuf as field 10 (data field)
 	if memo != "" {
 		txData, err = injectMemoIntoTronTx(txData, memo)
 		if err != nil {
-			return nil, fmt.Errorf("failed to inject memo: %w", err)
+			return nil, fmt.Errorf("tron: failed to inject memo: %w", err)
 		}
 	}
 
 	return txData, nil
+}
+
+// CreateTRC20TransactionWithMemo creates a TRC-20 transfer with memo in the transaction data field
+// For THORChain swaps: transfer tokens to inbound address, memo in tx.data field (protobuf field 10)
+func (b *TronSDKTxBuilder) CreateTRC20TransactionWithMemo(
+	ctx context.Context,
+	from, inboundAddress, contractAddress string,
+	amount *big.Int,
+	memo string,
+) ([]byte, error) {
+	// Encode transfer(address,uint256) parameters
+	// The recipient is the THORChain inbound address
+	parameter, err := encodeTRC20Transfer(inboundAddress, amount)
+	if err != nil {
+		return nil, fmt.Errorf("tron: failed to encode TRC20 transfer: %w", err)
+	}
+
+	// Create the TRC-20 transfer transaction
+	tx, err := b.trc20Client.TriggerSmartContract(ctx, &tron_swap.TRC20TransferRequest{
+		OwnerAddress:     from,
+		ContractAddress:  contractAddress,
+		FunctionSelector: "transfer(address,uint256)",
+		Parameter:        parameter,
+		FeeLimit:         50_000_000, // 50 TRX fee limit
+		Visible:          true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("tron: failed to create TRC20 transfer: %w", err)
+	}
+
+	if tx.RawDataHex == "" {
+		return nil, fmt.Errorf("tron: no raw_data_hex in TRC20 response")
+	}
+
+	// Decode the transaction
+	txData, err := hex.DecodeString(tx.RawDataHex)
+	if err != nil {
+		return nil, fmt.Errorf("tron: failed to decode TRC20 tx data: %w", err)
+	}
+
+	// Inject memo into the transaction's data field (protobuf field 10)
+	// This is how THORChain identifies the swap routing
+	if memo != "" {
+		txData, err = injectMemoIntoTronTx(txData, memo)
+		if err != nil {
+			return nil, fmt.Errorf("tron: failed to inject memo into TRC20 tx: %w", err)
+		}
+	}
+
+	return txData, nil
+}
+
+// encodeTRC20Transfer encodes transfer(address,uint256) parameters for ABI
+func encodeTRC20Transfer(to string, amount *big.Int) (string, error) {
+	// For TRC-20 transfer ABI encoding:
+	// - Address must be 20 bytes (40 hex chars) left-padded to 32 bytes (64 hex chars)
+	// - Amount must be 32 bytes (64 hex chars)
+
+	addressHex, err := tronAddressTo20ByteHex(to)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode address: %w", err)
+	}
+
+	// Left-pad address to 32 bytes (64 hex chars) with zeros
+	addressPadded := fmt.Sprintf("%064s", addressHex)
+	addressPadded = strings.ReplaceAll(addressPadded, " ", "0")
+
+	amountHex := fmt.Sprintf("%064x", amount)
+	return addressPadded + amountHex, nil
+}
+
+// tronAddressTo20ByteHex converts a TRON address to 20-byte hex (40 chars)
+func tronAddressTo20ByteHex(addr string) (string, error) {
+	var addressHex string
+
+	// Check if address is already in hex format (starts with 41)
+	if len(addr) == 42 && strings.HasPrefix(addr, "41") {
+		// Hex format with 41 prefix - remove prefix to get 20-byte address
+		addressHex = addr[2:]
+	} else if strings.HasPrefix(addr, "T") {
+		// Base58 format (T...) - decode to hex
+		addressBytes, err := tron_swap.DecodeBase58Address(addr)
+		if err != nil {
+			return "", fmt.Errorf("failed to decode base58 address: %w", err)
+		}
+		if len(addressBytes) != 20 {
+			return "", fmt.Errorf("invalid address length: expected 20 bytes, got %d", len(addressBytes))
+		}
+		addressHex = hex.EncodeToString(addressBytes)
+	} else {
+		return "", fmt.Errorf("unknown address format: %s", addr)
+	}
+
+	// Ensure we have exactly 40 hex chars (20 bytes)
+	if len(addressHex) != 40 {
+		return "", fmt.Errorf("invalid address hex length: expected 40, got %d", len(addressHex))
+	}
+
+	return addressHex, nil
 }
 
 // injectMemoIntoTronTx injects a memo into the TRON transaction protobuf
@@ -234,17 +340,17 @@ func injectMemoIntoTronTx(txData []byte, memo string) ([]byte, error) {
 		case 0: // Varint
 			_, vn := readVarintFromBytes(txData[pos:])
 			if vn == 0 {
-				return nil, fmt.Errorf("failed to read varint at pos %d", pos)
+				return nil, fmt.Errorf("tron: failed to read varint at pos %d", pos)
 			}
 			pos += vn
 		case 2: // Length-delimited
 			length, ln := readVarintFromBytes(txData[pos:])
 			if ln == 0 {
-				return nil, fmt.Errorf("failed to read length at pos %d", pos)
+				return nil, fmt.Errorf("tron: failed to read length at pos %d", pos)
 			}
 			pos += ln + int(length)
 		default:
-			return nil, fmt.Errorf("unsupported wire type %d", wireType)
+			return nil, fmt.Errorf("tron: unsupported wire type %d", wireType)
 		}
 	}
 
@@ -288,89 +394,4 @@ func readVarintFromBytes(data []byte) (uint64, int) {
 		shift += 7
 	}
 	return 0, 0
-}
-
-// CreateTRC20TransactionWithMemo creates a TRC-20 transaction for THORChain swap
-// For TRC-20 swaps, the memo is passed to the THORChain router contract
-func (b *TronSDKTxBuilder) CreateTRC20TransactionWithMemo(
-	ctx context.Context,
-	from, router, contractAddress string,
-	amount *big.Int,
-	memo string,
-) ([]byte, error) {
-	// For TRC-20 swaps via THORChain, we call the THORChain router contract
-	// which handles the token transfer and memo forwarding.
-	// The function is: depositWithExpiry(address,address,uint256,string,uint256)
-	// But for simplicity, we use a direct TRC-20 transfer to the router
-	// with memo encoded in the contract call data
-
-	// Encode the deposit function call for THORChain router
-	// Function: depositWithExpiry(address vault, address asset, uint256 amount, string memo, uint256 expiry)
-	// For now, we use a simpler approach: transfer to router with memo in additional data
-
-	// Build TRC-20 transfer to router
-	parameter := encodeTRC20TransferWithMemo(router, amount, memo)
-
-	tx, err := b.trc20Client.TriggerSmartContract(ctx, &tron_swap.TRC20TransferRequest{
-		OwnerAddress:     from,
-		ContractAddress:  contractAddress,
-		FunctionSelector: "transfer(address,uint256)",
-		Parameter:        parameter,
-		FeeLimit:         50_000_000, // 50 TRX fee limit for swap
-		Visible:          true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create TRC20 swap transaction: %w", err)
-	}
-
-	if tx.RawDataHex == "" {
-		return nil, fmt.Errorf("no raw_data_hex in TRC20 swap response")
-	}
-
-	txData, err := hex.DecodeString(tx.RawDataHex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode TRC20 tx data: %w", err)
-	}
-
-	return txData, nil
-}
-
-// encodeTRC20TransferWithMemo encodes TRC-20 transfer parameters for ABI
-// Format: 32 bytes address (without 41 prefix) + 32 bytes amount
-func encodeTRC20TransferWithMemo(to string, amount *big.Int, _ string) string {
-	// For TRC-20 transfer ABI encoding:
-	// - Address must be 20 bytes (40 hex chars) left-padded to 32 bytes (64 hex chars)
-	// - Amount must be 32 bytes (64 hex chars)
-
-	var addressHex string
-
-	// Check if address is already in hex format (starts with 41)
-	if len(to) == 42 && strings.HasPrefix(to, "41") {
-		// Hex format with 41 prefix - remove prefix to get 20-byte address
-		addressHex = to[2:]
-	} else if strings.HasPrefix(to, "T") {
-		// Base58 format (T...) - decode to hex
-		addressBytes, err := tron_swap.DecodeBase58Address(to)
-		if err != nil || len(addressBytes) != 20 {
-			// Fallback: return empty which will cause transaction to fail
-			return ""
-		}
-		addressHex = fmt.Sprintf("%x", addressBytes)
-	} else {
-		// Unknown format - try to use as-is
-		addressHex = to
-	}
-
-	// Ensure we have exactly 40 hex chars (20 bytes)
-	if len(addressHex) > 40 {
-		addressHex = addressHex[len(addressHex)-40:]
-	}
-
-	// Left-pad address to 32 bytes (64 hex chars) with zeros
-	addressPadded := fmt.Sprintf("%064s", addressHex)
-	// Replace spaces with zeros (Sprintf %s pads with spaces)
-	addressPadded = strings.ReplaceAll(addressPadded, " ", "0")
-
-	amountHex := fmt.Sprintf("%064x", amount)
-	return addressPadded + amountHex
 }
