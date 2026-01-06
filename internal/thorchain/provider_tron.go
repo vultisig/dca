@@ -235,15 +235,29 @@ func encodeTRC20TransferWithMemo(to string, amount *big.Int, _ string) string {
 	// For TRC-20 transfer ABI encoding:
 	// - Address must be 20 bytes (40 hex chars) left-padded to 32 bytes (64 hex chars)
 	// - Amount must be 32 bytes (64 hex chars)
-	// TRON addresses with visible=true are passed as-is to TronGrid which handles conversion
-	// For ABI encoding, we need the hex representation without the 41 prefix
 
-	// Extract 20-byte address (40 hex chars) - TronGrid handles T... to hex conversion
-	// When visible=true, addresses are handled by the API
-	addressHex := to
-	if len(addressHex) == 42 && strings.HasPrefix(addressHex, "41") {
-		// Remove 41 prefix to get 20-byte address
-		addressHex = addressHex[2:]
+	var addressHex string
+
+	// Check if address is already in hex format (starts with 41)
+	if len(to) == 42 && strings.HasPrefix(to, "41") {
+		// Hex format with 41 prefix - remove prefix to get 20-byte address
+		addressHex = to[2:]
+	} else if strings.HasPrefix(to, "T") {
+		// Base58 format (T...) - decode to hex
+		addressBytes, err := tron_swap.DecodeBase58Address(to)
+		if err != nil || len(addressBytes) != 20 {
+			// Fallback: return empty which will cause transaction to fail
+			return ""
+		}
+		addressHex = fmt.Sprintf("%x", addressBytes)
+	} else {
+		// Unknown format - try to use as-is
+		addressHex = to
+	}
+
+	// Ensure we have exactly 40 hex chars (20 bytes)
+	if len(addressHex) > 40 {
+		addressHex = addressHex[len(addressHex)-40:]
 	}
 
 	// Left-pad address to 32 bytes (64 hex chars) with zeros
@@ -254,4 +268,3 @@ func encodeTRC20TransferWithMemo(to string, amount *big.Int, _ string) string {
 	amountHex := fmt.Sprintf("%064x", amount)
 	return addressPadded + amountHex
 }
-
