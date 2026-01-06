@@ -151,7 +151,7 @@ func NewTronSDKTxBuilder(client tron_swap.AccountInfoProvider, trc20Client tron_
 }
 
 // CreateTransactionWithMemo creates a TRON native TRX transaction with a memo
-// For THORChain swaps, the memo is encoded in the transaction data field
+// For THORChain swaps, the memo is encoded in the transaction data field (protobuf field 10)
 func (b *TronSDKTxBuilder) CreateTransactionWithMemo(
 	ctx context.Context,
 	from, to string,
@@ -175,13 +175,119 @@ func (b *TronSDKTxBuilder) CreateTransactionWithMemo(
 		return nil, fmt.Errorf("failed to decode tx data: %w", err)
 	}
 
-	// Note: For THORChain TRON swaps, the memo is typically included
-	// in the transaction data field. This may require protobuf manipulation
-	// to properly include the memo. For now, we return the basic transaction.
-	// TODO: Implement proper memo encoding for TRON native transactions
-	_ = memo
+	// If memo is provided, inject it into the protobuf as field 10 (data field)
+	if memo != "" {
+		txData, err = injectMemoIntoTronTx(txData, memo)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inject memo: %w", err)
+		}
+	}
 
 	return txData, nil
+}
+
+// injectMemoIntoTronTx injects a memo into the TRON transaction protobuf
+// The memo is stored in field 10 (data) of the raw_data structure
+func injectMemoIntoTronTx(txData []byte, memo string) ([]byte, error) {
+	if len(memo) == 0 {
+		return txData, nil
+	}
+
+	// TRON raw_data protobuf structure:
+	// Field 1:  ref_block_bytes (bytes)
+	// Field 4:  ref_block_hash (bytes)
+	// Field 8:  expiration (int64)
+	// Field 10: data (bytes) - THIS IS THE MEMO FIELD
+	// Field 11: contract (message)
+	// Field 14: timestamp (int64)
+
+	// We need to insert field 10 into the protobuf
+	// Field 10, wire type 2 (length-delimited) = (10 << 3) | 2 = 0x52
+	memoBytes := []byte(memo)
+	memoField := []byte{0x52} // Field tag for field 10, wire type 2
+	memoField = append(memoField, encodeVarint(uint64(len(memoBytes)))...)
+	memoField = append(memoField, memoBytes...)
+
+	// Find where to insert the memo field (before field 11 which is the contract)
+	// Field 11 starts with tag 0x5a (wire type 2)
+	insertPos := -1
+	pos := 0
+	for pos < len(txData) {
+		tagStart := pos
+		tag, n := readVarintFromBytes(txData[pos:])
+		if n == 0 {
+			break
+		}
+		pos += n
+
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		// Field 11 (contract) - insert memo before this
+		if fieldNum == 11 {
+			insertPos = tagStart
+			break
+		}
+
+		// Skip the field value based on wire type
+		switch wireType {
+		case 0: // Varint
+			_, vn := readVarintFromBytes(txData[pos:])
+			if vn == 0 {
+				return nil, fmt.Errorf("failed to read varint at pos %d", pos)
+			}
+			pos += vn
+		case 2: // Length-delimited
+			length, ln := readVarintFromBytes(txData[pos:])
+			if ln == 0 {
+				return nil, fmt.Errorf("failed to read length at pos %d", pos)
+			}
+			pos += ln + int(length)
+		default:
+			return nil, fmt.Errorf("unsupported wire type %d", wireType)
+		}
+	}
+
+	if insertPos == -1 {
+		// No field 11 found, append at end
+		return append(txData, memoField...), nil
+	}
+
+	// Insert memo field before field 11
+	result := make([]byte, 0, len(txData)+len(memoField))
+	result = append(result, txData[:insertPos]...)
+	result = append(result, memoField...)
+	result = append(result, txData[insertPos:]...)
+
+	return result, nil
+}
+
+// encodeVarint encodes a uint64 as a protobuf varint
+func encodeVarint(v uint64) []byte {
+	var buf []byte
+	for v >= 0x80 {
+		buf = append(buf, byte(v)|0x80)
+		v >>= 7
+	}
+	buf = append(buf, byte(v))
+	return buf
+}
+
+// readVarintFromBytes reads a varint from a byte slice and returns (value, bytes_read)
+func readVarintFromBytes(data []byte) (uint64, int) {
+	var result uint64
+	var shift uint
+	for i, b := range data {
+		if i >= 10 { // Max 10 bytes for 64-bit varint
+			return 0, 0
+		}
+		result |= uint64(b&0x7f) << shift
+		if b < 0x80 {
+			return result, i + 1
+		}
+		shift += 7
+	}
+	return 0, 0
 }
 
 // CreateTRC20TransactionWithMemo creates a TRC-20 transaction for THORChain swap
