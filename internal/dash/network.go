@@ -3,6 +3,7 @@ package dash
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -218,4 +219,27 @@ func (n *Network) signAndBroadcast(
 	}
 
 	return txHash, nil
+}
+
+// GetAddressFromPubKey generates a Dash address from a hex-encoded public key
+func GetAddressFromPubKey(hexPubKey string) (string, []byte, error) {
+	pubKeyBytes, err := hex.DecodeString(hexPubKey)
+	if err != nil {
+		return "", nil, fmt.Errorf("dash: invalid hex public key: %w", err)
+	}
+
+	if len(pubKeyBytes) != 33 {
+		return "", nil, fmt.Errorf("dash: invalid public key length: expected 33 bytes, got %d", len(pubKeyBytes))
+	}
+
+	// Generate Dash P2PKH address from compressed public key
+	addr, err := btcutil.NewAddressPubKey(pubKeyBytes, &DashMainNetParams)
+	if err != nil {
+		return "", nil, fmt.Errorf("dash: failed to create address from pubkey: %w", err)
+	}
+
+	// Get the P2PKH address string (starts with 'X')
+	addressStr := addr.AddressPubKeyHash().EncodeAddress()
+
+	return addressStr, pubKeyBytes, nil
 }

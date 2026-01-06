@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/dca/internal/btc"
 	"github.com/vultisig/dca/internal/cosmos"
+	"github.com/vultisig/dca/internal/dash"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/maya"
 	"github.com/vultisig/dca/internal/metrics"
@@ -219,6 +220,7 @@ type Consumer struct {
 	ltc         *utxo.Network
 	doge        *utxo.Network
 	bch         *utxo.Network
+	dash        *dash.Network
 	xrp         *xrp.Network
 	solana      *solana.Network
 	zcash       *zcash.Network
@@ -238,6 +240,7 @@ func NewConsumer(
 	ltc *utxo.Network,
 	doge *utxo.Network,
 	bch *utxo.Network,
+	dash *dash.Network,
 	solana *solana.Network,
 	xrp *xrp.Network,
 	zcash *zcash.Network,
@@ -255,6 +258,7 @@ func NewConsumer(
 		ltc:         ltc,
 		doge:        doge,
 		bch:         bch,
+		dash:        dash,
 		xrp:         xrp,
 		solana:      solana,
 		zcash:       zcash,
@@ -370,6 +374,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 			return nil
 		}
 
+		if pcfg.FromChain == common.Dash {
+			er := c.handleDashSend(ctx, pol, pcfg.Recipients)
+			if er != nil {
+				return fmt.Errorf("failed to handle DASH send: %w", er)
+			}
+			return nil
+		}
+
 		if pcfg.FromChain == common.GaiaChain {
 			er := c.handleCosmosSend(ctx, pol, pcfg.Recipients)
 			if er != nil {
@@ -453,6 +465,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		er := c.handleBchSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
 		if er != nil {
 			return fmt.Errorf("failed to handle BCH swap: %w", er)
+		}
+		return nil
+	}
+
+	if pcfg.FromChain == common.Dash {
+		er := c.handleDashSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
+		if er != nil {
+			return fmt.Errorf("failed to handle DASH swap: %w", er)
 		}
 		return nil
 	}
@@ -1442,6 +1462,145 @@ func (c *Consumer) handleZcashSwap(
 	// Record successful swap transaction
 	c.metrics.RecordSwapTransactionWithFallback("ZEC", toAsset, common.Zcash.String(), toChainTyped.String(), true)
 	c.logger.WithField("txHash", txHash).Info("Zcash swap executed successfully")
+	return nil
+}
+
+func (c *Consumer) dashPubToAddress(rootPub string, pluginID string) (string, []byte, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.Dash.GetDerivePath(), false)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get derived pubkey: %w", err)
+	}
+
+	addr, pubKeyBytes, err := dash.GetAddressFromPubKey(childPub)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get Dash address: %w", err)
+	}
+
+	return addr, pubKeyBytes, nil
+}
+
+func (c *Consumer) handleDashSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	recipients []Recipient,
+) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+	if len(recipients) > 1 {
+		c.logger.WithField("recipientCount", len(recipients)).Warn("multi-recipient send not yet supported, only handling first recipient")
+	}
+
+	recipient := recipients[0]
+	toAddress := recipient.ToAddress
+	fromAmount := recipient.Amount
+
+	fromAddressStr, pubKeyBytes, err := c.dashPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get Dash address from policy PublicKey: %w", err)
+	}
+
+	fromAmountDuffs, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	fromAddress, err := dash.DecodeAddress(fromAddressStr)
+	if err != nil {
+		return fmt.Errorf("failed to decode Dash address: %w", err)
+	}
+
+	l := c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"toAddress":   toAddress,
+		"amount":      fromAmountDuffs,
+	})
+
+	l.Info("handling Dash send")
+
+	txHash, err := c.dash.SendPayment(ctx, *pol, fromAddress, toAddress, fromAmountDuffs, pubKeyBytes)
+	if err != nil {
+		l.WithError(err).Error("failed to execute Dash send")
+		return fmt.Errorf("failed to execute Dash send: %w", err)
+	}
+
+	l.WithField("txHash", txHash).Info("Dash send executed successfully")
+	return nil
+}
+
+func (c *Consumer) handleDashSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	toAssetMap map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressStr, pubKeyBytes, err := c.dashPubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get Dash address from policy PublicKey: %w", err)
+	}
+
+	fromAmountDuffs, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	fromAddress, err := dash.DecodeAddress(fromAddressStr)
+	if err != nil {
+		return fmt.Errorf("failed to decode Dash address: %w", err)
+	}
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain from config")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
+	}
+
+	from := dash.From{
+		Address: fromAddress,
+		Amount:  fromAmountDuffs,
+		PubKey:  pubKeyBytes,
+	}
+
+	to := dash.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"fromAmount":  fromAmountDuffs,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling Dash swap")
+
+	txHash, err := c.dash.SwapAssets(ctx, *pol, from, to)
+	if err != nil {
+		// Record failed swap transaction
+		c.metrics.RecordSwapTransactionWithFallback("DASH", toAsset, common.Dash.String(), toChainTyped.String(), false)
+		return fmt.Errorf("failed to execute Dash swap: %w", err)
+	}
+
+	// Record successful swap transaction
+	c.metrics.RecordSwapTransactionWithFallback("DASH", toAsset, common.Dash.String(), toChainTyped.String(), true)
+	c.logger.WithField("txHash", txHash).Info("Dash swap executed successfully")
 	return nil
 }
 
