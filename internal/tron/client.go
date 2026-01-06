@@ -1,13 +1,11 @@
 package tron
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"time"
+
+	"github.com/vultisig/verifier/plugin/libhttp"
 )
 
 // AccountInfoProvider interface defines methods for fetching TRON account and network data
@@ -93,52 +91,36 @@ type Value struct {
 
 // Client implements AccountInfoProvider using TronGrid/TRON JSON-RPC
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL string
 }
 
 // NewClient creates a new TRON client with the given base URL
 func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
 	}
+}
+
+// accountRequest is the request body for GetAccount
+type accountRequest struct {
+	Address string `json:"address"`
+	Visible bool   `json:"visible"`
 }
 
 // GetAccount fetches account information from TRON network
 func (c *Client) GetAccount(ctx context.Context, address string) (*AccountInfo, error) {
-	reqBody := map[string]interface{}{
-		"address": address,
-		"visible": true,
+	reqBody := accountRequest{
+		Address: address,
+		Visible: true,
 	}
 
-	jsonData, err := json.Marshal(reqBody)
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	account, err := libhttp.Call[AccountInfo](ctx, http.MethodPost, c.baseURL+"/wallet/getaccount", headers, reqBody, nil)
 	if err != nil {
-		return nil, fmt.Errorf("tron: failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/wallet/getaccount", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("tron: failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("tron: failed to make request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("tron: unexpected status code: %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	var account AccountInfo
-	if err := json.NewDecoder(resp.Body).Decode(&account); err != nil {
-		return nil, fmt.Errorf("tron: failed to decode response: %w", err)
+		return nil, fmt.Errorf("tron: failed to get account: %w", err)
 	}
 
 	return &account, nil
@@ -146,26 +128,13 @@ func (c *Client) GetAccount(ctx context.Context, address string) (*AccountInfo, 
 
 // GetNowBlock fetches the current block from TRON network
 func (c *Client) GetNowBlock(ctx context.Context) (*Block, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/wallet/getnowblock", nil)
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	block, err := libhttp.Call[Block](ctx, http.MethodPost, c.baseURL+"/wallet/getnowblock", headers, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("tron: failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("tron: failed to make request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("tron: unexpected status code: %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	var block Block
-	if err := json.NewDecoder(resp.Body).Decode(&block); err != nil {
-		return nil, fmt.Errorf("tron: failed to decode response: %w", err)
+		return nil, fmt.Errorf("tron: failed to get now block: %w", err)
 	}
 
 	return &block, nil
@@ -173,33 +142,14 @@ func (c *Client) GetNowBlock(ctx context.Context) (*Block, error) {
 
 // CreateTransaction creates an unsigned TRX transfer transaction
 func (c *Client) CreateTransaction(ctx context.Context, transferReq *TransferRequest) (*Transaction, error) {
-	jsonData, err := json.Marshal(transferReq)
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	tx, err := libhttp.Call[Transaction](ctx, http.MethodPost, c.baseURL+"/wallet/createtransaction", headers, transferReq, nil)
 	if err != nil {
-		return nil, fmt.Errorf("tron: failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/wallet/createtransaction", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("tron: failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("tron: failed to make request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("tron: unexpected status code: %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	var tx Transaction
-	if err := json.NewDecoder(resp.Body).Decode(&tx); err != nil {
-		return nil, fmt.Errorf("tron: failed to decode response: %w", err)
+		return nil, fmt.Errorf("tron: failed to create transaction: %w", err)
 	}
 
 	return &tx, nil
 }
-

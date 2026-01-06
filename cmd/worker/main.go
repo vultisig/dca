@@ -26,6 +26,7 @@ import (
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/tron"
+	"github.com/vultisig/dca/internal/utxo"
 	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/dca/internal/zcash"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
@@ -231,7 +232,12 @@ func main() {
 	}
 
 	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
-	blockchairClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
+	blockchairBtcClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
+
+	// Initialize Blockchair clients for other UTXO chains
+	blockchairLtcClient := blockchair.NewClientForChain(cfg.LTC.BlockchairURL, "litecoin")
+	blockchairDogeClient := blockchair.NewClientForChain(cfg.DOGE.BlockchairURL, "dogecoin")
+	blockchairBchClient := blockchair.NewClientForChain(cfg.BCH.BlockchairURL, "bitcoin-cash")
 
 	// Initialize XRP network
 	xrpClient := xrp.NewClient(cfg.Rpc.XRP.URL)
@@ -284,6 +290,44 @@ func main() {
 		logger.Fatalf("failed to initialize Solana network: %v", err)
 	}
 
+	// Initialize chain-specific THORChain providers for UTXO chains
+	thorchainLtc := thorchain.NewProviderLtc(thorchainClient)
+	thorchainDoge := thorchain.NewProviderDoge(thorchainClient)
+	thorchainBch := thorchain.NewProviderBch(thorchainClient)
+
+	// Initialize LTC network with chain-specific provider
+	ltcNetwork := utxo.NewNetwork(
+		common.Litecoin,
+		thorchainLtc,
+		utxo.NewSwapService([]utxo.SwapProvider{thorchainLtc}),
+		utxo.NewSendService(),
+		utxo.NewSignerService(common.Litecoin, btcsdk.NewSDK(blockchairLtcClient), signerSend, txIndexerService),
+		utxo.NewSignerService(common.Litecoin, btcsdk.NewSDK(blockchairLtcClient), signerSwap, txIndexerService),
+		blockchairLtcClient,
+	)
+
+	// Initialize DOGE network with chain-specific provider
+	dogeNetwork := utxo.NewNetwork(
+		common.Dogecoin,
+		thorchainDoge,
+		utxo.NewSwapService([]utxo.SwapProvider{thorchainDoge}),
+		utxo.NewSendService(),
+		utxo.NewSignerService(common.Dogecoin, btcsdk.NewSDK(blockchairDogeClient), signerSend, txIndexerService),
+		utxo.NewSignerService(common.Dogecoin, btcsdk.NewSDK(blockchairDogeClient), signerSwap, txIndexerService),
+		blockchairDogeClient,
+	)
+
+	// Initialize BCH network with chain-specific provider
+	bchNetwork := utxo.NewNetwork(
+		common.BitcoinCash,
+		thorchainBch,
+		utxo.NewSwapService([]utxo.SwapProvider{thorchainBch}),
+		utxo.NewSendService(),
+		utxo.NewSignerService(common.BitcoinCash, btcsdk.NewSDK(blockchairBchClient), signerSend, txIndexerService),
+		utxo.NewSignerService(common.BitcoinCash, btcsdk.NewSDK(blockchairBchClient), signerSwap, txIndexerService),
+		blockchairBchClient,
+	)
+
 	// Initialize Cosmos network
 	cosmosClient := cosmos.NewClient(cfg.Rpc.Cosmos.URL)
 	cosmosRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.Rpc.Cosmos.URL})
@@ -331,10 +375,13 @@ func main() {
 			thorchainBtc,
 			btc.NewSwapService([]btc.SwapProvider{thorchainBtc}),
 			btc.NewSendService(),
-			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signerSend, txIndexerService),
-			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signerSwap, txIndexerService),
-			blockchairClient,
+			btc.NewSignerService(btcsdk.NewSDK(blockchairBtcClient), signerSend, txIndexerService),
+			btc.NewSignerService(btcsdk.NewSDK(blockchairBtcClient), signerSwap, txIndexerService),
+			blockchairBtcClient,
 		),
+		ltcNetwork,
+		dogeNetwork,
+		bchNetwork,
 		solanaNetwork,
 		xrpNetwork,
 		zcashNetwork,
@@ -375,6 +422,9 @@ type config struct {
 	ThorChain    thorChainConfig
 	MayaChain    mayaChainConfig
 	BTC          btcConfig
+	LTC          ltcConfig
+	DOGE         dogeConfig
+	BCH          bchConfig
 	XRP          xrpConfig
 	ZEC          zecConfig
 	Solana       solanaConfig
@@ -415,6 +465,18 @@ type rpcItem struct {
 }
 
 type btcConfig struct {
+	BlockchairURL string
+}
+
+type ltcConfig struct {
+	BlockchairURL string
+}
+
+type dogeConfig struct {
+	BlockchairURL string
+}
+
+type bchConfig struct {
 	BlockchairURL string
 }
 

@@ -2,12 +2,11 @@ package cosmos
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
-	"time"
+
+	"github.com/vultisig/verifier/plugin/libhttp"
 )
 
 // AccountInfoProvider interface defines methods for fetching Cosmos account and network data
@@ -30,17 +29,13 @@ type BlockInfo struct {
 
 // Client implements AccountInfoProvider using Cosmos LCD API
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL string
 }
 
 // NewClient creates a new Cosmos client with the given LCD URL
 func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
 	}
 }
 
@@ -71,25 +66,9 @@ type lcdBlockResponse struct {
 func (c *Client) GetAccount(ctx context.Context, address string) (*AccountInfo, error) {
 	url := fmt.Sprintf("%s/cosmos/auth/v1beta1/accounts/%s", c.baseURL, address)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	lcdResp, err := libhttp.Call[lcdAccountResponse](ctx, http.MethodGet, url, nil, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("cosmos: failed to create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("cosmos: failed to make request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("cosmos: unexpected status code: %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	var lcdResp lcdAccountResponse
-	if err := json.NewDecoder(resp.Body).Decode(&lcdResp); err != nil {
-		return nil, fmt.Errorf("cosmos: failed to decode response: %w", err)
+		return nil, fmt.Errorf("cosmos: failed to get account: %w", err)
 	}
 
 	accountNumber, err := strconv.ParseUint(lcdResp.Account.AccountNumber, 10, 64)
@@ -113,25 +92,9 @@ func (c *Client) GetAccount(ctx context.Context, address string) (*AccountInfo, 
 func (c *Client) GetLatestBlock(ctx context.Context) (*BlockInfo, error) {
 	url := fmt.Sprintf("%s/cosmos/base/tendermint/v1beta1/blocks/latest", c.baseURL)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	lcdResp, err := libhttp.Call[lcdBlockResponse](ctx, http.MethodGet, url, nil, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("cosmos: failed to create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("cosmos: failed to make request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("cosmos: unexpected status code: %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	var lcdResp lcdBlockResponse
-	if err := json.NewDecoder(resp.Body).Decode(&lcdResp); err != nil {
-		return nil, fmt.Errorf("cosmos: failed to decode response: %w", err)
+		return nil, fmt.Errorf("cosmos: failed to get latest block: %w", err)
 	}
 
 	height, err := strconv.ParseInt(lcdResp.Block.Header.Height, 10, 64)
@@ -143,4 +106,3 @@ func (c *Client) GetLatestBlock(ctx context.Context) (*BlockInfo, error) {
 		Height: height,
 	}, nil
 }
-

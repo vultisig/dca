@@ -1008,8 +1008,8 @@ github.com/vultisig/verifier v0.0.0-20260103141447-1b4fb464afef h1:xFOmvjFc7jcq0
 github.com/vultisig/verifier v0.0.0-20260103141447-1b4fb464afef/go.mod h1:b2q7WTQCYwUtG1JN/bC6nG09DaW481nSOyzmSEpdzSM=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 h1:7WDQ92FAdu08Byjgm3RNS8Sok49sK521PzPcbRpbzCE=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
-github.com/vultisig/vultisig-go v0.0.0-20260105120058-d987ed558c93 h1:cEXAggQKJZ4RoPv+MMmcHZA9pM/buJbjf+wCVAL1dls=
-github.com/vultisig/vultisig-go v0.0.0-20260105120058-d987ed558c93/go.mod h1:jOf+2n1Eo/XZjiUbHjTfraPMw4HAZZ0Sw9Z6+vpQrU4=
+github.com/vultisig/vultisig-go v0.0.0-20260105232826-8224bf35e503 h1:+jKaEneHTXXH7DtQQ1i5NmsIMO8ZwnUFgIVAVY+aJbE=
+github.com/vultisig/vultisig-go v0.0.0-20260105232826-8224bf35e503/go.mod h1:jOf+2n1Eo/XZjiUbHjTfraPMw4HAZZ0Sw9Z6+vpQrU4=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
 github.com/xdg-go/scram v1.1.2/go.mod h1:RT/sEzTbU5y00aCK8UOx6R7YryM0iF1N2MOmC3kKLN4=
 github.com/xdg-go/stringprep v1.0.4/go.mod h1:mPGuuIYwz7CmR2bT9j4GbQqutWS1zV24gijq1dTyGkM=
