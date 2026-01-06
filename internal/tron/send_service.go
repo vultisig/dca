@@ -69,6 +69,17 @@ func (s *SendService) BuildTRC20Transfer(
 	amount *big.Int,
 	feeLimit int64,
 ) ([]byte, string, error) {
+	// Validate inputs
+	if s.trc20Client == nil {
+		return nil, "", fmt.Errorf("tron: TRC20 client not configured")
+	}
+	if amount == nil {
+		return nil, "", fmt.Errorf("tron: amount cannot be nil")
+	}
+	if amount.Sign() < 0 {
+		return nil, "", fmt.Errorf("tron: amount cannot be negative")
+	}
+
 	// Encode the transfer function call: transfer(address,uint256)
 	// Function selector: a9059cbb
 	parameter, err := encodeTransferParams(to, amount)

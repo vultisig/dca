@@ -25,6 +25,11 @@ func (s *SendService) BuildTransfer(
 	fromAddress btcutil.Address,
 	amount uint64,
 ) ([]*wire.TxOut, int, error) {
+	// Validate fromAddress is not nil
+	if fromAddress == nil {
+		return nil, 0, fmt.Errorf("dash: from address cannot be nil")
+	}
+
 	// Create script for destination address
 	toScript, err := createDashScript(toAddress)
 	if err != nil {
