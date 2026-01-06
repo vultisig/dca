@@ -27,12 +27,12 @@ func NewProviderDash(client *Client) *ProviderDash {
 
 func (p *ProviderDash) validateDash(from dashpkg.From, to dashpkg.To) error {
 	if to.Chain == common.Dash {
-		return fmt.Errorf("can't swap DASH to DASH")
+		return fmt.Errorf("dash: can't swap DASH to DASH")
 	}
 
 	_, err := parseMayaNetwork(to.Chain)
 	if err != nil {
-		return fmt.Errorf("unsupported 'to' chain for MayaChain: %w", err)
+		return fmt.Errorf("dash: unsupported 'to' chain for MayaChain: %w", err)
 	}
 
 	return nil
@@ -42,19 +42,19 @@ func (p *ProviderDash) validateDash(from dashpkg.From, to dashpkg.To) error {
 func (p *ProviderDash) SatsPerByte(ctx context.Context) (uint64, error) {
 	info, err := p.client.getInboundAddresses(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get inbound addresses: %w", err)
+		return 0, fmt.Errorf("dash: failed to get inbound addresses: %w", err)
 	}
 
 	for _, addr := range info {
 		if addr.Chain == dash {
 			satsPerByte, er := strconv.ParseUint(addr.GasRate, 10, 64)
 			if er != nil {
-				return 0, fmt.Errorf("failed to parse gas rate: %w", er)
+				return 0, fmt.Errorf("dash: failed to parse gas rate: %w", er)
 			}
 			return satsPerByte, nil
 		}
 	}
-	return 0, fmt.Errorf("no gas info found for DASH")
+	return 0, fmt.Errorf("dash: no gas info found for DASH")
 }
 
 // ChangeOutputIndex returns the index of the change output in swap transactions
@@ -69,12 +69,12 @@ func (p *ProviderDash) MakeOutputs(
 	to dashpkg.To,
 ) (uint64, []*wire.TxOut, error) {
 	if err := p.validateDash(from, to); err != nil {
-		return 0, nil, fmt.Errorf("invalid swap: %w", err)
+		return 0, nil, fmt.Errorf("dash: invalid swap: %w", err)
 	}
 
 	toAsset, err := makeMayaAsset(ctx, p.client, to.Chain, to.AssetID)
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to convert maya asset: %w", err)
+		return 0, nil, fmt.Errorf("dash: failed to convert maya asset: %w", err)
 	}
 
 	quote, err := p.client.getQuote(ctx, quoteSwapRequest{
@@ -86,39 +86,39 @@ func (p *ProviderDash) MakeOutputs(
 		StreamingQuantity: defaultStreamingQuantity,
 	})
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to get quote: %w", err)
+		return 0, nil, fmt.Errorf("dash: failed to get quote: %w", err)
 	}
 
 	// Create P2PKH script for MayaChain inbound address
 	inboundScript, err := createDashP2PKHScript(quote.InboundAddress)
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to create inbound script: %w", err)
+		return 0, nil, fmt.Errorf("dash: failed to create inbound script: %w", err)
 	}
 
 	// Create P2PKH script for change address
 	changeScript, err := createDashP2PKHScript(from.Address.String())
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to create change script: %w", err)
+		return 0, nil, fmt.Errorf("dash: failed to create change script: %w", err)
 	}
 
 	// Create OP_RETURN script for memo
 	memoScript, err := txscript.NullDataScript([]byte(quote.Memo))
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to create memo script: %w", err)
+		return 0, nil, fmt.Errorf("dash: failed to create memo script: %w", err)
 	}
 
 	expectedOut, err := strconv.ParseUint(quote.ExpectedAmountOut, 10, 64)
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to parse expected amount out: %w", err)
+		return 0, nil, fmt.Errorf("dash: failed to parse expected amount out: %w", err)
 	}
 
 	dustThreshold, err := strconv.ParseUint(quote.DustThreshold, 10, 64)
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to parse dust threshold: %w", err)
+		return 0, nil, fmt.Errorf("dash: failed to parse dust threshold: %w", err)
 	}
 
 	if from.Amount < dustThreshold {
-		return 0, nil, fmt.Errorf("amount %d below dust threshold %d", from.Amount, dustThreshold)
+		return 0, nil, fmt.Errorf("dash: amount %d below dust threshold %d", from.Amount, dustThreshold)
 	}
 
 	if from.Amount > math.MaxInt64 {

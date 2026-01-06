@@ -31,8 +31,9 @@ func (s *SendService) BuildTransfer(
 		return nil, 0, fmt.Errorf("dash: failed to create to script: %w", err)
 	}
 
-	// Create script for change address
-	changeScript, err := txscript.PayToAddrScript(fromAddress)
+	// Create script for change address using the same Dash-specific logic
+	// to ensure consistent handling of Dash address versions
+	changeScript, err := createDashScript(fromAddress.String())
 	if err != nil {
 		return nil, 0, fmt.Errorf("dash: failed to create change script: %w", err)
 	}
@@ -61,17 +62,17 @@ func (s *SendService) BuildTransfer(
 // createDashScript creates a P2PKH or P2SH script for a Dash address
 func createDashScript(address string) ([]byte, error) {
 	if len(address) == 0 {
-		return nil, fmt.Errorf("empty address")
+		return nil, fmt.Errorf("dash: empty address")
 	}
 
 	// Decode Base58Check address
 	decoded, version, err := base58.CheckDecode(address)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode address: %w", err)
+		return nil, fmt.Errorf("dash: failed to decode address: %w", err)
 	}
 
 	if len(decoded) != 20 {
-		return nil, fmt.Errorf("invalid address hash length: expected 20 bytes, got %d", len(decoded))
+		return nil, fmt.Errorf("dash: invalid address hash length: expected 20 bytes, got %d", len(decoded))
 	}
 
 	// Dash address versions:
@@ -83,8 +84,7 @@ func createDashScript(address string) ([]byte, error) {
 	case 0x10: // P2SH
 		return createP2SHScript(decoded)
 	default:
-		// Try P2PKH for unknown versions (might be testnet or other)
-		return createP2PKHScript(decoded)
+		return nil, fmt.Errorf("dash: unknown address version: 0x%02x", version)
 	}
 }
 
@@ -111,16 +111,16 @@ func createP2SHScript(scriptHash []byte) ([]byte, error) {
 // DecodeAddress decodes a Dash address string to a btcutil.Address
 func DecodeAddress(address string) (btcutil.Address, error) {
 	if len(address) == 0 {
-		return nil, fmt.Errorf("empty address")
+		return nil, fmt.Errorf("dash: empty address")
 	}
 
 	decoded, version, err := base58.CheckDecode(address)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode address: %w", err)
+		return nil, fmt.Errorf("dash: failed to decode address: %w", err)
 	}
 
 	if len(decoded) != 20 {
-		return nil, fmt.Errorf("invalid address hash length: expected 20 bytes, got %d", len(decoded))
+		return nil, fmt.Errorf("dash: invalid address hash length: expected 20 bytes, got %d", len(decoded))
 	}
 
 	// Create appropriate address type based on version
@@ -130,7 +130,7 @@ func DecodeAddress(address string) (btcutil.Address, error) {
 	case 0x10: // P2SH mainnet
 		return btcutil.NewAddressScriptHashFromHash(decoded, &DashMainNetParams)
 	default:
-		return nil, fmt.Errorf("unknown address version: 0x%02x", version)
+		return nil, fmt.Errorf("dash: unknown address version: 0x%02x", version)
 	}
 }
 
