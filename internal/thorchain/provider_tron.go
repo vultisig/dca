@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -109,6 +110,10 @@ func (p *ProviderTron) MakeTransaction(
 			quote.Memo,
 		)
 	} else {
+		// Check for overflow before casting to int64
+		if from.Amount > math.MaxInt64 {
+			return nil, 0, fmt.Errorf("[TRON] amount %d exceeds maximum int64 value", from.Amount)
+		}
 		// Create native TRX transaction to inbound address with memo
 		txData, err = p.txBuilder.CreateTransactionWithMemo(
 			ctx,

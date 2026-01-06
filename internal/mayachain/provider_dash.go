@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	dashpkg "github.com/vultisig/dca/internal/dash"
@@ -173,51 +174,15 @@ func createDashP2PKHScript(address string) ([]byte, error) {
 	return builder.Script()
 }
 
-// decodeBase58Check decodes a Base58Check encoded string
+// decodeBase58Check decodes a Base58Check encoded string with checksum verification
 func decodeBase58Check(encoded string) ([]byte, error) {
-	// Base58 alphabet
-	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-
-	// Decode base58
-	result := make([]byte, 0, len(encoded))
-	for _, c := range encoded {
-		idx := -1
-		for i, ac := range alphabet {
-			if c == ac {
-				idx = i
-				break
-			}
-		}
-		if idx == -1 {
-			return nil, fmt.Errorf("invalid base58 character: %c", c)
-		}
-
-		carry := idx
-		for i := len(result) - 1; i >= 0; i-- {
-			carry += 58 * int(result[i])
-			result[i] = byte(carry & 0xff)
-			carry >>= 8
-		}
-		for carry > 0 {
-			result = append([]byte{byte(carry & 0xff)}, result...)
-			carry >>= 8
-		}
+	// Use btcutil/base58 for proper checksum verification
+	decoded, version, err := base58.CheckDecode(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base58check: %w", err)
 	}
-
-	// Add leading zeros
-	for _, c := range encoded {
-		if c != '1' {
-			break
-		}
-		result = append([]byte{0}, result...)
-	}
-
-	// Verify checksum (last 4 bytes)
-	if len(result) < 4 {
-		return nil, fmt.Errorf("decoded data too short for checksum")
-	}
-
-	return result[:len(result)-4], nil
+	// Prepend version byte to match expected format (version + pubKeyHash)
+	return append([]byte{version}, decoded...), nil
 }
 
 
