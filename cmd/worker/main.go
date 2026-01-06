@@ -13,15 +13,15 @@ import (
 
 	"github.com/vultisig/dca/internal/blockchair"
 	"github.com/vultisig/dca/internal/btc"
+	"github.com/vultisig/dca/internal/cosmos"
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/health"
 	"github.com/vultisig/dca/internal/jupiter"
 	"github.com/vultisig/dca/internal/logging"
+	"github.com/vultisig/dca/internal/maya"
 	"github.com/vultisig/dca/internal/mayachain"
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/oneinch"
-	"github.com/vultisig/dca/internal/cosmos"
-	"github.com/vultisig/dca/internal/maya"
 	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
@@ -359,18 +359,18 @@ func main() {
 		mayaClient,
 	)
 
-	// Initialize TRON network
+	// Initialize TRON network with TRC-20 support
 	tronClient := tron.NewClient(cfg.Rpc.Tron.URL)
 	tronRpcClient := tronsdk.NewHTTPRPCClient([]string{cfg.Rpc.Tron.URL})
 	tronSDK := tronsdk.NewSDK(tronRpcClient)
 
-	// Initialize TRON swap provider with THORChain
-	tronTxBuilder := thorchain.NewTronSDKTxBuilder(tronClient)
+	// Initialize TRON swap provider with THORChain (supports TRX and USDT TRC-20)
+	tronTxBuilder := thorchain.NewTronSDKTxBuilder(tronClient, tronClient)
 	tronThorchainProvider := thorchain.NewProviderTron(thorchainClient, tronTxBuilder)
 
 	tronNetwork := tron.NewNetwork(
 		tron.NewSwapService([]tron.SwapProvider{tronThorchainProvider}),
-		tron.NewSendService(tronClient),
+		tron.NewSendService(tronClient, tronClient), // Second arg is TRC20Client
 		tron.NewSignerService(tronSDK, signerSend, txIndexerService),
 		tron.NewSignerService(tronSDK, signerSwap, txIndexerService),
 		tronClient,

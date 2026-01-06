@@ -51,6 +51,16 @@ type TransferRequest struct {
 	Visible      bool   `json:"visible"`
 }
 
+// TRC20TransferRequest represents a TRC-20 token transfer request
+type TRC20TransferRequest struct {
+	OwnerAddress     string `json:"owner_address"`
+	ContractAddress  string `json:"contract_address"`
+	FunctionSelector string `json:"function_selector"`
+	Parameter        string `json:"parameter"`
+	FeeLimit         int64  `json:"fee_limit"`
+	Visible          bool   `json:"visible"`
+}
+
 // Transaction represents a TRON transaction
 type Transaction struct {
 	TxID       string   `json:"txID"`
@@ -152,4 +162,27 @@ func (c *Client) CreateTransaction(ctx context.Context, transferReq *TransferReq
 	}
 
 	return &tx, nil
+}
+
+// TriggerSmartContract triggers a TRC-20 smart contract (for token transfers)
+func (c *Client) TriggerSmartContract(ctx context.Context, req *TRC20TransferRequest) (*Transaction, error) {
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	type triggerResponse struct {
+		Result      map[string]interface{} `json:"result"`
+		Transaction *Transaction           `json:"transaction"`
+	}
+
+	resp, err := libhttp.Call[triggerResponse](ctx, http.MethodPost, c.baseURL+"/wallet/triggersmartcontract", headers, req, nil)
+	if err != nil {
+		return nil, fmt.Errorf("tron: failed to trigger smart contract: %w", err)
+	}
+
+	if resp.Transaction == nil {
+		return nil, fmt.Errorf("tron: no transaction in response")
+	}
+
+	return resp.Transaction, nil
 }
