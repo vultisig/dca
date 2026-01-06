@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 // TRC20Client interface for TRC-20 operations
@@ -17,6 +19,7 @@ type TRC20Client interface {
 type SendService struct {
 	client      AccountInfoProvider
 	trc20Client TRC20Client
+	logger      *logrus.Entry
 }
 
 // NewSendService creates a new SendService
@@ -24,6 +27,7 @@ func NewSendService(client AccountInfoProvider, trc20Client TRC20Client) *SendSe
 	return &SendService{
 		client:      client,
 		trc20Client: trc20Client,
+		logger:      logrus.WithField("chain", "tron"),
 	}
 }
 
@@ -80,6 +84,14 @@ func (s *SendService) BuildTRC20Transfer(
 		return nil, "", fmt.Errorf("tron: amount cannot be negative")
 	}
 
+	s.logger.WithFields(logrus.Fields{
+		"from":     from,
+		"to":       to,
+		"contract": contractAddress,
+		"amount":   amount.String(),
+		"feeLimit": feeLimit,
+	}).Debug("building TRC20 transfer")
+
 	// Encode the transfer function call: transfer(address,uint256)
 	// Function selector: a9059cbb
 	parameter, err := encodeTransferParams(to, amount)
@@ -96,6 +108,10 @@ func (s *SendService) BuildTRC20Transfer(
 		Visible:          true,
 	})
 	if err != nil {
+		s.logger.WithError(err).WithFields(logrus.Fields{
+			"from":     from,
+			"contract": contractAddress,
+		}).Error("failed to create TRC20 transfer")
 		return nil, "", fmt.Errorf("tron: failed to create TRC20 transfer: %w", err)
 	}
 
@@ -107,6 +123,12 @@ func (s *SendService) BuildTRC20Transfer(
 	if err != nil {
 		return nil, "", fmt.Errorf("tron: failed to decode TRC20 raw_data_hex: %w", err)
 	}
+
+	s.logger.WithFields(logrus.Fields{
+		"txID": tx.TxID,
+		"from": from,
+		"to":   to,
+	}).Info("TRC20 transfer created successfully")
 
 	return rawDataBytes, tx.TxID, nil
 }
