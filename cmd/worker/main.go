@@ -199,6 +199,8 @@ func main() {
 		{common.Blast, cfg.Rpc.Blast.URL},
 		{common.Optimism, cfg.Rpc.Optimism.URL},
 		{common.Polygon, cfg.Rpc.Polygon.URL},
+		{common.Zksync, cfg.Rpc.Zksync.URL},
+		{common.CronosChain, cfg.Rpc.Cronos.URL},
 	}
 
 	for _, c := range networkConfigs {
@@ -333,8 +335,11 @@ func main() {
 	cosmosRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.Rpc.Cosmos.URL})
 	cosmosSDK := cosmossdk.NewSDK(cosmosRpcClient)
 
+	// Initialize Cosmos swap provider with THORChain
+	cosmosThorchainProvider := thorchain.NewProviderCosmos(thorchainClient)
+
 	cosmosNetwork := cosmos.NewNetwork(
-		cosmos.NewSwapService([]cosmos.SwapProvider{}), // THORChain provider can be added later
+		cosmos.NewSwapService([]cosmos.SwapProvider{cosmosThorchainProvider}),
 		cosmos.NewSendService(cosmosClient, cosmos.CosmosHubChainID),
 		cosmos.NewSignerService(cosmosSDK, signerSend, txIndexerService, common.GaiaChain),
 		cosmos.NewSignerService(cosmosSDK, signerSwap, txIndexerService, common.GaiaChain),
@@ -359,8 +364,12 @@ func main() {
 	tronRpcClient := tronsdk.NewHTTPRPCClient([]string{cfg.Rpc.Tron.URL})
 	tronSDK := tronsdk.NewSDK(tronRpcClient)
 
+	// Initialize TRON swap provider with THORChain
+	tronTxBuilder := thorchain.NewTronSDKTxBuilder(tronClient)
+	tronThorchainProvider := thorchain.NewProviderTron(thorchainClient, tronTxBuilder)
+
 	tronNetwork := tron.NewNetwork(
-		tron.NewSwapService([]tron.SwapProvider{}), // THORChain provider can be added later
+		tron.NewSwapService([]tron.SwapProvider{tronThorchainProvider}),
 		tron.NewSendService(tronClient),
 		tron.NewSignerService(tronSDK, signerSend, txIndexerService),
 		tron.NewSignerService(tronSDK, signerSwap, txIndexerService),
@@ -425,6 +434,7 @@ type config struct {
 	LTC          ltcConfig
 	DOGE         dogeConfig
 	BCH          bchConfig
+	DASH         dashConfig
 	XRP          xrpConfig
 	ZEC          zecConfig
 	Solana       solanaConfig
@@ -453,11 +463,14 @@ type rpc struct {
 	Blast     rpcItem
 	Optimism  rpcItem
 	Polygon   rpcItem
+	Zksync    rpcItem
+	Cronos    rpcItem
 	XRP       rpcItem
 	Solana    rpcItem
 	Cosmos    rpcItem
 	Maya      rpcItem
 	Tron      rpcItem
+	THORChain rpcItem
 }
 
 type rpcItem struct {
@@ -485,6 +498,10 @@ type xrpConfig struct {
 }
 
 type zecConfig struct {
+	BlockchairURL string
+}
+
+type dashConfig struct {
 	BlockchairURL string
 }
 
