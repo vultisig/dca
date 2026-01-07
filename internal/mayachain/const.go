@@ -25,6 +25,8 @@ func parseMayaNetwork(c common.Chain) (mayaNetwork, error) {
 		return dash, nil
 	case common.THORChain:
 		return thor, nil
+	case common.MayaChain:
+		return maya, nil
 	default:
 		return "", fmt.Errorf("unknown chain %s for MayaChain", c.String())
 	}
@@ -39,4 +41,5 @@ const (
 	zec  mayaNetwork = "ZEC"
 	dash mayaNetwork = "DASH"
 	thor mayaNetwork = "THOR"
+	maya mayaNetwork = "MAYA"
 )

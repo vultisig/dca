@@ -22,6 +22,7 @@ import (
 	"github.com/vultisig/dca/internal/evm"
 	"github.com/vultisig/dca/internal/maya"
 	"github.com/vultisig/dca/internal/metrics"
+	"github.com/vultisig/dca/internal/rune"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/tron"
 	"github.com/vultisig/dca/internal/util"
@@ -227,6 +228,7 @@ type Consumer struct {
 	cosmos      *cosmos.Network
 	maya        *maya.Network
 	tron        *tron.Network
+	rune        *rune.Network
 	vault       vault.Storage
 	vaultSecret string
 	metrics     *metrics.WorkerMetrics
@@ -247,6 +249,7 @@ func NewConsumer(
 	cosmos *cosmos.Network,
 	maya *maya.Network,
 	tron *tron.Network,
+	runeNet *rune.Network,
 	vault vault.Storage,
 	vaultSecret string,
 ) *Consumer {
@@ -265,6 +268,7 @@ func NewConsumer(
 		cosmos:      cosmos,
 		maya:        maya,
 		tron:        tron,
+		rune:        runeNet,
 		vault:       vault,
 		vaultSecret: vaultSecret,
 		metrics:     metrics.NewWorkerMetrics(),
@@ -398,6 +402,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 			return nil
 		}
 
+		if pcfg.FromChain == common.THORChain {
+			er := c.handleRuneSend(ctx, pol, pcfg.Recipients)
+			if er != nil {
+				return fmt.Errorf("failed to handle RUNE send: %w", er)
+			}
+			return nil
+		}
+
 		if pcfg.FromChain == common.Tron {
 			er := c.handleTronSend(ctx, pol, pcfg.Recipients)
 			if er != nil {
@@ -489,6 +501,14 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		er := c.handleMayaSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
 		if er != nil {
 			return fmt.Errorf("failed to handle Maya swap: %w", er)
+		}
+		return nil
+	}
+
+	if pcfg.FromChain == common.THORChain {
+		er := c.handleRuneSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
+		if er != nil {
+			return fmt.Errorf("failed to handle RUNE swap: %w", er)
 		}
 		return nil
 	}
@@ -2392,6 +2412,129 @@ func (c *Consumer) handleMayaSwap(
 
 	c.metrics.RecordSwapTransactionWithFallback("CACAO", toAsset, common.MayaChain.String(), toChainTyped.String(), true)
 	c.logger.WithField("txHash", txHash).Info("Maya swap executed successfully")
+	return nil
+}
+
+// ============================================================================
+// THORChain (RUNE) handlers
+// ============================================================================
+
+// runePubToAddress derives a THORChain address from the root public key
+func (c *Consumer) runePubToAddress(rootPub string, pluginID string) (string, string, error) {
+	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get vault content: %w", err)
+	}
+
+	vlt, err := common.DecryptVaultFromBackup(c.vaultSecret, vaultContent)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to decrypt vault: %w", err)
+	}
+
+	childPub, err := tss.GetDerivedPubKey(rootPub, vlt.GetHexChainCode(), common.THORChain.GetDerivePath(), false)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get derived pubkey: %w", err)
+	}
+
+	addr, _, _, err := address.GetAddress(rootPub, vlt.GetHexChainCode(), common.THORChain)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get THORChain address: %w", err)
+	}
+
+	return addr, childPub, nil
+}
+
+// handleRuneSend handles THORChain (RUNE) send operations
+func (c *Consumer) handleRuneSend(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	recipients []Recipient,
+) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("recipients list is empty")
+	}
+
+	fromAddressStr, childPubKey, err := c.runePubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get THORChain address from policy PublicKey: %w", err)
+	}
+
+	for i, recipient := range recipients {
+		amount, err := parseUint64(recipient.Amount)
+		if err != nil {
+			return fmt.Errorf("failed to parse amount for recipient[%d]: %w", i, err)
+		}
+
+		txHash, err := c.rune.SendPayment(ctx, *pol, fromAddressStr, recipient.ToAddress, amount, childPubKey)
+		if err != nil {
+			return fmt.Errorf("failed at recipient[%d] %s: %w", i, recipient.ToAddress, err)
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"policyID":  pol.ID.String(),
+			"toAddress": recipient.ToAddress,
+			"txHash":    txHash,
+		}).Info("RUNE send completed")
+	}
+	return nil
+}
+
+// handleRuneSwap handles THORChain (RUNE) swap operations
+func (c *Consumer) handleRuneSwap(
+	ctx context.Context,
+	pol *types.PluginPolicy,
+	toAssetMap map[string]any,
+	fromAmount, toAsset, toAddress string,
+) error {
+	fromAddressStr, childPubKey, err := c.runePubToAddress(pol.PublicKey, string(pol.PluginID))
+	if err != nil {
+		return fmt.Errorf("failed to get THORChain address from policy PublicKey: %w", err)
+	}
+
+	fromAmountRune, err := parseUint64(fromAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse fromAmount: %w", err)
+	}
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get toAsset.chain")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse toAsset.chain: %w", err)
+	}
+
+	from := rune.From{
+		Address: fromAddressStr,
+		Amount:  fromAmountRune,
+		PubKey:  childPubKey,
+	}
+
+	to := rune.To{
+		Chain:   toChainTyped,
+		AssetID: toAsset,
+		Address: toAddress,
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"policyID":    pol.ID.String(),
+		"fromAddress": fromAddressStr,
+		"fromAmount":  fromAmountRune,
+		"toChain":     toChainTyped.String(),
+		"toAsset":     toAsset,
+		"toAddress":   toAddress,
+	}).Info("handling RUNE swap")
+
+	txHash, err := c.rune.SwapAssets(ctx, *pol, from, to)
+	if err != nil {
+		c.metrics.RecordSwapTransactionWithFallback("RUNE", toAsset, common.THORChain.String(), toChainTyped.String(), false)
+		return fmt.Errorf("failed to execute RUNE swap: %w", err)
+	}
+
+	c.metrics.RecordSwapTransactionWithFallback("RUNE", toAsset, common.THORChain.String(), toChainTyped.String(), true)
+	c.logger.WithField("txHash", txHash).Info("RUNE swap executed successfully")
 	return nil
 }
 

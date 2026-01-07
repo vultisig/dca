@@ -24,6 +24,7 @@ import (
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/oneinch"
 	"github.com/vultisig/dca/internal/recurring"
+	"github.com/vultisig/dca/internal/rune"
 	"github.com/vultisig/dca/internal/solana"
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/tron"
@@ -359,13 +360,15 @@ func main() {
 		cosmosClient,
 	)
 
-	// Initialize Maya network
+	// Initialize Maya network with native CACAO swap provider
 	mayaClient := maya.NewClient(cfg.Rpc.Maya.URL)
 	mayaRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.Rpc.Maya.URL})
 	mayaSDK := cosmossdk.NewSDK(mayaRpcClient)
 
+	mayaCacaoProvider := mayachain.NewProviderMaya(mayachainClient)
+
 	mayaNetwork := maya.NewNetwork(
-		maya.NewSwapService([]maya.SwapProvider{}), // Maya DEX provider can be added later
+		maya.NewSwapService([]maya.SwapProvider{mayaCacaoProvider}),
 		maya.NewSendService(mayaClient, maya.MayaChainID),
 		maya.NewSignerService(mayaSDK, signerSend, txIndexerService),
 		maya.NewSignerService(mayaSDK, signerSwap, txIndexerService),
@@ -387,6 +390,21 @@ func main() {
 		tron.NewSignerService(tronSDK, signerSend, txIndexerService),
 		tron.NewSignerService(tronSDK, signerSwap, txIndexerService),
 		tronClient,
+	)
+
+	// Initialize THORChain (RUNE) network
+	runeClient := rune.NewClient(cfg.Rpc.THORChain.URL)
+	runeRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.Rpc.THORChain.URL})
+	runeSDK := cosmossdk.NewSDK(runeRpcClient)
+
+	runeThorchainProvider := thorchain.NewProviderRune(thorchainClient)
+
+	runeNetwork := rune.NewNetwork(
+		rune.NewSwapService([]rune.SwapProvider{runeThorchainProvider}),
+		rune.NewSendService(runeClient, rune.THORChainID),
+		rune.NewSignerService(runeSDK, signerSend, txIndexerService),
+		rune.NewSignerService(runeSDK, signerSwap, txIndexerService),
+		runeClient,
 	)
 
 	recurringConsumer := recurring.NewConsumer(
@@ -411,6 +429,7 @@ func main() {
 		cosmosNetwork,
 		mayaNetwork,
 		tronNetwork,
+		runeNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
