@@ -2,11 +2,11 @@ package solana
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
@@ -82,13 +82,14 @@ func (s *sendService) BuildSPLTransfer(
 	fromOwner solana.PublicKey,
 	toOwner solana.PublicKey,
 	amount uint64,
+	tokenProgram solana.PublicKey,
 ) ([]byte, error) {
-	sourceATA, _, err := solana.FindAssociatedTokenAddress(fromOwner, mint)
+	sourceATA, _, err := FindAssociatedTokenAddress(fromOwner, mint, tokenProgram)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find source ATA: %w", err)
 	}
 
-	destATA, _, err := solana.FindAssociatedTokenAddress(toOwner, mint)
+	destATA, _, err := FindAssociatedTokenAddress(toOwner, mint, tokenProgram)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find destination ATA: %w", err)
 	}
@@ -98,13 +99,20 @@ func (s *sendService) BuildSPLTransfer(
 		return nil, fmt.Errorf("failed to get recent blockhash: %w", err)
 	}
 
-	transferInst := token.NewTransferInstruction(
-		amount,
-		sourceATA,
-		destATA,
-		fromOwner,
-		[]solana.PublicKey{},
-	).Build()
+	// Build transfer instruction data: discriminator (1 byte) + amount (8 bytes little-endian)
+	data := make([]byte, 9)
+	data[0] = 3 // Transfer instruction discriminator
+	binary.LittleEndian.PutUint64(data[1:], amount)
+
+	transferInst := solana.NewInstruction(
+		tokenProgram,
+		[]*solana.AccountMeta{
+			{PublicKey: sourceATA, IsSigner: false, IsWritable: true},
+			{PublicKey: destATA, IsSigner: false, IsWritable: true},
+			{PublicKey: fromOwner, IsSigner: true, IsWritable: false},
+		},
+		data,
+	)
 
 	tx, err := solana.NewTransaction(
 		[]solana.Instruction{transferInst},

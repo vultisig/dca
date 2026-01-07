@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/gagliardetto/solana-go"
-	ata "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
@@ -21,8 +20,44 @@ func newTokenAccountService(rpcClient *rpc.Client) *tokenAccountService {
 	}
 }
 
-func (s *tokenAccountService) GetAssociatedTokenAddress(owner, mint solana.PublicKey) (solana.PublicKey, error) {
-	a, _, err := solana.FindAssociatedTokenAddress(owner, mint)
+// GetTokenProgram queries the mint account to determine which token program owns it.
+// Returns TokenProgramID for legacy SPL tokens or Token2022ProgramID for Token-2022 tokens.
+func (s *tokenAccountService) GetTokenProgram(ctx context.Context, mint solana.PublicKey) (solana.PublicKey, error) {
+	accountInfo, err := s.rpcClient.GetAccountInfo(ctx, mint)
+	if err != nil {
+		return solana.PublicKey{}, fmt.Errorf("failed to get mint account info: %w", err)
+	}
+
+	if accountInfo.Value == nil {
+		return solana.PublicKey{}, fmt.Errorf("mint account not found: %s", mint)
+	}
+
+	owner := accountInfo.Value.Owner
+	if owner == solana.TokenProgramID {
+		return solana.TokenProgramID, nil
+	}
+	if owner == solana.Token2022ProgramID {
+		return solana.Token2022ProgramID, nil
+	}
+
+	return solana.PublicKey{}, fmt.Errorf("mint account is not owned by a token program: %s", owner)
+}
+
+// FindAssociatedTokenAddress derives the ATA address for any token program (SPL or Token-2022).
+// The tokenProgram parameter should be either solana.TokenProgramID or solana.Token2022ProgramID.
+func FindAssociatedTokenAddress(wallet, mint, tokenProgram solana.PublicKey) (solana.PublicKey, uint8, error) {
+	return solana.FindProgramAddress(
+		[][]byte{
+			wallet[:],
+			tokenProgram[:],
+			mint[:],
+		},
+		solana.SPLAssociatedTokenAccountProgramID,
+	)
+}
+
+func (s *tokenAccountService) GetAssociatedTokenAddress(owner, mint, tokenProgram solana.PublicKey) (solana.PublicKey, error) {
+	a, _, err := FindAssociatedTokenAddress(owner, mint, tokenProgram)
 	if err != nil {
 		return solana.PublicKey{}, fmt.Errorf("failed to get associated token address: %w", err)
 	}
@@ -40,23 +75,32 @@ func (s *tokenAccountService) CheckAccountExists(ctx context.Context, account so
 	return accountInfo.Value != nil, nil
 }
 
+// BuildCreateATAInstruction creates an instruction to create an ATA for any token program.
+// The tokenProgram should be either solana.TokenProgramID or solana.Token2022ProgramID.
 func (s *tokenAccountService) BuildCreateATAInstruction(
-	payer, owner, mint solana.PublicKey,
+	payer, owner, mint, tokenProgram solana.PublicKey,
 ) solana.Instruction {
-	createInstruction := ata.NewCreateInstruction(
-		payer,
-		owner,
-		mint,
-	).Build()
+	ataAddress, _, _ := FindAssociatedTokenAddress(owner, mint, tokenProgram)
 
-	return createInstruction
+	return solana.NewInstruction(
+		solana.SPLAssociatedTokenAccountProgramID,
+		[]*solana.AccountMeta{
+			{PublicKey: payer, IsSigner: true, IsWritable: true},
+			{PublicKey: ataAddress, IsSigner: false, IsWritable: true},
+			{PublicKey: owner, IsSigner: false, IsWritable: false},
+			{PublicKey: mint, IsSigner: false, IsWritable: false},
+			{PublicKey: solana.SystemProgramID, IsSigner: false, IsWritable: false},
+			{PublicKey: tokenProgram, IsSigner: false, IsWritable: false},
+		},
+		[]byte{0}, // instruction discriminator for "Create"
+	)
 }
 
 func (s *tokenAccountService) BuildCreateATATransaction(
 	ctx context.Context,
-	payer, owner, mint solana.PublicKey,
+	payer, owner, mint, tokenProgram solana.PublicKey,
 ) (*solana.Transaction, error) {
-	a, err := s.GetAssociatedTokenAddress(owner, mint)
+	a, err := s.GetAssociatedTokenAddress(owner, mint, tokenProgram)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get associated token address: %w", err)
 	}
@@ -70,7 +114,7 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 		return nil, fmt.Errorf("associated token account already exists")
 	}
 
-	inst := s.BuildCreateATAInstruction(payer, owner, mint)
+	inst := s.BuildCreateATAInstruction(payer, owner, mint, tokenProgram)
 
 	block, err := s.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
@@ -119,7 +163,7 @@ func (s *tokenAccountService) GetTokenBalance(ctx context.Context, tokenAccount 
 
 func (s *tokenAccountService) BuildCloseTokenAccountTransaction(
 	ctx context.Context,
-	owner, tokenAccount solana.PublicKey,
+	owner, tokenAccount, tokenProgram solana.PublicKey,
 ) (*solana.Transaction, error) {
 	exists, err := s.CheckAccountExists(ctx, tokenAccount)
 	if err != nil {
@@ -136,13 +180,13 @@ func (s *tokenAccountService) BuildCloseTokenAccountTransaction(
 	}
 
 	closeInst := solana.NewInstruction(
-		solana.TokenProgramID,
+		tokenProgram,
 		[]*solana.AccountMeta{
 			{PublicKey: tokenAccount, IsWritable: true, IsSigner: false},
 			{PublicKey: owner, IsWritable: true, IsSigner: false},
 			{PublicKey: owner, IsWritable: false, IsSigner: true},
 		},
-		[]byte{9},
+		[]byte{9}, // CloseAccount instruction discriminator
 	)
 
 	tx, err := solana.NewTransaction(
