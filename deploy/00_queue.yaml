@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dca-queue
+data:
+  # CRITICAL: This queue name MUST be different from the verifier's default_queue.
+  # During plugin installation, a 4-party TSS reshare occurs with:
+  #   1. User's CLI
+  #   2. Fast Vault Server
+  #   3. Verifier Worker (listens on "default_queue")
+  #   4. DCA Plugin Worker (listens on this queue)
+  #
+  # If both workers share the same queue, the reshare fails because both
+  # reshare tasks get picked up by the same worker type.
+  #
+  # See CLAUDE.md "Queue Isolation" section for details.
+  name: "dca_plugin_queue"

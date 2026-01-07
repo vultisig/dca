@@ -32,6 +32,11 @@ spec:
             - containerPort: 8088
               name: metrics
           env:
+            - name: TASK_QUEUE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: dca-queue
+                  key: name
             - name: HEALTHPORT
               value: "80"
             - name: POSTGRES_DSN

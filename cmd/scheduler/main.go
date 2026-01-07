@@ -71,12 +71,17 @@ func main() {
 		logger.Fatalf("failed to initialize scheduler storage: %v", err)
 	}
 
+	queueName := cfg.TaskQueueName
+	if queueName == "" {
+		queueName = tasks.QUEUE_NAME
+	}
+
 	schedulerMetrics := metrics.NewSchedulerMetrics()
 	worker := scheduler.NewWorker(
 		logger,
 		asynqClient,
 		tasks.TypePluginTransaction,
-		tasks.QUEUE_NAME,
+		queueName,
 		schedulerStorage,
 		scheduler.NewDefaultInterval(),
 		policyStorage,
@@ -98,11 +103,12 @@ func main() {
 }
 
 type config struct {
-	LogFormat  logging.LogFormat
-	Postgres   plugin_config.Database
-	Redis      plugin_config.Redis
-	HealthPort int
-	Metrics    metrics.Config
+	LogFormat     logging.LogFormat
+	TaskQueueName string `envconfig:"TASK_QUEUE_NAME"`
+	Postgres      plugin_config.Database
+	Redis         plugin_config.Redis
+	HealthPort    int
+	Metrics       metrics.Config
 }
 
 func newConfig() (config, error) {
