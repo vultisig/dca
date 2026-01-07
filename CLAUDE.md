@@ -61,6 +61,68 @@ All services use environment-based configuration. Key configuration areas:
 - **Vault**: Block storage and key management settings
 - **DataDog**: Metrics and monitoring integration
 
+### Queue Isolation (CRITICAL)
+
+The DCA plugin **MUST use a separate task queue** from the verifier. This is essential for plugin installation (TSS reshare) to work correctly.
+
+#### Why This Matters
+
+During plugin installation, a 4-party TSS reshare occurs with:
+1. User's CLI
+2. Fast Vault Server
+3. **Verifier Worker** (listens on `default_queue`)
+4. **DCA Plugin Worker** (listens on `dca_plugin_queue`)
+
+If both workers share the same queue, both reshare tasks get picked up by the same worker type, causing the reshare to fail.
+
+#### Required Configuration
+
+**DCA Server** (`cmd/server/`) - enqueues tasks:
+```bash
+SERVER_TASKQUEUENAME=dca_plugin_queue
+```
+
+**DCA Worker** (`cmd/worker/`) - consumes tasks:
+```bash
+TASK_QUEUE_NAME=dca_plugin_queue
+```
+
+Both MUST use the same queue name, and it MUST be different from the verifier's `default_queue`.
+
+#### Implementation Details
+
+The queue name flows through:
+
+1. **Server Config** (`server.Config.TaskQueueName`) → Plugin server uses this when enqueueing reshare tasks
+2. **Worker Config** (`TASK_QUEUE_NAME`) → Asynq server uses this when registering queue handlers
+
+The verifier's `plugin/server/server.go` uses the configurable queue name:
+```go
+queueName := s.cfg.TaskQueueName
+if queueName == "" {
+    queueName = tasks.QUEUE_NAME  // fallback to "default_queue"
+}
+```
+
+The worker's `cmd/worker/main.go` uses the configurable queue name:
+```go
+queueName := cfg.TaskQueueName
+if queueName == "" {
+    queueName = tasks.QUEUE_NAME
+}
+consumer := asynq.NewServer(redisConnOpt, asynq.Config{
+    Queues: map[string]int{queueName: 10},
+})
+```
+
+#### Debugging Queue Issues
+
+If plugin install shows two workers with the same prefix (e.g., two `dca-worker-*`):
+
+1. Check env vars are set correctly
+2. Verify Redis has both queues: `redis-cli KEYS "asynq:queues:*"`
+3. Kill stale worker processes and restart
+
 ## DCA Workflow
 
 1. **Policy Creation** - User configures DCA parameters (frequency, assets, amounts, addresses)

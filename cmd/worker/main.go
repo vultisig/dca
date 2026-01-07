@@ -22,7 +22,6 @@ import (
 	"github.com/vultisig/dca/internal/maya"
 	"github.com/vultisig/dca/internal/mayachain"
 	"github.com/vultisig/dca/internal/metrics"
-	"github.com/vultisig/dca/internal/oneinch"
 	"github.com/vultisig/dca/internal/recurring"
 	"github.com/vultisig/dca/internal/rune"
 	"github.com/vultisig/dca/internal/solana"
@@ -82,13 +81,17 @@ func main() {
 	}
 
 	client := asynq.NewClient(redisConnOpt)
+	queueName := cfg.TaskQueueName
+	if queueName == "" {
+		queueName = tasks.QUEUE_NAME
+	}
 	consumer := asynq.NewServer(
 		redisConnOpt,
 		asynq.Config{
 			Logger:      logger,
 			Concurrency: 10,
 			Queues: map[string]int{
-				tasks.QUEUE_NAME: 10,
+				queueName: 10,
 			},
 		},
 	)
@@ -163,7 +166,7 @@ func main() {
 		logger,
 		relay.NewRelayClient(cfg.VaultService.Relay.Server),
 		[]keysign.Emitter{
-			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
+			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, queueName),
 			keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.SendToken),
 		},
 		[]string{
@@ -175,7 +178,7 @@ func main() {
 		logger,
 		relay.NewRelayClient(cfg.VaultService.Relay.Server),
 		[]keysign.Emitter{
-			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
+			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, queueName),
 			keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.SwapToken),
 		},
 		[]string{
@@ -187,7 +190,6 @@ func main() {
 	networks := make(map[common.Chain]*evm.Network)
 
 	thorchainClient := thorchain.NewClient(cfg.ThorChain.URL)
-	oneInchClient := oneinch.NewClient(cfg.OneInch.BaseURL)
 
 	networkConfigs := []struct {
 		chain  common.Chain
@@ -222,8 +224,7 @@ func main() {
 			c.chain,
 			c.rpcURL,
 			[]evm.Provider{
-				oneinch.NewProvider(oneInchClient, evmRpc, evmSdk),
-				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
+				evm.NewCanonicalProvider(c.chain, evmSdk),
 			},
 			signerSend,
 			signerSwap,
@@ -453,26 +454,31 @@ func main() {
 }
 
 type config struct {
-	LogFormat    logging.LogFormat
-	VaultService vault_config.Config
-	BlockStorage vault_config.BlockStorage
-	Postgres     plugin_config.Database
-	Redis        plugin_config.Redis
-	Verifier     verifier
-	Rpc          rpc
-	OneInch      oneInchConfig
-	ThorChain    thorChainConfig
-	MayaChain    mayaChainConfig
-	BTC          btcConfig
-	LTC          ltcConfig
-	DOGE         dogeConfig
-	BCH          bchConfig
-	DASH         dashConfig
-	XRP          xrpConfig
-	ZEC          zecConfig
-	Solana       solanaConfig
-	HealthPort   int
-	Metrics      metrics.Config
+	LogFormat logging.LogFormat
+	// TaskQueueName specifies which asynq queue this worker consumes tasks from.
+	// CRITICAL: Must match the queue name used by the plugin server (SERVER_TASKQUEUENAME).
+	// Must be different from verifier's "default_queue" to ensure proper queue isolation
+	// during TSS reshare (plugin install). See app-recurring/CLAUDE.md for details.
+	TaskQueueName string `envconfig:"TASK_QUEUE_NAME"`
+	VaultService  vault_config.Config
+	BlockStorage  vault_config.BlockStorage
+	Postgres      plugin_config.Database
+	Redis         plugin_config.Redis
+	Verifier      verifier
+	Rpc           rpc
+	OneInch       oneInchConfig
+	ThorChain     thorChainConfig
+	MayaChain     mayaChainConfig
+	BTC           btcConfig
+	LTC           ltcConfig
+	DOGE          dogeConfig
+	BCH           bchConfig
+	DASH          dashConfig
+	XRP           xrpConfig
+	ZEC           zecConfig
+	Solana        solanaConfig
+	HealthPort    int
+	Metrics       metrics.Config
 }
 
 type oneInchConfig struct {

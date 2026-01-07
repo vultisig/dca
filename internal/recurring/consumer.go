@@ -2419,7 +2419,6 @@ func (c *Consumer) handleMayaSwap(
 // THORChain (RUNE) handlers
 // ============================================================================
 
-// runePubToAddress derives a THORChain address from the root public key
 func (c *Consumer) runePubToAddress(rootPub string, pluginID string) (string, string, error) {
 	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
@@ -2444,7 +2443,6 @@ func (c *Consumer) runePubToAddress(rootPub string, pluginID string) (string, st
 	return addr, childPub, nil
 }
 
-// handleRuneSend handles THORChain (RUNE) send operations
 func (c *Consumer) handleRuneSend(
 	ctx context.Context,
 	pol *types.PluginPolicy,
@@ -2479,7 +2477,6 @@ func (c *Consumer) handleRuneSend(
 	return nil
 }
 
-// handleRuneSwap handles THORChain (RUNE) swap operations
 func (c *Consumer) handleRuneSwap(
 	ctx context.Context,
 	pol *types.PluginPolicy,
