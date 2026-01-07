@@ -121,6 +121,16 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: solana
+            - name: RPC_ZKSYNC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: zksync
+            - name: RPC_CRONOS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: cronos
             - name: THORCHAIN_URL
               valueFrom:
                 configMapKeyRef:
