@@ -1,27 +1,33 @@
 module github.com/vultisig/dca
 
-go 1.24.2
+go 1.25
 
 require (
+	cosmossdk.io/math v1.5.3
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/btcutil v1.1.6
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.10
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
+	github.com/cosmos/cosmos-sdk v0.50.11
 	github.com/ethereum/go-ethereum v1.15.11
 	github.com/gagliardetto/solana-go v1.14.0
+	github.com/gcash/bchd v0.21.1
+	github.com/gcash/bchutil v0.0.0-20250514010653-ef9bffba99e1
 	github.com/google/uuid v1.6.0
 	github.com/hibiken/asynq v0.25.1
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/kaptinlin/jsonschema v0.4.6
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/labstack/echo/v4 v4.13.3
+	github.com/ltcsuite/ltcd v0.23.5
+	github.com/ltcsuite/ltcd/ltcutil v1.1.3
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20251223082240-b676aac36c74
-	github.com/vultisig/verifier v0.0.0-20260103141447-1b4fb464afef
-	github.com/vultisig/vultisig-go v0.0.0-20251201083443-f9306a44b356
+	github.com/vultisig/recipes v0.0.0-20260106090536-1198eaa21228
+	github.com/vultisig/verifier v0.0.0-20260107054834-94ca6b9fbbd6
+	github.com/vultisig/vultisig-go v0.0.0-20260105232826-8224bf35e503
 	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
 	golang.org/x/crypto v0.45.0
 	golang.org/x/sync v0.18.0
@@ -35,7 +41,6 @@ require (
 	cosmossdk.io/depinject v1.2.1 // indirect
 	cosmossdk.io/errors v1.0.2 // indirect
 	cosmossdk.io/log v1.6.0 // indirect
-	cosmossdk.io/math v1.5.3 // indirect
 	cosmossdk.io/schema v1.1.0 // indirect
 	cosmossdk.io/store v1.1.2 // indirect
 	cosmossdk.io/x/tx v0.14.0 // indirect
@@ -78,7 +83,6 @@ require (
 	github.com/cosmos/btcutil v1.0.5 // indirect
 	github.com/cosmos/cosmos-db v1.1.1 // indirect
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5 // indirect
-	github.com/cosmos/cosmos-sdk v0.50.11 // indirect
 	github.com/cosmos/go-bip39 v1.0.0 // indirect
 	github.com/cosmos/gogogateway v1.2.0 // indirect
 	github.com/cosmos/gogoproto v1.7.0 // indirect
@@ -110,9 +114,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/gagliardetto/binary v0.8.0 // indirect
 	github.com/gagliardetto/treeout v0.1.4 // indirect
-	github.com/gcash/bchd v0.21.1 // indirect
 	github.com/gcash/bchlog v0.0.0-20180913005452-b4f036f92fa6 // indirect
-	github.com/gcash/bchutil v0.0.0-20250514010653-ef9bffba99e1 // indirect
 	github.com/getsentry/sentry-go v0.32.0 // indirect
 	github.com/go-kit/kit v0.13.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
@@ -173,10 +175,8 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/linxGnu/grocksdb v1.8.14 // indirect
 	github.com/logrusorgru/aurora v2.0.3+incompatible // indirect
-	github.com/ltcsuite/ltcd v0.23.5 // indirect
 	github.com/ltcsuite/ltcd/btcec/v2 v2.3.2 // indirect
 	github.com/ltcsuite/ltcd/chaincfg/chainhash v1.0.2 // indirect
-	github.com/ltcsuite/ltcd/ltcutil v1.1.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
@@ -231,7 +231,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778 // indirect
-	github.com/vultisig/go-wrappers v0.0.0-20250716071337-34a5c0f4d6e0 // indirect
+	github.com/vultisig/go-wrappers v0.0.0-20260106233302-7e12f0dd6a93 // indirect
 	github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 // indirect
 	github.com/zondax/hid v0.9.2 // indirect
 	github.com/zondax/ledger-go v0.14.3 // indirect

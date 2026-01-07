@@ -11,8 +11,29 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/sirupsen/logrus"
 
+	"github.com/vultisig/dca/internal/blockchair"
+	"github.com/vultisig/dca/internal/btc"
+	"github.com/vultisig/dca/internal/cosmos"
+	"github.com/vultisig/dca/internal/dash"
+	"github.com/vultisig/dca/internal/evm"
+	"github.com/vultisig/dca/internal/health"
+	"github.com/vultisig/dca/internal/jupiter"
+	"github.com/vultisig/dca/internal/logging"
+	"github.com/vultisig/dca/internal/maya"
+	"github.com/vultisig/dca/internal/mayachain"
+	"github.com/vultisig/dca/internal/metrics"
+	"github.com/vultisig/dca/internal/oneinch"
+	"github.com/vultisig/dca/internal/recurring"
+	"github.com/vultisig/dca/internal/solana"
+	"github.com/vultisig/dca/internal/thorchain"
+	"github.com/vultisig/dca/internal/tron"
+	"github.com/vultisig/dca/internal/utxo"
+	"github.com/vultisig/dca/internal/xrp"
+	"github.com/vultisig/dca/internal/zcash"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
+	cosmossdk "github.com/vultisig/recipes/sdk/cosmos"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
+	tronsdk "github.com/vultisig/recipes/sdk/tron"
 	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
@@ -27,21 +48,6 @@ import (
 	"github.com/vultisig/verifier/vault_config"
 	"github.com/vultisig/vultisig-go/common"
 	"github.com/vultisig/vultisig-go/relay"
-
-	"github.com/vultisig/dca/internal/blockchair"
-	"github.com/vultisig/dca/internal/btc"
-	"github.com/vultisig/dca/internal/evm"
-	"github.com/vultisig/dca/internal/health"
-	"github.com/vultisig/dca/internal/jupiter"
-	"github.com/vultisig/dca/internal/logging"
-	"github.com/vultisig/dca/internal/mayachain"
-	"github.com/vultisig/dca/internal/metrics"
-	"github.com/vultisig/dca/internal/oneinch"
-	"github.com/vultisig/dca/internal/recurring"
-	"github.com/vultisig/dca/internal/solana"
-	"github.com/vultisig/dca/internal/thorchain"
-	"github.com/vultisig/dca/internal/xrp"
-	"github.com/vultisig/dca/internal/zcash"
 )
 
 func main() {
@@ -194,6 +200,8 @@ func main() {
 		{common.Blast, cfg.Rpc.Blast.URL},
 		{common.Optimism, cfg.Rpc.Optimism.URL},
 		{common.Polygon, cfg.Rpc.Polygon.URL},
+		{common.Zksync, cfg.Rpc.Zksync.URL},
+		{common.CronosChain, cfg.Rpc.Cronos.URL},
 	}
 
 	for _, c := range networkConfigs {
@@ -227,7 +235,13 @@ func main() {
 	}
 
 	thorchainBtc := thorchain.NewProviderBtc(thorchainClient)
-	blockchairClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
+	blockchairBtcClient := blockchair.NewClient(cfg.BTC.BlockchairURL)
+
+	// Initialize Blockchair clients for other UTXO chains
+	blockchairLtcClient := blockchair.NewClientForChain(cfg.LTC.BlockchairURL, "litecoin")
+	blockchairDogeClient := blockchair.NewClientForChain(cfg.DOGE.BlockchairURL, "dogecoin")
+	blockchairBchClient := blockchair.NewClientForChain(cfg.BCH.BlockchairURL, "bitcoin-cash")
+	blockchairDashClient := blockchair.NewClientForChain(cfg.DASH.BlockchairURL, "dash")
 
 	// Initialize XRP network
 	xrpClient := xrp.NewClient(cfg.Rpc.XRP.URL)
@@ -245,9 +259,10 @@ func main() {
 		xrpClient,
 	)
 
-	// Initialize MayaChain client for Zcash swaps
+	// Initialize MayaChain client for Zcash and Dash swaps
 	mayachainClient := mayachain.NewClient(cfg.MayaChain.URL)
 	mayachainZcash := mayachain.NewProviderZcash(mayachainClient)
+	mayachainDash := mayachain.NewProviderDash(mayachainClient)
 
 	// Initialize Zcash network
 	zcashClient := zcash.NewClient(cfg.ZEC.BlockchairURL)
@@ -280,6 +295,100 @@ func main() {
 		logger.Fatalf("failed to initialize Solana network: %v", err)
 	}
 
+	// Initialize chain-specific THORChain providers for UTXO chains
+	thorchainLtc := thorchain.NewProviderLtc(thorchainClient)
+	thorchainDoge := thorchain.NewProviderDoge(thorchainClient)
+	thorchainBch := thorchain.NewProviderBch(thorchainClient)
+
+	// Initialize LTC network with chain-specific provider
+	ltcNetwork := utxo.NewNetwork(
+		common.Litecoin,
+		thorchainLtc,
+		utxo.NewSwapService([]utxo.SwapProvider{thorchainLtc}),
+		utxo.NewSendService(),
+		utxo.NewSignerService(common.Litecoin, btcsdk.NewSDK(blockchairLtcClient), signerSend, txIndexerService),
+		utxo.NewSignerService(common.Litecoin, btcsdk.NewSDK(blockchairLtcClient), signerSwap, txIndexerService),
+		blockchairLtcClient,
+	)
+
+	// Initialize DOGE network with chain-specific provider
+	dogeNetwork := utxo.NewNetwork(
+		common.Dogecoin,
+		thorchainDoge,
+		utxo.NewSwapService([]utxo.SwapProvider{thorchainDoge}),
+		utxo.NewSendService(),
+		utxo.NewSignerService(common.Dogecoin, btcsdk.NewSDK(blockchairDogeClient), signerSend, txIndexerService),
+		utxo.NewSignerService(common.Dogecoin, btcsdk.NewSDK(blockchairDogeClient), signerSwap, txIndexerService),
+		blockchairDogeClient,
+	)
+
+	// Initialize BCH network with chain-specific provider
+	bchNetwork := utxo.NewNetwork(
+		common.BitcoinCash,
+		thorchainBch,
+		utxo.NewSwapService([]utxo.SwapProvider{thorchainBch}),
+		utxo.NewSendService(),
+		utxo.NewSignerService(common.BitcoinCash, btcsdk.NewSDK(blockchairBchClient), signerSend, txIndexerService),
+		utxo.NewSignerService(common.BitcoinCash, btcsdk.NewSDK(blockchairBchClient), signerSwap, txIndexerService),
+		blockchairBchClient,
+	)
+
+	// Initialize Dash network with MayaChain provider
+	dashNetwork := dash.NewNetwork(
+		mayachainDash,
+		dash.NewSwapService([]dash.SwapProvider{mayachainDash}),
+		dash.NewSendService(),
+		dash.NewSignerService(btcsdk.NewSDK(blockchairDashClient), signerSend, txIndexerService),
+		dash.NewSignerService(btcsdk.NewSDK(blockchairDashClient), signerSwap, txIndexerService),
+		blockchairDashClient,
+	)
+
+	// Initialize Cosmos network
+	cosmosClient := cosmos.NewClient(cfg.Rpc.Cosmos.URL)
+	cosmosRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.Rpc.Cosmos.URL})
+	cosmosSDK := cosmossdk.NewSDK(cosmosRpcClient)
+
+	// Initialize Cosmos swap provider with THORChain
+	cosmosThorchainProvider := thorchain.NewProviderCosmos(thorchainClient)
+
+	cosmosNetwork := cosmos.NewNetwork(
+		cosmos.NewSwapService([]cosmos.SwapProvider{cosmosThorchainProvider}),
+		cosmos.NewSendService(cosmosClient, cosmos.CosmosHubChainID),
+		cosmos.NewSignerService(cosmosSDK, signerSend, txIndexerService, common.GaiaChain),
+		cosmos.NewSignerService(cosmosSDK, signerSwap, txIndexerService, common.GaiaChain),
+		cosmosClient,
+	)
+
+	// Initialize Maya network
+	mayaClient := maya.NewClient(cfg.Rpc.Maya.URL)
+	mayaRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.Rpc.Maya.URL})
+	mayaSDK := cosmossdk.NewSDK(mayaRpcClient)
+
+	mayaNetwork := maya.NewNetwork(
+		maya.NewSwapService([]maya.SwapProvider{}), // Maya DEX provider can be added later
+		maya.NewSendService(mayaClient, maya.MayaChainID),
+		maya.NewSignerService(mayaSDK, signerSend, txIndexerService),
+		maya.NewSignerService(mayaSDK, signerSwap, txIndexerService),
+		mayaClient,
+	)
+
+	// Initialize TRON network with TRC-20 support
+	tronClient := tron.NewClient(cfg.Rpc.Tron.URL)
+	tronRpcClient := tronsdk.NewHTTPRPCClient([]string{cfg.Rpc.Tron.URL})
+	tronSDK := tronsdk.NewSDK(tronRpcClient)
+
+	// Initialize TRON swap provider with THORChain (supports TRX and USDT TRC-20)
+	tronTxBuilder := thorchain.NewTronSDKTxBuilder(tronClient, tronClient)
+	tronThorchainProvider := thorchain.NewProviderTron(thorchainClient, tronTxBuilder)
+
+	tronNetwork := tron.NewNetwork(
+		tron.NewSwapService([]tron.SwapProvider{tronThorchainProvider}),
+		tron.NewSendService(tronClient, tronClient), // Second arg is TRC20Client
+		tron.NewSignerService(tronSDK, signerSend, txIndexerService),
+		tron.NewSignerService(tronSDK, signerSwap, txIndexerService),
+		tronClient,
+	)
+
 	recurringConsumer := recurring.NewConsumer(
 		logger,
 		policyService,
@@ -288,13 +397,20 @@ func main() {
 			thorchainBtc,
 			btc.NewSwapService([]btc.SwapProvider{thorchainBtc}),
 			btc.NewSendService(),
-			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signerSend, txIndexerService),
-			btc.NewSignerService(btcsdk.NewSDK(blockchairClient), signerSwap, txIndexerService),
-			blockchairClient,
+			btc.NewSignerService(btcsdk.NewSDK(blockchairBtcClient), signerSend, txIndexerService),
+			btc.NewSignerService(btcsdk.NewSDK(blockchairBtcClient), signerSwap, txIndexerService),
+			blockchairBtcClient,
 		),
+		ltcNetwork,
+		dogeNetwork,
+		bchNetwork,
+		dashNetwork,
 		solanaNetwork,
 		xrpNetwork,
 		zcashNetwork,
+		cosmosNetwork,
+		mayaNetwork,
+		tronNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
@@ -329,6 +445,10 @@ type config struct {
 	ThorChain    thorChainConfig
 	MayaChain    mayaChainConfig
 	BTC          btcConfig
+	LTC          ltcConfig
+	DOGE         dogeConfig
+	BCH          bchConfig
+	DASH         dashConfig
 	XRP          xrpConfig
 	ZEC          zecConfig
 	Solana       solanaConfig
@@ -357,8 +477,14 @@ type rpc struct {
 	Blast     rpcItem
 	Optimism  rpcItem
 	Polygon   rpcItem
+	Zksync    rpcItem
+	Cronos    rpcItem
 	XRP       rpcItem
 	Solana    rpcItem
+	Cosmos    rpcItem
+	Maya      rpcItem
+	Tron      rpcItem
+	THORChain rpcItem
 }
 
 type rpcItem struct {
@@ -369,11 +495,27 @@ type btcConfig struct {
 	BlockchairURL string
 }
 
+type ltcConfig struct {
+	BlockchairURL string
+}
+
+type dogeConfig struct {
+	BlockchairURL string
+}
+
+type bchConfig struct {
+	BlockchairURL string
+}
+
 type xrpConfig struct {
 	RPC string
 }
 
 type zecConfig struct {
+	BlockchairURL string
+}
+
+type dashConfig struct {
 	BlockchairURL string
 }
 
@@ -395,12 +537,4 @@ func newConfig() (config, error) {
 		return config{}, fmt.Errorf("failed to process env var: %w", err)
 	}
 	return cfg, nil
-}
-
-// TODO: rework
-type Temp struct {
-}
-
-func (Temp) GetControlFlags(ctx context.Context, k1 string, k2 string) (map[string]bool, error) {
-	return map[string]bool{}, nil
 }

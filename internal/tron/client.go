@@ -1,0 +1,241 @@
+package tron
+
+import (
+	"context"
+	"crypto/sha256"
+	"fmt"
+	"net/http"
+
+	"github.com/btcsuite/btcd/btcutil/base58"
+	"github.com/vultisig/verifier/plugin/libhttp"
+)
+
+// AccountInfoProvider interface defines methods for fetching TRON account and network data
+type AccountInfoProvider interface {
+	GetAccount(ctx context.Context, address string) (*AccountInfo, error)
+	GetNowBlock(ctx context.Context) (*Block, error)
+	CreateTransaction(ctx context.Context, req *TransferRequest) (*Transaction, error)
+}
+
+// AccountInfo represents TRON account information
+type AccountInfo struct {
+	Address string `json:"address"`
+	Balance int64  `json:"balance"`
+}
+
+// Block represents a TRON block
+type Block struct {
+	BlockID     string       `json:"blockID"`
+	BlockHeader *BlockHeader `json:"block_header"`
+}
+
+// BlockHeader represents a TRON block header
+type BlockHeader struct {
+	RawData *BlockRawData `json:"raw_data"`
+	Number  int64         `json:"number,omitempty"`
+}
+
+// BlockRawData represents raw data in a block header
+type BlockRawData struct {
+	Number         int64  `json:"number"`
+	TxTrieRoot     string `json:"txTrieRoot"`
+	WitnessAddress string `json:"witness_address"`
+	ParentHash     string `json:"parentHash"`
+	Version        int    `json:"version"`
+	Timestamp      int64  `json:"timestamp"`
+}
+
+// TransferRequest represents a TRX transfer request
+type TransferRequest struct {
+	OwnerAddress string `json:"owner_address"`
+	ToAddress    string `json:"to_address"`
+	Amount       int64  `json:"amount"`
+	Visible      bool   `json:"visible"`
+}
+
+// TRC20TransferRequest represents a TRC-20 token transfer request
+type TRC20TransferRequest struct {
+	OwnerAddress     string `json:"owner_address"`
+	ContractAddress  string `json:"contract_address"`
+	FunctionSelector string `json:"function_selector"`
+	Parameter        string `json:"parameter"`
+	FeeLimit         int64  `json:"fee_limit"`
+	Visible          bool   `json:"visible"`
+}
+
+// Transaction represents a TRON transaction
+type Transaction struct {
+	TxID       string   `json:"txID"`
+	RawData    *RawData `json:"raw_data,omitempty"`
+	RawDataHex string   `json:"raw_data_hex"`
+	Visible    bool     `json:"visible,omitempty"`
+}
+
+// RawData represents the raw data of a TRON transaction
+type RawData struct {
+	Contract      []Contract `json:"contract"`
+	RefBlockBytes string     `json:"ref_block_bytes"`
+	RefBlockHash  string     `json:"ref_block_hash"`
+	Expiration    int64      `json:"expiration"`
+	Timestamp     int64      `json:"timestamp"`
+	FeeLimit      int64      `json:"fee_limit,omitempty"`
+	Data          string     `json:"data,omitempty"`
+}
+
+// Contract represents a contract in a TRON transaction
+type Contract struct {
+	Parameter Parameter `json:"parameter"`
+	Type      string    `json:"type"`
+}
+
+// Parameter represents the parameter of a contract
+type Parameter struct {
+	Value   Value  `json:"value"`
+	TypeUrl string `json:"type_url"`
+}
+
+// Value represents the value of a contract parameter
+type Value struct {
+	Amount       int64  `json:"amount,omitempty"`
+	OwnerAddress string `json:"owner_address"`
+	ToAddress    string `json:"to_address,omitempty"`
+}
+
+// Client implements AccountInfoProvider using TronGrid/TRON JSON-RPC
+type Client struct {
+	baseURL string
+}
+
+// NewClient creates a new TRON client with the given base URL
+func NewClient(baseURL string) *Client {
+	return &Client{
+		baseURL: baseURL,
+	}
+}
+
+// accountRequest is the request body for GetAccount
+type accountRequest struct {
+	Address string `json:"address"`
+	Visible bool   `json:"visible"`
+}
+
+// GetAccount fetches account information from TRON network
+func (c *Client) GetAccount(ctx context.Context, address string) (*AccountInfo, error) {
+	reqBody := accountRequest{
+		Address: address,
+		Visible: true,
+	}
+
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	account, err := libhttp.Call[AccountInfo](ctx, http.MethodPost, c.baseURL+"/wallet/getaccount", headers, reqBody, nil)
+	if err != nil {
+		return nil, fmt.Errorf("tron: failed to get account: %w", err)
+	}
+
+	return &account, nil
+}
+
+// GetNowBlock fetches the current block from TRON network
+func (c *Client) GetNowBlock(ctx context.Context) (*Block, error) {
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	block, err := libhttp.Call[Block](ctx, http.MethodPost, c.baseURL+"/wallet/getnowblock", headers, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("tron: failed to get now block: %w", err)
+	}
+
+	return &block, nil
+}
+
+// CreateTransaction creates an unsigned TRX transfer transaction
+func (c *Client) CreateTransaction(ctx context.Context, transferReq *TransferRequest) (*Transaction, error) {
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	tx, err := libhttp.Call[Transaction](ctx, http.MethodPost, c.baseURL+"/wallet/createtransaction", headers, transferReq, nil)
+	if err != nil {
+		return nil, fmt.Errorf("tron: failed to create transaction: %w", err)
+	}
+
+	return &tx, nil
+}
+
+// TriggerSmartContract triggers a TRC-20 smart contract (for token transfers)
+func (c *Client) TriggerSmartContract(ctx context.Context, req *TRC20TransferRequest) (*Transaction, error) {
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	type triggerResponse struct {
+		Result      map[string]interface{} `json:"result"`
+		Transaction *Transaction           `json:"transaction"`
+	}
+
+	resp, err := libhttp.Call[triggerResponse](ctx, http.MethodPost, c.baseURL+"/wallet/triggersmartcontract", headers, req, nil)
+	if err != nil {
+		return nil, fmt.Errorf("tron: failed to trigger smart contract: %w", err)
+	}
+
+	// Validate the execution result
+	if resp.Result != nil {
+		if result, ok := resp.Result["result"].(bool); ok && !result {
+			message := "unknown error"
+			if msg, ok := resp.Result["message"].(string); ok {
+				message = msg
+			}
+			return nil, fmt.Errorf("tron: smart contract execution failed: %s", message)
+		}
+	}
+
+	if resp.Transaction == nil {
+		return nil, fmt.Errorf("tron: no transaction in response")
+	}
+
+	return resp.Transaction, nil
+}
+
+// DecodeBase58Address decodes a TRON Base58Check address to its 20-byte representation
+// TRON addresses are Base58Check encoded with a 0x41 prefix
+// Returns the 20-byte address (without the 41 prefix)
+func DecodeBase58Address(address string) ([]byte, error) {
+	if len(address) == 0 {
+		return nil, fmt.Errorf("empty address")
+	}
+
+	// Decode base58
+	decoded := base58.Decode(address)
+	if len(decoded) == 0 {
+		return nil, fmt.Errorf("invalid base58 encoding")
+	}
+
+	// TRON address: 1 byte version (0x41) + 20 bytes address + 4 bytes checksum = 25 bytes
+	if len(decoded) != 25 {
+		return nil, fmt.Errorf("invalid address length: expected 25 bytes, got %d", len(decoded))
+	}
+
+	// Verify checksum (double SHA256 of first 21 bytes)
+	payload := decoded[:21]
+	checksum := decoded[21:]
+
+	hash1 := sha256.Sum256(payload)
+	hash2 := sha256.Sum256(hash1[:])
+
+	if hash2[0] != checksum[0] || hash2[1] != checksum[1] ||
+		hash2[2] != checksum[2] || hash2[3] != checksum[3] {
+		return nil, fmt.Errorf("invalid checksum")
+	}
+
+	// Verify version byte is 0x41 (TRON mainnet)
+	if payload[0] != 0x41 {
+		return nil, fmt.Errorf("invalid version byte: expected 0x41, got 0x%02x", payload[0])
+	}
+
+	// Return the 20-byte address (skip version byte)
+	return payload[1:21], nil
+}
