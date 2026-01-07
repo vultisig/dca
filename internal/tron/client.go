@@ -2,9 +2,11 @@ package tron
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 
+	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/vultisig/verifier/plugin/libhttp"
 )
 
@@ -49,6 +51,16 @@ type TransferRequest struct {
 	ToAddress    string `json:"to_address"`
 	Amount       int64  `json:"amount"`
 	Visible      bool   `json:"visible"`
+}
+
+// TRC20TransferRequest represents a TRC-20 token transfer request
+type TRC20TransferRequest struct {
+	OwnerAddress     string `json:"owner_address"`
+	ContractAddress  string `json:"contract_address"`
+	FunctionSelector string `json:"function_selector"`
+	Parameter        string `json:"parameter"`
+	FeeLimit         int64  `json:"fee_limit"`
+	Visible          bool   `json:"visible"`
 }
 
 // Transaction represents a TRON transaction
@@ -152,4 +164,78 @@ func (c *Client) CreateTransaction(ctx context.Context, transferReq *TransferReq
 	}
 
 	return &tx, nil
+}
+
+// TriggerSmartContract triggers a TRC-20 smart contract (for token transfers)
+func (c *Client) TriggerSmartContract(ctx context.Context, req *TRC20TransferRequest) (*Transaction, error) {
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	type triggerResponse struct {
+		Result      map[string]interface{} `json:"result"`
+		Transaction *Transaction           `json:"transaction"`
+	}
+
+	resp, err := libhttp.Call[triggerResponse](ctx, http.MethodPost, c.baseURL+"/wallet/triggersmartcontract", headers, req, nil)
+	if err != nil {
+		return nil, fmt.Errorf("tron: failed to trigger smart contract: %w", err)
+	}
+
+	// Validate the execution result
+	if resp.Result != nil {
+		if result, ok := resp.Result["result"].(bool); ok && !result {
+			message := "unknown error"
+			if msg, ok := resp.Result["message"].(string); ok {
+				message = msg
+			}
+			return nil, fmt.Errorf("tron: smart contract execution failed: %s", message)
+		}
+	}
+
+	if resp.Transaction == nil {
+		return nil, fmt.Errorf("tron: no transaction in response")
+	}
+
+	return resp.Transaction, nil
+}
+
+// DecodeBase58Address decodes a TRON Base58Check address to its 20-byte representation
+// TRON addresses are Base58Check encoded with a 0x41 prefix
+// Returns the 20-byte address (without the 41 prefix)
+func DecodeBase58Address(address string) ([]byte, error) {
+	if len(address) == 0 {
+		return nil, fmt.Errorf("empty address")
+	}
+
+	// Decode base58
+	decoded := base58.Decode(address)
+	if len(decoded) == 0 {
+		return nil, fmt.Errorf("invalid base58 encoding")
+	}
+
+	// TRON address: 1 byte version (0x41) + 20 bytes address + 4 bytes checksum = 25 bytes
+	if len(decoded) != 25 {
+		return nil, fmt.Errorf("invalid address length: expected 25 bytes, got %d", len(decoded))
+	}
+
+	// Verify checksum (double SHA256 of first 21 bytes)
+	payload := decoded[:21]
+	checksum := decoded[21:]
+
+	hash1 := sha256.Sum256(payload)
+	hash2 := sha256.Sum256(hash1[:])
+
+	if hash2[0] != checksum[0] || hash2[1] != checksum[1] ||
+		hash2[2] != checksum[2] || hash2[3] != checksum[3] {
+		return nil, fmt.Errorf("invalid checksum")
+	}
+
+	// Verify version byte is 0x41 (TRON mainnet)
+	if payload[0] != 0x41 {
+		return nil, fmt.Errorf("invalid version byte: expected 0x41, got 0x%02x", payload[0])
+	}
+
+	// Return the 20-byte address (skip version byte)
+	return payload[1:21], nil
 }
