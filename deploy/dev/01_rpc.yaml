@@ -13,3 +13,5 @@ data:
   optimism: "https://api.vultisig.com/opt/"
   polygon: "https://api.vultisig.com/polygon/"
   solana: "https://api.vultisig.com/solana/"
+  zksync: "https://api.vultisig.com/zksync/"
+  cronos: "https://cronos-evm-rpc.publicnode.com"
