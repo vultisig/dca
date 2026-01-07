@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	ecommon "github.com/ethereum/go-ethereum/common"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -16,6 +17,19 @@ func newSwapService(providers []Provider) *swapService {
 	return &swapService{
 		providers: providers,
 	}
+}
+
+func (s *swapService) GetApprovalSpender(
+	ctx context.Context,
+	from From,
+	to To,
+) (ecommon.Address, error) {
+	for _, provider := range s.providers {
+		if ap, ok := provider.(ApprovalProvider); ok {
+			return ap.GetApprovalSpender(ctx, from, to)
+		}
+	}
+	return ecommon.Address{}, fmt.Errorf("no approval provider available")
 }
 
 func (s *swapService) FindBestAmountOut(

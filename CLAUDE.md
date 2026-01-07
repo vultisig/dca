@@ -123,6 +123,22 @@ If plugin install shows two workers with the same prefix (e.g., two `dca-worker-
 2. Verify Redis has both queues: `redis-cli KEYS "asynq:queues:*"`
 3. Kill stale worker processes and restart
 
+#### Performance Requirements
+
+**Plugin installation (TSS reshare) MUST complete within 30 seconds.** If it takes longer, the operation will timeout and fail.
+
+Expected party names during successful reshare:
+- `dev's MacBook Air-*` or similar (CLI)
+- `verifier-dev-*` (Verifier Worker)
+- `Server-*` (Fast Vault Server)
+- `dca-worker-*` (DCA Plugin Worker)
+
+If reshare is slow or timing out:
+1. Check network latency to relay server (`https://api.vultisig.com/router`)
+2. Ensure no stale processes are registered in Redis
+3. Verify all 4 parties join within the first few seconds
+4. Check for CPU/memory contention on the host machine
+
 ## DCA Workflow
 
 1. **Policy Creation** - User configures DCA parameters (frequency, assets, amounts, addresses)

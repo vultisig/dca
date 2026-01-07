@@ -1,6 +1,6 @@
 module github.com/vultisig/dca
 
-go 1.24.2
+go 1.25
 
 require (
 	cosmossdk.io/math v1.5.3
@@ -25,7 +25,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20260106090536-1198eaa21228
+	github.com/vultisig/recipes v0.0.0-20260107015630-e1fc70aefc2f
 	github.com/vultisig/verifier v0.0.0-20260103141447-1b4fb464afef
 	github.com/vultisig/vultisig-go v0.0.0-20260105232826-8224bf35e503
 	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
@@ -231,7 +231,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778 // indirect
-	github.com/vultisig/go-wrappers v0.0.0-20250716071337-34a5c0f4d6e0 // indirect
+	github.com/vultisig/go-wrappers v0.0.0-20260106233302-7e12f0dd6a93 // indirect
 	github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 // indirect
 	github.com/zondax/hid v0.9.2 // indirect
 	github.com/zondax/ledger-go v0.14.3 // indirect
@@ -266,5 +266,7 @@ replace (
 	github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 	github.com/cwespare/xxhash/v2 => github.com/cespare/xxhash/v2 v2.1.1
 	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
+	github.com/vultisig/recipes => ../recipes
+	github.com/vultisig/verifier => ../verifier
 	nhooyr.io/websocket => github.com/coder/websocket v1.8.6
 )
