@@ -49,7 +49,7 @@ const (
 func getRateLimitWindow(freq string) (uint32, error) {
 	switch freq {
 	case onetime:
-		return 60, nil
+		return 90, nil
 	case minutely:
 		return 60, nil
 	case hourly:
