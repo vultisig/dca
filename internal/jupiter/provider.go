@@ -63,8 +63,8 @@ type SwapInfo struct {
 	OutputMint string `json:"outputMint"`
 	InAmount   string `json:"inAmount"`
 	OutAmount  string `json:"outAmount"`
-	FeeAmount  string `json:"feeAmount"`
-	FeeMint    string `json:"feeMint"`
+	FeeAmount  string `json:"feeAmount,omitempty"`
+	FeeMint    string `json:"feeMint,omitempty"`
 }
 
 type SwapRequest struct {
