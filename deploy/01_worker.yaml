@@ -111,6 +111,16 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: xrp
+            - name: RPC_ZKSYNC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: zksync
+            - name: RPC_CRONOS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: cronos
             - name: ONEINCH_BASEURL
               valueFrom:
                 configMapKeyRef:

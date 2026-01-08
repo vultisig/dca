@@ -72,6 +72,31 @@ spec:
                 configMapKeyRef:
                   name: rpc
                   key: polygon
+            - name: BASE_RPC_ZKSYNC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: zksync
+            - name: BASE_RPC_CRONOS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: cronos
+            - name: BASE_RPC_LITECOIN_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: litecoin
+            - name: BASE_RPC_DOGECOIN_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: dogecoin
+            - name: BASE_RPC_BITCOINCASH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rpc
+                  key: bitcoincash
             - name: BASE_RPC_XRP_URL
               valueFrom:
                 configMapKeyRef:
