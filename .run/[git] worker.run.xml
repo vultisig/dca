@@ -27,6 +27,8 @@
       <env name="RPC_POLYGON_URL" value="https://polygon-bor-rpc.publicnode.com" />
       <env name="RPC_SOLANA_URL" value="https://solana-rpc.publicnode.com" />
       <env name="RPC_XRP_URL" value="https://xrplcluster.com" />
+      <env name="RPC_ZKSYNC_URL" value="https://zksync.drpc.org" />
+      <env name="RPC_CRONOS_URL" value="https://cronos-evm-rpc.publicnode.com" />
       <env name="SOLANA_JUPITERAPIURL" value="https://api.vultisig.com/jup" />
       <env name="THORCHAIN_URL" value="https://thornode.ninerealms.com" />
       <env name="VAULTSERVICE_DOSETUPMSG" value="true" />
