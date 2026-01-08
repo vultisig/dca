@@ -232,6 +232,10 @@ func (p *Provider) GetQuote(
 	queryParams.Set("outputMint", outputMint)
 	queryParams.Set("amount", amount.String())
 	queryParams.Set("slippageBps", fmt.Sprintf("%d", slippageBps))
+	// Restrict routes to fit within Solana's transaction size limit (1232 bytes) and default CU budget.
+	// maxAccounts=30 is the recommended limit for legacy transactions without Address Lookup Tables.
+	queryParams.Set("restrictIntermediateTokens", "true")
+	queryParams.Set("maxAccounts", "30")
 
 	path := fmt.Sprintf("/swap/v1/quote?%s", queryParams.Encode())
 
