@@ -15,6 +15,11 @@
       <env name="BASE_RPC_BITCOIN_URL" value="bitcoin-rpc.publicnode.com" />
       <env name="BASE_RPC_XRP_URL" value="https://xrplcluster.com" />
       <env name="BASE_RPC_SOLANA_URL" value="https://solana-rpc.publicnode.com" />
+      <env name="BASE_RPC_ZKSYNC_URL" value="https://zksync.drpc.org" />
+      <env name="BASE_RPC_CRONOS_URL" value="https://cronos-evm-rpc.publicnode.com" />
+      <env name="BASE_RPC_LITECOIN_URL" value="https://litecoin-mainnet.gateway.tatum.io/" />
+      <env name="BASE_RPC_DOGECOIN_URL" value="https://dogecoin.drpc.org/" />
+      <env name="BASE_RPC_BITCOINCASH_URL" value="https://bitcoin-cash-mainnet.gateway.tatum.io/" />
       <env name="BASE_INTERVAL" value="30s" />
       <env name="BASE_ITERATIONTIMEOUT" value="30s" />
       <env name="BASE_MARKLOSTAFTER" value="2h" />
