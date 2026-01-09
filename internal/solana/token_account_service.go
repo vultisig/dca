@@ -28,22 +28,22 @@ func newTokenAccountService(rpcClient *rpc.Client) *tokenAccountService {
 func (s *tokenAccountService) GetTokenProgram(ctx context.Context, mint solana.PublicKey) (solana.PublicKey, uint8, error) {
 	accountInfo, err := s.rpcClient.GetAccountInfo(ctx, mint)
 	if err != nil {
-		return solana.PublicKey{}, 0, fmt.Errorf("failed to get mint account info: %w", err)
+		return solana.PublicKey{}, 0, fmt.Errorf("solana: failed to get mint account info: %w", err)
 	}
 
 	if accountInfo.Value == nil {
-		return solana.PublicKey{}, 0, fmt.Errorf("mint account not found: %s", mint)
+		return solana.PublicKey{}, 0, fmt.Errorf("solana: mint account not found: %s", mint)
 	}
 
 	owner := accountInfo.Value.Owner
 	if owner != solana.TokenProgramID && owner != solana.Token2022ProgramID {
-		return solana.PublicKey{}, 0, fmt.Errorf("mint account is not owned by a token program: %s", owner)
+		return solana.PublicKey{}, 0, fmt.Errorf("solana: mint account is not owned by a token program: %s", owner)
 	}
 
 	data := accountInfo.Value.Data.GetBinary()
 	var mintData token.Mint
 	if err := mintData.UnmarshalWithDecoder(bin.NewBinDecoder(data)); err != nil {
-		return solana.PublicKey{}, 0, fmt.Errorf("failed to deserialize mint data: %w", err)
+		return solana.PublicKey{}, 0, fmt.Errorf("solana: failed to deserialize mint data: %w", err)
 	}
 
 	return owner, mintData.Decimals, nil
@@ -65,7 +65,7 @@ func FindAssociatedTokenAddress(wallet, mint, tokenProgram solana.PublicKey) (so
 func (s *tokenAccountService) GetAssociatedTokenAddress(owner, mint, tokenProgram solana.PublicKey) (solana.PublicKey, error) {
 	a, _, err := FindAssociatedTokenAddress(owner, mint, tokenProgram)
 	if err != nil {
-		return solana.PublicKey{}, fmt.Errorf("failed to get associated token address: %w", err)
+		return solana.PublicKey{}, fmt.Errorf("solana: failed to get associated token address: %w", err)
 	}
 	return a, nil
 }
@@ -76,7 +76,7 @@ func (s *tokenAccountService) CheckAccountExists(ctx context.Context, account so
 		if errors.Is(err, rpc.ErrNotFound) {
 			return false, nil
 		}
-		return false, fmt.Errorf("failed to get account info: %w", err)
+		return false, fmt.Errorf("solana: failed to get account info: %w", err)
 	}
 	return accountInfo.Value != nil, nil
 }
@@ -88,7 +88,7 @@ func (s *tokenAccountService) BuildCreateATAInstruction(
 ) (solana.Instruction, error) {
 	ataAddress, _, err := FindAssociatedTokenAddress(owner, mint, tokenProgram)
 	if err != nil {
-		return nil, fmt.Errorf("failed to derive ATA address: %w", err)
+		return nil, fmt.Errorf("solana: failed to derive ATA address: %w", err)
 	}
 
 	return solana.NewInstruction(
@@ -111,16 +111,16 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 ) (*solana.Transaction, error) {
 	a, err := s.GetAssociatedTokenAddress(owner, mint, tokenProgram)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get associated token address: %w", err)
+		return nil, fmt.Errorf("solana: failed to get associated token address: %w", err)
 	}
 
 	exists, err := s.CheckAccountExists(ctx, a)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check if ATA exists: %w", err)
+		return nil, fmt.Errorf("solana: failed to check if ATA exists: %w", err)
 	}
 
 	if exists {
-		return nil, fmt.Errorf("associated token account already exists")
+		return nil, fmt.Errorf("solana: associated token account already exists")
 	}
 
 	inst, err := s.BuildCreateATAInstruction(payer, owner, mint, tokenProgram)
@@ -130,7 +130,7 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 
 	block, err := s.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get recent blockhash: %w", err)
+		return nil, fmt.Errorf("solana: failed to get recent blockhash: %w", err)
 	}
 
 	tx, err := solana.NewTransaction(
@@ -139,7 +139,7 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 		solana.TransactionPayer(payer),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %w", err)
+		return nil, fmt.Errorf("solana: failed to create transaction: %w", err)
 	}
 
 	return tx, nil
@@ -157,7 +157,7 @@ func (s *tokenAccountService) GetTokenBalance(ctx context.Context, tokenAccount 
 			return 0, nil
 		}
 
-		return 0, fmt.Errorf("failed to get token balance: %w", err)
+		return 0, fmt.Errorf("solana: failed to get token balance: %w", err)
 	}
 
 	if balance.Value == nil || balance.Value.Amount == "" {
@@ -167,7 +167,7 @@ func (s *tokenAccountService) GetTokenBalance(ctx context.Context, tokenAccount 
 	var amount uint64
 	_, er := fmt.Sscanf(balance.Value.Amount, "%d", &amount)
 	if er != nil {
-		return 0, fmt.Errorf("failed to parse amount: %w", er)
+		return 0, fmt.Errorf("solana: failed to parse amount: %w", er)
 	}
 
 	return amount, nil
@@ -179,7 +179,7 @@ func (s *tokenAccountService) BuildCloseTokenAccountTransaction(
 ) (*solana.Transaction, error) {
 	exists, err := s.CheckAccountExists(ctx, tokenAccount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check if token account exists: %w", err)
+		return nil, fmt.Errorf("solana: failed to check if token account exists: %w", err)
 	}
 
 	if !exists {
@@ -188,7 +188,7 @@ func (s *tokenAccountService) BuildCloseTokenAccountTransaction(
 
 	block, err := s.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get recent blockhash: %w", err)
+		return nil, fmt.Errorf("solana: failed to get recent blockhash: %w", err)
 	}
 
 	closeInst := solana.NewInstruction(
@@ -207,7 +207,7 @@ func (s *tokenAccountService) BuildCloseTokenAccountTransaction(
 		solana.TransactionPayer(owner),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %w", err)
+		return nil, fmt.Errorf("solana: failed to create transaction: %w", err)
 	}
 
 	return tx, nil

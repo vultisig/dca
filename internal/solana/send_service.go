@@ -28,7 +28,7 @@ func (s *sendService) BuildNativeTransfer(
 ) ([]byte, error) {
 	accountInfo, err := s.rpcClient.GetAccountInfo(ctx, to)
 	if err != nil && err.Error() != "not found" {
-		return nil, fmt.Errorf("failed to check destination account: %w", err)
+		return nil, fmt.Errorf("solana: failed to check destination account: %w", err)
 	}
 
 	accountExists := accountInfo != nil && accountInfo.Value != nil
@@ -36,12 +36,12 @@ func (s *sendService) BuildNativeTransfer(
 	if !accountExists {
 		rentExempt, err := s.rpcClient.GetMinimumBalanceForRentExemption(ctx, 0, rpc.CommitmentFinalized)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get rent exemption: %w", err)
+			return nil, fmt.Errorf("solana: failed to get rent exemption: %w", err)
 		}
 
 		if amount < rentExempt {
 			return nil, fmt.Errorf(
-				"transfer amount %d lamports is below rent-exempt minimum %d lamports for new account",
+				"solana: transfer amount %d lamports is below rent-exempt minimum %d lamports for new account",
 				amount,
 				rentExempt,
 			)
@@ -50,7 +50,7 @@ func (s *sendService) BuildNativeTransfer(
 
 	block, err := s.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get recent blockhash: %w", err)
+		return nil, fmt.Errorf("solana: failed to get recent blockhash: %w", err)
 	}
 
 	transferInst := system.NewTransferInstruction(
@@ -65,12 +65,12 @@ func (s *sendService) BuildNativeTransfer(
 		solana.TransactionPayer(from),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %w", err)
+		return nil, fmt.Errorf("solana: failed to create transaction: %w", err)
 	}
 
 	txBytes, err := tx.MarshalBinary()
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal transaction: %w", err)
+		return nil, fmt.Errorf("solana: failed to marshal transaction: %w", err)
 	}
 
 	return txBytes, nil
@@ -89,17 +89,17 @@ func (s *sendService) BuildTokenTransfer(
 ) ([]byte, error) {
 	sourceATA, _, err := FindAssociatedTokenAddress(fromOwner, mint, tokenProgram)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find source ATA: %w", err)
+		return nil, fmt.Errorf("solana: failed to find source ATA: %w", err)
 	}
 
 	destATA, _, err := FindAssociatedTokenAddress(toOwner, mint, tokenProgram)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find destination ATA: %w", err)
+		return nil, fmt.Errorf("solana: failed to find destination ATA: %w", err)
 	}
 
 	block, err := s.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get recent blockhash: %w", err)
+		return nil, fmt.Errorf("solana: failed to get recent blockhash: %w", err)
 	}
 
 	// Build transfer_checked instruction data: discriminator (1 byte) + amount (8 bytes) + decimals (1 byte)
@@ -125,12 +125,12 @@ func (s *sendService) BuildTokenTransfer(
 		solana.TransactionPayer(fromOwner),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %w", err)
+		return nil, fmt.Errorf("solana: failed to create transaction: %w", err)
 	}
 
 	txBytes, err := tx.MarshalBinary()
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal transaction: %w", err)
+		return nil, fmt.Errorf("solana: failed to marshal transaction: %w", err)
 	}
 
 	return txBytes, nil

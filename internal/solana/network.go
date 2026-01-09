@@ -241,7 +241,7 @@ func (n *Network) Send(
 
 		tokenProgram, decimals, err := n.tokenAccount.GetTokenProgram(ctx, mintPubKey)
 		if err != nil {
-			return "", fmt.Errorf("failed to get token program: %w", err)
+			return "", fmt.Errorf("solana: failed to get token program: %w", err)
 		}
 
 		destATA, err := n.tokenAccount.GetAssociatedTokenAddress(to, mintPubKey, tokenProgram)
