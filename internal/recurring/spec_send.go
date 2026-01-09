@@ -1,6 +1,7 @@
 package recurring
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"github.com/kaptinlin/jsonschema"
 	"github.com/vultisig/dca/internal/util"
 	rjsonschema "github.com/vultisig/recipes/jsonschema"
+	solanasdk "github.com/vultisig/recipes/sdk/solana"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
@@ -23,10 +25,13 @@ const (
 
 type SendSpec struct {
 	plugin.Unimplemented
+	solanaSDK *solanasdk.SDK
 }
 
-func NewSendSpec() *SendSpec {
-	return &SendSpec{}
+func NewSendSpec(solanaSDK *solanasdk.SDK) *SendSpec {
+	return &SendSpec{
+		solanaSDK: solanaSDK,
+	}
 }
 
 func (s *SendSpec) validateConfiguration(cfg map[string]any) error {
@@ -65,6 +70,8 @@ func (s *SendSpec) validateConfiguration(cfg map[string]any) error {
 }
 
 func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
+	ctx := context.Background()
+
 	err := s.validateConfiguration(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
@@ -93,8 +100,21 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	}
 	recipientCount := len(recipientsList)
 
+	// Query token program for Solana chains.
+	// Solana is a special case: Token-2022 tokens use a different program ID than legacy SPL tokens,
+	// and this affects ATA derivation. We cannot determine the token program from static config alone -
+	// we must query the mint account on-chain to check which program owns it.
+	var tokenProgram string
+	if chainTyped == common.Solana && s.solanaSDK != nil {
+		tokenStr := util.GetStr(assetMap, "token")
+		tokenProgram, err = s.solanaSDK.GetTokenProgram(ctx, tokenStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get token program: %w", err)
+		}
+	}
+
 	// Generate rules for all recipients
-	rules, err := s.createSendMetaRules(cfg, chainTyped)
+	rules, err := s.createSendMetaRules(cfg, chainTyped, tokenProgram)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create send meta rules: %w", err)
 	}
@@ -116,7 +136,7 @@ func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 }
 
 // createSendMetaRules generates a rule for each recipient in the recipients list
-func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Chain) ([]*rtypes.Rule, error) {
+func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Chain, tokenProgram string) ([]*rtypes.Rule, error) {
 	chainLowercase := strings.ToLower(chainTyped.String())
 
 	// Get top-level asset (shared by all recipients)
@@ -156,58 +176,74 @@ func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Cha
 			return nil, fmt.Errorf("'recipients[%d].amount' could not be empty", i)
 		}
 
-		rule := &rtypes.Rule{
-			Resource: chainLowercase + ".send",
-			Effect:   rtypes.Effect_EFFECT_ALLOW,
-			ParameterConstraints: []*rtypes.ParameterConstraint{
-				{
-					ParameterName: "asset",
-					Constraint: &rtypes.Constraint{
-						Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Value: &rtypes.Constraint_FixedValue{
-							FixedValue: tokenStr,
-						},
-						Required: false,
+		constraints := []*rtypes.ParameterConstraint{
+			{
+				ParameterName: "asset",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: tokenStr,
 					},
-				},
-				{
-					ParameterName: "from_address",
-					Constraint: &rtypes.Constraint{
-						Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Value: &rtypes.Constraint_FixedValue{
-							FixedValue: fromAddressStr,
-						},
-						Required: true,
-					},
-				},
-				{
-					ParameterName: "amount",
-					Constraint: &rtypes.Constraint{
-						Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Value: &rtypes.Constraint_FixedValue{
-							FixedValue: amountStr,
-						},
-						Required: true,
-					},
-				},
-				{
-					ParameterName: "to_address",
-					Constraint: &rtypes.Constraint{
-						Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-						Value: &rtypes.Constraint_FixedValue{
-							FixedValue: toAddressStr,
-						},
-						Required: true,
-					},
-				},
-				{
-					ParameterName: "memo",
-					Constraint: &rtypes.Constraint{
-						Type:     rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
-						Required: false,
-					},
+					Required: false,
 				},
 			},
+			{
+				ParameterName: "from_address",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: fromAddressStr,
+					},
+					Required: true,
+				},
+			},
+			{
+				ParameterName: "amount",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: amountStr,
+					},
+					Required: true,
+				},
+			},
+			{
+				ParameterName: "to_address",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: toAddressStr,
+					},
+					Required: true,
+				},
+			},
+			{
+				ParameterName: "memo",
+				Constraint: &rtypes.Constraint{
+					Type:     rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required: false,
+				},
+			},
+		}
+
+		// Add token program constraint for Solana
+		if tokenProgram != "" {
+			constraints = append(constraints, &rtypes.ParameterConstraint{
+				ParameterName: "token_program",
+				Constraint: &rtypes.Constraint{
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: tokenProgram,
+					},
+					Required: false,
+				},
+			})
+		}
+
+		rule := &rtypes.Rule{
+			Resource:             chainLowercase + ".send",
+			Effect:               rtypes.Effect_EFFECT_ALLOW,
+			ParameterConstraints: constraints,
 			Target: &rtypes.Target{
 				TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
 			},
@@ -394,6 +430,11 @@ func (s *SendSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 				{
 					ParameterName:  "memo",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Required:       false,
+				},
+				{
+					ParameterName:  "token_program",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Required:       false,
 				},
 			},

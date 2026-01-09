@@ -13,6 +13,7 @@ import (
 	"github.com/vultisig/dca/internal/logging"
 	"github.com/vultisig/dca/internal/metrics"
 	"github.com/vultisig/dca/internal/recurring"
+	solanasdk "github.com/vultisig/recipes/sdk/solana"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	smetrics "github.com/vultisig/verifier/plugin/metrics"
@@ -98,13 +99,17 @@ func main() {
 		logger.Fatalf("failed to initialize policy service: %v", err)
 	}
 
+	// Initialize Solana SDK for token program queries
+	solanaRPCClient := solanasdk.NewHTTPRPCClient(cfg.Rpc.SolanaURL)
+	solanaSDK := solanasdk.NewSDK(solanaRPCClient)
+
 	var spec plugin.Spec
 	switch cfg.Mode {
 	case "send":
-		spec = recurring.NewSendSpec()
+		spec = recurring.NewSendSpec(solanaSDK)
 		logger.Info("Starting server in SEND mode")
 	case "swap":
-		spec = recurring.NewSwapSpec()
+		spec = recurring.NewSwapSpec(solanaSDK)
 		logger.Info("Starting server in SWAP mode")
 	default:
 		logger.Fatalf("invalid MODE: %s (must be 'send' or 'swap')", cfg.Mode)
@@ -151,6 +156,11 @@ type config struct {
 	Redis        plugin_config.Redis
 	Metrics      metrics.Config
 	Verifier     plugin_config.Verifier
+	Rpc          rpcConfig
+}
+
+type rpcConfig struct {
+	SolanaURL string `envconfig:"RPC_SOLANA_URL" default:"https://solana-rpc.publicnode.com"`
 }
 
 func newConfig() (config, error) {
