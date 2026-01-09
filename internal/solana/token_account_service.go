@@ -79,8 +79,11 @@ func (s *tokenAccountService) CheckAccountExists(ctx context.Context, account so
 // The tokenProgram should be either solana.TokenProgramID or solana.Token2022ProgramID.
 func (s *tokenAccountService) BuildCreateATAInstruction(
 	payer, owner, mint, tokenProgram solana.PublicKey,
-) solana.Instruction {
-	ataAddress, _, _ := FindAssociatedTokenAddress(owner, mint, tokenProgram)
+) (solana.Instruction, error) {
+	ataAddress, _, err := FindAssociatedTokenAddress(owner, mint, tokenProgram)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive ATA address: %w", err)
+	}
 
 	return solana.NewInstruction(
 		solana.SPLAssociatedTokenAccountProgramID,
@@ -93,7 +96,7 @@ func (s *tokenAccountService) BuildCreateATAInstruction(
 			{PublicKey: tokenProgram, IsSigner: false, IsWritable: false},
 		},
 		[]byte{0}, // instruction discriminator for "Create"
-	)
+	), nil
 }
 
 func (s *tokenAccountService) BuildCreateATATransaction(
@@ -114,7 +117,10 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 		return nil, fmt.Errorf("associated token account already exists")
 	}
 
-	inst := s.BuildCreateATAInstruction(payer, owner, mint, tokenProgram)
+	inst, err := s.BuildCreateATAInstruction(payer, owner, mint, tokenProgram)
+	if err != nil {
+		return nil, err
+	}
 
 	block, err := s.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
