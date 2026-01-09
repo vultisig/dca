@@ -76,12 +76,15 @@ func (s *sendService) BuildNativeTransfer(
 	return txBytes, nil
 }
 
-func (s *sendService) BuildSPLTransfer(
+// BuildTokenTransfer builds a token transfer transaction using transfer_checked instruction.
+// transfer_checked is required for Token-2022 tokens and works for all SPL tokens.
+func (s *sendService) BuildTokenTransfer(
 	ctx context.Context,
 	mint solana.PublicKey,
 	fromOwner solana.PublicKey,
 	toOwner solana.PublicKey,
 	amount uint64,
+	decimals uint8,
 	tokenProgram solana.PublicKey,
 ) ([]byte, error) {
 	sourceATA, _, err := FindAssociatedTokenAddress(fromOwner, mint, tokenProgram)
@@ -99,15 +102,17 @@ func (s *sendService) BuildSPLTransfer(
 		return nil, fmt.Errorf("failed to get recent blockhash: %w", err)
 	}
 
-	// Build transfer instruction data: discriminator (1 byte) + amount (8 bytes little-endian)
-	data := make([]byte, 9)
-	data[0] = 3 // Transfer instruction discriminator
-	binary.LittleEndian.PutUint64(data[1:], amount)
+	// Build transfer_checked instruction data: discriminator (1 byte) + amount (8 bytes) + decimals (1 byte)
+	data := make([]byte, 10)
+	data[0] = 12 // TransferChecked instruction discriminator
+	binary.LittleEndian.PutUint64(data[1:9], amount)
+	data[9] = decimals
 
 	transferInst := solana.NewInstruction(
 		tokenProgram,
 		[]*solana.AccountMeta{
 			{PublicKey: sourceATA, IsSigner: false, IsWritable: true},
+			{PublicKey: mint, IsSigner: false, IsWritable: false},
 			{PublicKey: destATA, IsSigner: false, IsWritable: true},
 			{PublicKey: fromOwner, IsSigner: true, IsWritable: false},
 		},

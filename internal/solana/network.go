@@ -182,7 +182,7 @@ func (n *Network) ensureATAExists(
 		return fmt.Errorf("invalid %s mint public key: %w", label, err)
 	}
 
-	tokenProgram, err := n.tokenAccount.GetTokenProgram(ctx, mintPubKey)
+	tokenProgram, _, err := n.tokenAccount.GetTokenProgram(ctx, mintPubKey)
 	if err != nil {
 		return fmt.Errorf("failed to get token program for %s: %w", label, err)
 	}
@@ -239,7 +239,7 @@ func (n *Network) Send(
 			return "", fmt.Errorf("invalid mint address: %w", er)
 		}
 
-		tokenProgram, err := n.tokenAccount.GetTokenProgram(ctx, mintPubKey)
+		tokenProgram, decimals, err := n.tokenAccount.GetTokenProgram(ctx, mintPubKey)
 		if err != nil {
 			return "", fmt.Errorf("failed to get token program: %w", err)
 		}
@@ -271,9 +271,9 @@ func (n *Network) Send(
 			}
 		}
 
-		txBytes, err = n.sendService.BuildSPLTransfer(ctx, mintPubKey, from, to, amount, tokenProgram)
+		txBytes, err = n.sendService.BuildTokenTransfer(ctx, mintPubKey, from, to, amount, decimals, tokenProgram)
 		if err != nil {
-			return "", fmt.Errorf("failed to build SPL transfer: %w", err)
+			return "", fmt.Errorf("failed to build token transfer: %w", err)
 		}
 	}
 

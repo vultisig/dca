@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	bin "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 )
 
@@ -20,27 +22,31 @@ func newTokenAccountService(rpcClient *rpc.Client) *tokenAccountService {
 	}
 }
 
-// GetTokenProgram queries the mint account to determine which token program owns it.
-// Returns TokenProgramID for legacy SPL tokens or Token2022ProgramID for Token-2022 tokens.
-func (s *tokenAccountService) GetTokenProgram(ctx context.Context, mint solana.PublicKey) (solana.PublicKey, error) {
+// GetTokenProgram queries the mint account to determine which token program owns it and the token decimals.
+// Returns TokenProgramID for legacy SPL tokens or Token2022ProgramID for Token-2022 tokens, plus decimals.
+// Token-2022 may have additional extension data, but the base Mint layout is identical to SPL Token.
+func (s *tokenAccountService) GetTokenProgram(ctx context.Context, mint solana.PublicKey) (solana.PublicKey, uint8, error) {
 	accountInfo, err := s.rpcClient.GetAccountInfo(ctx, mint)
 	if err != nil {
-		return solana.PublicKey{}, fmt.Errorf("failed to get mint account info: %w", err)
+		return solana.PublicKey{}, 0, fmt.Errorf("failed to get mint account info: %w", err)
 	}
 
 	if accountInfo.Value == nil {
-		return solana.PublicKey{}, fmt.Errorf("mint account not found: %s", mint)
+		return solana.PublicKey{}, 0, fmt.Errorf("mint account not found: %s", mint)
 	}
 
 	owner := accountInfo.Value.Owner
-	if owner == solana.TokenProgramID {
-		return solana.TokenProgramID, nil
-	}
-	if owner == solana.Token2022ProgramID {
-		return solana.Token2022ProgramID, nil
+	if owner != solana.TokenProgramID && owner != solana.Token2022ProgramID {
+		return solana.PublicKey{}, 0, fmt.Errorf("mint account is not owned by a token program: %s", owner)
 	}
 
-	return solana.PublicKey{}, fmt.Errorf("mint account is not owned by a token program: %s", owner)
+	data := accountInfo.Value.Data.GetBinary()
+	var mintData token.Mint
+	if err := mintData.UnmarshalWithDecoder(bin.NewBinDecoder(data)); err != nil {
+		return solana.PublicKey{}, 0, fmt.Errorf("failed to deserialize mint data: %w", err)
+	}
+
+	return owner, mintData.Decimals, nil
 }
 
 // FindAssociatedTokenAddress derives the ATA address for any token program (SPL or Token-2022).
