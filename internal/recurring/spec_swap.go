@@ -1,6 +1,7 @@
 package recurring
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/vultisig/dca/internal/thorchain"
 	"github.com/vultisig/dca/internal/util"
 	rjsonschema "github.com/vultisig/recipes/jsonschema"
+	solanasdk "github.com/vultisig/recipes/sdk/solana"
 	rtypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/conv"
@@ -19,10 +21,13 @@ import (
 
 type SwapSpec struct {
 	plugin.Unimplemented
+	solanaSDK *solanasdk.SDK
 }
 
-func NewSwapSpec() *SwapSpec {
-	return &SwapSpec{}
+func NewSwapSpec(solanaSDK *solanasdk.SDK) *SwapSpec {
+	return &SwapSpec{
+		solanaSDK: solanaSDK,
+	}
 }
 
 func (s *SwapSpec) validateConfiguration(cfg map[string]any) error {
@@ -61,6 +66,8 @@ func (s *SwapSpec) validateConfiguration(cfg map[string]any) error {
 }
 
 func (s *SwapSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
+	ctx := context.Background()
+
 	err := s.validateConfiguration(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
@@ -81,7 +88,42 @@ func (s *SwapSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 		return nil, fmt.Errorf("unsupported chain: %s", fromChainStr)
 	}
 
-	rule, err := s.createSwapMetaRule(cfg, fromChainTyped)
+	toAssetMap, ok := cfg[toAsset].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'to' must be an object")
+	}
+
+	toChainStr, ok := toAssetMap["chain"].(string)
+	if !ok {
+		return nil, fmt.Errorf("'to.chain' could not be empty")
+	}
+
+	toChainTyped, err := common.FromString(toChainStr)
+	if err != nil {
+		return nil, fmt.Errorf("unsupported chain: %s", toChainStr)
+	}
+
+	// Query token programs for Solana chains.
+	// Solana is a special case: Token-2022 tokens use a different program ID than legacy SPL tokens,
+	// and this affects ATA derivation. We cannot determine the token program from static config alone -
+	// we must query the mint account on-chain to check which program owns it.
+	var fromTokenProgram, toTokenProgram string
+	if fromChainTyped == common.Solana && s.solanaSDK != nil {
+		fromTokenStr := util.GetStr(fromAssetMap, "token")
+		fromTokenProgram, err = s.solanaSDK.GetTokenProgram(ctx, fromTokenStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get from token program: %w", err)
+		}
+	}
+	if toChainTyped == common.Solana && s.solanaSDK != nil {
+		toTokenStr := util.GetStr(toAssetMap, "token")
+		toTokenProgram, err = s.solanaSDK.GetTokenProgram(ctx, toTokenStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get to token program: %w", err)
+		}
+	}
+
+	rule, err := s.createSwapMetaRule(cfg, fromChainTyped, fromTokenProgram, toTokenProgram)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create swap meta rule: %w", err)
 	}
@@ -101,7 +143,7 @@ func (s *SwapSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	}, nil
 }
 
-func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chain) (*rtypes.Rule, error) {
+func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.Chain, fromTokenProgram, toTokenProgram string) (*rtypes.Rule, error) {
 	fromChainLowercase := strings.ToLower(fromChainTyped.String())
 
 	fromAssetMap, ok := cfg[fromAsset].(map[string]any)
@@ -149,71 +191,99 @@ func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.
 	fromAssetTokenStr := util.GetStr(fromAssetMap, "token")
 	toAssetTokenStr := util.GetStr(toAssetMap, "token")
 
-	return &rtypes.Rule{
-		Resource: fromChainLowercase + ".swap",
-		Effect:   rtypes.Effect_EFFECT_ALLOW,
-		ParameterConstraints: []*rtypes.ParameterConstraint{
-			{
-				ParameterName: "from_asset",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: fromAssetTokenStr,
-					},
-					Required: false,
+	constraints := []*rtypes.ParameterConstraint{
+		{
+			ParameterName: "from_asset",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: fromAssetTokenStr,
 				},
-			},
-			{
-				ParameterName: "from_address",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: fromAddressStr,
-					},
-					Required: true,
-				},
-			},
-			{
-				ParameterName: "from_amount",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: fromAmountStr,
-					},
-					Required: true,
-				},
-			},
-			{
-				ParameterName: "to_chain",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: strings.ToLower(toChainStr),
-					},
-					Required: true,
-				},
-			},
-			{
-				ParameterName: "to_asset",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: toAssetTokenStr,
-					},
-					Required: false,
-				},
-			},
-			{
-				ParameterName: "to_address",
-				Constraint: &rtypes.Constraint{
-					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Value: &rtypes.Constraint_FixedValue{
-						FixedValue: toAddressStr,
-					},
-					Required: true,
-				},
+				Required: false,
 			},
 		},
+		{
+			ParameterName: "from_address",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: fromAddressStr,
+				},
+				Required: true,
+			},
+		},
+		{
+			ParameterName: "from_amount",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: fromAmountStr,
+				},
+				Required: true,
+			},
+		},
+		{
+			ParameterName: "to_chain",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: strings.ToLower(toChainStr),
+				},
+				Required: true,
+			},
+		},
+		{
+			ParameterName: "to_asset",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: toAssetTokenStr,
+				},
+				Required: false,
+			},
+		},
+		{
+			ParameterName: "to_address",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: toAddressStr,
+				},
+				Required: true,
+			},
+		},
+	}
+
+	// Add token program constraints for Solana
+	if fromTokenProgram != "" {
+		constraints = append(constraints, &rtypes.ParameterConstraint{
+			ParameterName: "from_token_program",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: fromTokenProgram,
+				},
+				Required: false,
+			},
+		})
+	}
+	if toTokenProgram != "" {
+		constraints = append(constraints, &rtypes.ParameterConstraint{
+			ParameterName: "to_token_program",
+			Constraint: &rtypes.Constraint{
+				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+				Value: &rtypes.Constraint_FixedValue{
+					FixedValue: toTokenProgram,
+				},
+				Required: false,
+			},
+		})
+	}
+
+	return &rtypes.Rule{
+		Resource:             fromChainLowercase + ".swap",
+		Effect:               rtypes.Effect_EFFECT_ALLOW,
+		ParameterConstraints: constraints,
 		Target: &rtypes.Target{
 			TargetType: rtypes.TargetType_TARGET_TYPE_UNSPECIFIED,
 		},
@@ -351,6 +421,11 @@ func (s *SwapSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 					Required:       true,
 				},
 				{
+					ParameterName:  "from_token_program",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       false,
+				},
+				{
 					ParameterName:  "to_chain",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Required:       true,
@@ -364,6 +439,11 @@ func (s *SwapSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 					ParameterName:  "to_address",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Required:       true,
+				},
+				{
+					ParameterName:  "to_token_program",
+					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Required:       false,
 				},
 			},
 			Required: true,

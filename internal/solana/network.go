@@ -89,7 +89,8 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 		}
 	}
 
-	wsolAta, err := n.tokenAccount.GetAssociatedTokenAddress(ownerPubKey, solana.SolMint)
+	// wSOL is always legacy SPL token program
+	wsolAta, err := n.tokenAccount.GetAssociatedTokenAddress(ownerPubKey, solana.SolMint, solana.TokenProgramID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get wSOL associated token address: %w", err)
 	}
@@ -100,7 +101,7 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 	}
 
 	if wsolBalance > 0 {
-		closeWsolTx, err := n.tokenAccount.BuildCloseTokenAccountTransaction(ctx, ownerPubKey, wsolAta)
+		closeWsolTx, err := n.tokenAccount.BuildCloseTokenAccountTransaction(ctx, ownerPubKey, wsolAta, solana.TokenProgramID)
 		if err != nil {
 			return "", fmt.Errorf("failed to build close wSOL account transaction: %w", err)
 		}
@@ -181,7 +182,12 @@ func (n *Network) ensureATAExists(
 		return fmt.Errorf("invalid %s mint public key: %w", label, err)
 	}
 
-	ata, err := n.tokenAccount.GetAssociatedTokenAddress(ownerPubKey, mintPubKey)
+	tokenProgram, _, err := n.tokenAccount.GetTokenProgram(ctx, mintPubKey)
+	if err != nil {
+		return fmt.Errorf("failed to get token program for %s: %w", label, err)
+	}
+
+	ata, err := n.tokenAccount.GetAssociatedTokenAddress(ownerPubKey, mintPubKey, tokenProgram)
 	if err != nil {
 		return fmt.Errorf("failed to get %s associated token address: %w", label, err)
 	}
@@ -192,7 +198,7 @@ func (n *Network) ensureATAExists(
 	}
 
 	if !exists {
-		createTx, err := n.tokenAccount.BuildCreateATATransaction(ctx, ownerPubKey, ownerPubKey, mintPubKey)
+		createTx, err := n.tokenAccount.BuildCreateATATransaction(ctx, ownerPubKey, ownerPubKey, mintPubKey, tokenProgram)
 		if err != nil {
 			return fmt.Errorf("failed to build create %s ATA transaction: %w", label, err)
 		}
@@ -233,7 +239,12 @@ func (n *Network) Send(
 			return "", fmt.Errorf("invalid mint address: %w", er)
 		}
 
-		destATA, err := n.tokenAccount.GetAssociatedTokenAddress(to, mintPubKey)
+		tokenProgram, decimals, err := n.tokenAccount.GetTokenProgram(ctx, mintPubKey)
+		if err != nil {
+			return "", fmt.Errorf("solana: failed to get token program: %w", err)
+		}
+
+		destATA, err := n.tokenAccount.GetAssociatedTokenAddress(to, mintPubKey, tokenProgram)
 		if err != nil {
 			return "", fmt.Errorf("failed to get destination ATA: %w", err)
 		}
@@ -244,7 +255,7 @@ func (n *Network) Send(
 		}
 
 		if !exists {
-			createTx, err := n.tokenAccount.BuildCreateATATransaction(ctx, from, to, mintPubKey)
+			createTx, err := n.tokenAccount.BuildCreateATATransaction(ctx, from, to, mintPubKey, tokenProgram)
 			if err != nil {
 				return "", fmt.Errorf("failed to build create destination ATA transaction: %w", err)
 			}
@@ -260,9 +271,9 @@ func (n *Network) Send(
 			}
 		}
 
-		txBytes, err = n.sendService.BuildSPLTransfer(ctx, mintPubKey, from, to, amount)
+		txBytes, err = n.sendService.BuildTokenTransfer(ctx, mintPubKey, from, to, amount, decimals, tokenProgram)
 		if err != nil {
-			return "", fmt.Errorf("failed to build SPL transfer: %w", err)
+			return "", fmt.Errorf("failed to build token transfer: %w", err)
 		}
 	}
 
