@@ -69,9 +69,7 @@ func (s *SendSpec) validateConfiguration(cfg map[string]any) error {
 	return nil
 }
 
-func (s *SendSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
-	ctx := context.Background()
-
+func (s *SendSpec) Suggest(ctx context.Context, cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	err := s.validateConfiguration(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
@@ -217,13 +215,22 @@ func (s *SendSpec) createSendMetaRules(cfg map[string]any, chainTyped common.Cha
 					Required: true,
 				},
 			},
-			{
+		}
+
+		// Add memo constraint only if user configured a memo
+		// This is used for CEX transfers and memo-based chains like XRP
+		memoStr := util.GetStr(cfg, memo)
+		if memoStr != "" {
+			constraints = append(constraints, &rtypes.ParameterConstraint{
 				ParameterName: "memo",
 				Constraint: &rtypes.Constraint{
-					Type:     rtypes.ConstraintType_CONSTRAINT_TYPE_ANY,
+					Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
+					Value: &rtypes.Constraint_FixedValue{
+						FixedValue: memoStr,
+					},
 					Required: false,
 				},
-			},
+			})
 		}
 
 		// Add token program constraint for Solana
