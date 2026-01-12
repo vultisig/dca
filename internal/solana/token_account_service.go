@@ -49,9 +49,9 @@ func (s *tokenAccountService) GetTokenProgram(ctx context.Context, mint solana.P
 	return owner, mintData.Decimals, nil
 }
 
-// FindAssociatedTokenAddress derives the ATA address for any token program (SPL or Token-2022).
+// findAssociatedTokenAddress derives the ATA address for any token program (SPL or Token-2022).
 // The tokenProgram parameter should be either solana.TokenProgramID or solana.Token2022ProgramID.
-func FindAssociatedTokenAddress(wallet, mint, tokenProgram solana.PublicKey) (solana.PublicKey, uint8, error) {
+func findAssociatedTokenAddress(wallet, mint, tokenProgram solana.PublicKey) (solana.PublicKey, uint8, error) {
 	return solana.FindProgramAddress(
 		[][]byte{
 			wallet[:],
@@ -63,7 +63,7 @@ func FindAssociatedTokenAddress(wallet, mint, tokenProgram solana.PublicKey) (so
 }
 
 func (s *tokenAccountService) GetAssociatedTokenAddress(owner, mint, tokenProgram solana.PublicKey) (solana.PublicKey, error) {
-	a, _, err := FindAssociatedTokenAddress(owner, mint, tokenProgram)
+	a, _, err := findAssociatedTokenAddress(owner, mint, tokenProgram)
 	if err != nil {
 		return solana.PublicKey{}, fmt.Errorf("solana: failed to get associated token address: %w", err)
 	}
@@ -86,7 +86,7 @@ func (s *tokenAccountService) CheckAccountExists(ctx context.Context, account so
 func (s *tokenAccountService) BuildCreateATAInstruction(
 	payer, owner, mint, tokenProgram solana.PublicKey,
 ) (solana.Instruction, error) {
-	ataAddress, _, err := FindAssociatedTokenAddress(owner, mint, tokenProgram)
+	ataAddress, _, err := findAssociatedTokenAddress(owner, mint, tokenProgram)
 	if err != nil {
 		return nil, fmt.Errorf("solana: failed to derive ATA address: %w", err)
 	}
@@ -125,7 +125,7 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 
 	inst, err := s.BuildCreateATAInstruction(payer, owner, mint, tokenProgram)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("solana: failed to build ATA instruction: %w", err)
 	}
 
 	block, err := s.rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
