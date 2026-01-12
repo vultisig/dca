@@ -87,12 +87,12 @@ func (s *sendService) BuildTokenTransfer(
 	decimals uint8,
 	tokenProgram solana.PublicKey,
 ) ([]byte, error) {
-	sourceATA, _, err := FindAssociatedTokenAddress(fromOwner, mint, tokenProgram)
+	sourceATA, _, err := findAssociatedTokenAddress(fromOwner, mint, tokenProgram)
 	if err != nil {
 		return nil, fmt.Errorf("solana: failed to find source ATA: %w", err)
 	}
 
-	destATA, _, err := FindAssociatedTokenAddress(toOwner, mint, tokenProgram)
+	destATA, _, err := findAssociatedTokenAddress(toOwner, mint, tokenProgram)
 	if err != nil {
 		return nil, fmt.Errorf("solana: failed to find destination ATA: %w", err)
 	}

@@ -65,9 +65,7 @@ func (s *SwapSpec) validateConfiguration(cfg map[string]any) error {
 	return nil
 }
 
-func (s *SwapSpec) Suggest(cfg map[string]any) (*rtypes.PolicySuggest, error) {
-	ctx := context.Background()
-
+func (s *SwapSpec) Suggest(ctx context.Context, cfg map[string]any) (*rtypes.PolicySuggest, error) {
 	err := s.validateConfiguration(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
