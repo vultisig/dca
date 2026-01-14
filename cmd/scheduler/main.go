@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelseyhightower/envconfig"
@@ -13,6 +14,8 @@ import (
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/policy/policy_pg"
+	"github.com/vultisig/verifier/plugin/safety"
+	"github.com/vultisig/verifier/plugin/safety/safety_pg"
 	"github.com/vultisig/verifier/plugin/scheduler"
 	"github.com/vultisig/verifier/plugin/scheduler/scheduler_pg"
 	"github.com/vultisig/verifier/plugin/tasks"
@@ -71,6 +74,8 @@ func main() {
 		logger.Fatalf("failed to initialize scheduler storage: %v", err)
 	}
 
+	safetyMgr := safety.NewManager(safety_pg.NewRepo(pgPool), logger)
+
 	schedulerMetrics := metrics.NewSchedulerMetrics()
 	worker := scheduler.NewWorker(
 		logger,
@@ -81,6 +86,7 @@ func main() {
 		scheduler.NewDefaultInterval(),
 		policyStorage,
 		schedulerMetrics,
+		safetyMgr,
 	)
 
 	healthServer := health.New(cfg.HealthPort)
