@@ -87,7 +87,7 @@ func main() {
 			Logger:      logger,
 			Concurrency: 10,
 			Queues: map[string]int{
-				tasks.QUEUE_NAME: 10,
+				cfg.TaskQueueName: 10,
 			},
 		},
 	)
@@ -162,7 +162,7 @@ func main() {
 		logger,
 		relay.NewRelayClient(cfg.VaultService.Relay.Server),
 		[]keysign.Emitter{
-			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
+			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, cfg.TaskQueueName),
 			keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.SendToken),
 		},
 		[]string{
@@ -174,7 +174,7 @@ func main() {
 		logger,
 		relay.NewRelayClient(cfg.VaultService.Relay.Server),
 		[]keysign.Emitter{
-			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, tasks.QUEUE_NAME),
+			keysign.NewPluginEmitter(client, tasks.TypeKeySignDKLS, cfg.TaskQueueName),
 			keysign.NewVerifierEmitter(cfg.Verifier.URL, cfg.Verifier.SwapToken),
 		},
 		[]string{
@@ -434,26 +434,27 @@ func main() {
 }
 
 type config struct {
-	LogFormat    logging.LogFormat
-	VaultService vault_config.Config
-	BlockStorage vault_config.BlockStorage
-	Postgres     plugin_config.Database
-	Redis        plugin_config.Redis
-	Verifier     verifier
-	Rpc          rpc
-	OneInch      oneInchConfig
-	ThorChain    thorChainConfig
-	MayaChain    mayaChainConfig
-	BTC          btcConfig
-	LTC          ltcConfig
-	DOGE         dogeConfig
-	BCH          bchConfig
-	DASH         dashConfig
-	XRP          xrpConfig
-	ZEC          zecConfig
-	Solana       solanaConfig
-	HealthPort   int
-	Metrics      metrics.Config
+	LogFormat     logging.LogFormat
+	TaskQueueName string `envconfig:"TASK_QUEUE_NAME" default:"default_queue"`
+	VaultService  vault_config.Config
+	BlockStorage  vault_config.BlockStorage
+	Postgres      plugin_config.Database
+	Redis         plugin_config.Redis
+	Verifier      verifier
+	Rpc           rpc
+	OneInch       oneInchConfig
+	ThorChain     thorChainConfig
+	MayaChain     mayaChainConfig
+	BTC           btcConfig
+	LTC           ltcConfig
+	DOGE          dogeConfig
+	BCH           bchConfig
+	DASH          dashConfig
+	XRP           xrpConfig
+	ZEC           zecConfig
+	Solana        solanaConfig
+	HealthPort    int
+	Metrics       metrics.Config
 }
 
 type oneInchConfig struct {
