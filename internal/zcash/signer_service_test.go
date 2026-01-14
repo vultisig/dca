@@ -330,11 +330,11 @@ func TestSDKConversion_ToSDKOutputs(t *testing.T) {
 	assert.Equal(t, outputs[0].Script, sdkOutputs[0].Script)
 }
 
-func TestNU7BranchID(t *testing.T) {
-	// Verify the SDK is using NU7 branch ID
-	expectedNU7BranchID := uint32(0x4DEC4DF0)
-	assert.Equal(t, expectedNU7BranchID, uint32(zcash.ConsensusBranchID), "SDK should use NU7 branch ID")
-	t.Logf("✅ NU7 Branch ID: 0x%X", zcash.ConsensusBranchID)
+func TestNU6_1BranchID(t *testing.T) {
+	// Verify the SDK is using NU6.1 branch ID (ZIP-0255)
+	expectedNU6_1BranchID := uint32(0x4DEC4DF0)
+	assert.Equal(t, expectedNU6_1BranchID, uint32(zcash.ConsensusBranchID), "SDK should use NU6.1 branch ID")
+	t.Logf("✅ NU6.1 Branch ID: 0x%X", zcash.ConsensusBranchID)
 }
 
 func TestEndToEnd_TransactionFlow(t *testing.T) {
