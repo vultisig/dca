@@ -183,7 +183,7 @@ type addrInfoResponse struct {
 		Offset         string `json:"offset"`
 		Results        int    `json:"results"`
 		State          int    `json:"state"`
-		MarketPriceUsd int    `json:"market_price_usd"`
+		MarketPriceUsd float64 `json:"market_price_usd"`
 		Cache          struct {
 			Live     bool    `json:"live"`
 			Duration int     `json:"duration"`

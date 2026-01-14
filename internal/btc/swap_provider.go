@@ -5,12 +5,13 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/vultisig/dca/internal/utxo/address"
 	"github.com/vultisig/vultisig-go/common"
 )
 
 type From struct {
 	PubKey  *btcutil.AddressPubKey
-	Address btcutil.Address
+	Address address.UTXOAddress
 	Amount  uint64
 }
 
