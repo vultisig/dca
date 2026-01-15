@@ -197,6 +197,8 @@ spec:
               value: "8088"
             - name: LOGFORMAT
               value: "json"
+            - name: TASK_QUEUE_NAME
+              value: "dca_plugin_queue"
           resources:
             requests:
               memory: "32Mi"
