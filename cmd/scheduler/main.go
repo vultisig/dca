@@ -81,7 +81,7 @@ func main() {
 		logger,
 		asynqClient,
 		tasks.TypePluginTransaction,
-		tasks.QUEUE_NAME,
+		cfg.TaskQueueName,
 		schedulerStorage,
 		scheduler.NewDefaultInterval(),
 		policyStorage,
@@ -104,11 +104,12 @@ func main() {
 }
 
 type config struct {
-	LogFormat  logging.LogFormat
-	Postgres   plugin_config.Database
-	Redis      plugin_config.Redis
-	HealthPort int
-	Metrics    metrics.Config
+	LogFormat     logging.LogFormat
+	TaskQueueName string `envconfig:"TASK_QUEUE_NAME" default:"default_queue"`
+	Postgres      plugin_config.Database
+	Redis         plugin_config.Redis
+	HealthPort    int
+	Metrics       metrics.Config
 }
 
 func newConfig() (config, error) {
