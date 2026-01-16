@@ -59,25 +59,12 @@ jobs:
       tag: ${{ github.event.release.tag_name }}
       additional_tag: latest
 
-  set-public:
-    needs: [build-server, build-scheduler, build-worker, build-tx-indexer]
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    steps:
-      - name: Set GHCR packages public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          owner="${{ github.repository_owner }}"
-          repo="${{ github.event.repository.name }}"
-          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fserver/visibility" -f visibility=public
-          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fscheduler/visibility" -f visibility=public
-          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fworker/visibility" -f visibility=public
-          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Ftx_indexer/visibility" -f visibility=public
+# NOTE: Package visibility must be set manually via GitHub UI.
+# GitHub's REST API does not support changing package visibility.
+# Go to: https://github.com/orgs/vultisig/packages → Package Settings → Change visibility to Public
 
   deploy:
-    needs: [build-server, build-scheduler, build-worker, build-tx-indexer, set-public]
+    needs: [build-server, build-scheduler, build-worker, build-tx-indexer]
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
