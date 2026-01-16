@@ -5,7 +5,7 @@ import (
 
 	"github.com/vultisig/vultisig-go/common"
 
-	"github.com/vultisig/dca/internal/status"
+	"github.com/vultisig/app-recurring/internal/status"
 )
 
 type Network struct {

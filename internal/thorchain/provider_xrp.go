@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	xrpgo "github.com/xyield/xrpl-go/binary-codec"
-	xrp_swap "github.com/vultisig/dca/internal/xrp"
+	xrp_swap "github.com/vultisig/app-recurring/internal/xrp"
 	"github.com/vultisig/vultisig-go/common"
 )
 

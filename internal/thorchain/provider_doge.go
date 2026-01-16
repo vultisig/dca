@@ -10,7 +10,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 
-	utxo_swap "github.com/vultisig/dca/internal/utxo"
+	utxo_swap "github.com/vultisig/app-recurring/internal/utxo"
 	"github.com/vultisig/vultisig-go/common"
 )
 

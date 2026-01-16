@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/btcsuite/btcd/wire"
-	"github.com/vultisig/dca/internal/utxo/address"
+	"github.com/vultisig/app-recurring/internal/utxo/address"
 )
 
 type SendService struct{}

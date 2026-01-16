@@ -16,7 +16,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 
-	cosmos_swap "github.com/vultisig/dca/internal/cosmos"
+	cosmos_swap "github.com/vultisig/app-recurring/internal/cosmos"
 	"github.com/vultisig/vultisig-go/common"
 )
 

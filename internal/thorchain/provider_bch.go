@@ -10,7 +10,7 @@ import (
 	bchchaincfg "github.com/gcash/bchd/chaincfg"
 	"github.com/gcash/bchutil"
 
-	utxo_swap "github.com/vultisig/dca/internal/utxo"
+	utxo_swap "github.com/vultisig/app-recurring/internal/utxo"
 	"github.com/vultisig/vultisig-go/common"
 )
 

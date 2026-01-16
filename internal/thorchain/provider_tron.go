@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	tron_swap "github.com/vultisig/dca/internal/tron"
+	tron_swap "github.com/vultisig/app-recurring/internal/tron"
 	"github.com/vultisig/vultisig-go/common"
 )
 
