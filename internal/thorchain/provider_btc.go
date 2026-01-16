@@ -9,8 +9,8 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	btc_swap "github.com/vultisig/dca/internal/btc"
-	"github.com/vultisig/dca/internal/utxo/address"
+	btc_swap "github.com/vultisig/app-recurring/internal/btc"
+	"github.com/vultisig/app-recurring/internal/utxo/address"
 	"github.com/vultisig/vultisig-go/common"
 )
 

@@ -13,8 +13,8 @@ import (
 	txindrpc "github.com/vultisig/verifier/plugin/tx_indexer/pkg/rpc"
 	"github.com/vultisig/verifier/types"
 
-	"github.com/vultisig/dca/internal/status"
-	itypes "github.com/vultisig/dca/internal/types"
+	"github.com/vultisig/app-recurring/internal/status"
+	itypes "github.com/vultisig/app-recurring/internal/types"
 )
 
 type Network struct {

@@ -12,7 +12,7 @@ import (
 	txrpc "github.com/vultisig/verifier/plugin/tx_indexer/pkg/rpc"
 	rcommon "github.com/vultisig/vultisig-go/common"
 
-	"github.com/vultisig/dca/internal/status"
+	"github.com/vultisig/app-recurring/internal/status"
 )
 
 func NewNetwork(

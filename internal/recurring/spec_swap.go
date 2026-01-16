@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/kaptinlin/jsonschema"
-	"github.com/vultisig/dca/internal/thorchain"
-	"github.com/vultisig/dca/internal/util"
+	"github.com/vultisig/app-recurring/internal/thorchain"
+	"github.com/vultisig/app-recurring/internal/util"
 	rjsonschema "github.com/vultisig/recipes/jsonschema"
 	solanasdk "github.com/vultisig/recipes/sdk/solana"
 	rtypes "github.com/vultisig/recipes/types"

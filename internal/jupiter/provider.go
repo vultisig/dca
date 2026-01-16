@@ -14,8 +14,8 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
-	solana_swap "github.com/vultisig/dca/internal/solana"
-	"github.com/vultisig/dca/internal/util"
+	solana_swap "github.com/vultisig/app-recurring/internal/solana"
+	"github.com/vultisig/app-recurring/internal/util"
 )
 
 type Provider struct {
