@@ -59,8 +59,25 @@ jobs:
       tag: ${{ github.event.release.tag_name }}
       additional_tag: latest
 
-  deploy:
+  set-public:
     needs: [build-server, build-scheduler, build-worker, build-tx-indexer]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Set GHCR packages public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          owner="${{ github.repository_owner }}"
+          repo="${{ github.event.repository.name }}"
+          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fserver/visibility" -f visibility=public
+          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fscheduler/visibility" -f visibility=public
+          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fworker/visibility" -f visibility=public
+          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Ftx_indexer/visibility" -f visibility=public
+
+  deploy:
+    needs: [build-server, build-scheduler, build-worker, build-tx-indexer, set-public]
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
