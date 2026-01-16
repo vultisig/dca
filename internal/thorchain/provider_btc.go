@@ -10,6 +10,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	btc_swap "github.com/vultisig/dca/internal/btc"
+	"github.com/vultisig/dca/internal/utxo/address"
 	"github.com/vultisig/vultisig-go/common"
 )
 
@@ -33,7 +34,12 @@ func (p *ProviderBtc) validateBtc(from btc_swap.From, to btc_swap.To) error {
 		return fmt.Errorf("unsupported 'to' chain: %w", err)
 	}
 
-	switch from.Address.(type) {
+	// Validate from address is a BTCAddress with a supported native type
+	btcAddr, ok := from.Address.(*address.BTCAddress)
+	if !ok {
+		return fmt.Errorf("unsupported 'from' address type: expected BTCAddress")
+	}
+	switch btcAddr.Native().(type) {
 	case *btcutil.AddressWitnessScriptHash,
 		*btcutil.AddressWitnessPubKeyHash,
 		*btcutil.AddressPubKeyHash,
@@ -105,7 +111,7 @@ func (p *ProviderBtc) MakeOutputs(
 		return 0, nil, fmt.Errorf("failed to create inbound script: %w", err)
 	}
 
-	changeScript, err := payToAddrScript(from.Address)
+	changeScript, err := from.Address.PayToAddrScript()
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to create change script: %w", err)
 	}

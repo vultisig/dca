@@ -9,7 +9,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/vultisig/recipes/sdk/btc"
+	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
 	"github.com/vultisig/verifier/plugin/tx_indexer/pkg/storage"
@@ -17,10 +17,18 @@ import (
 	"github.com/vultisig/vultisig-go/common"
 )
 
+// SDK defines the interface for UTXO chain SDKs (BTC, BCH, LTC, DOGE, etc.)
+// All UTXO chains share this common interface for signing and broadcasting transactions.
+type SDK interface {
+	Sign(psbtBytes []byte, signatures map[string]tss.KeysignResponse) ([]byte, error)
+	Broadcast(signedTxBytes []byte) error
+	CalculateInputSignatureHash(pkt *psbt.Packet, inputIndex int) ([]byte, error)
+}
+
 // SignerService handles signing and broadcasting UTXO transactions.
 type SignerService struct {
 	chain     common.Chain
-	sdk       *btc.SDK
+	sdk       SDK
 	signer    *keysign.Signer
 	txIndexer *tx_indexer.Service
 }
@@ -28,7 +36,7 @@ type SignerService struct {
 // NewSignerService creates a new SignerService for the specified chain.
 func NewSignerService(
 	chain common.Chain,
-	sdk *btc.SDK,
+	sdk SDK,
 	signer *keysign.Signer,
 	txIndexer *tx_indexer.Service,
 ) *SignerService {

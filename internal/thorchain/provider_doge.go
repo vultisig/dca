@@ -112,7 +112,7 @@ func (p *ProviderDoge) MakeOutputs(
 		return 0, nil, fmt.Errorf("[DOGE] failed to create inbound script: %w", err)
 	}
 
-	changeScript, err := payToAddrScript(from.Address)
+	changeScript, err := from.Address.PayToAddrScript()
 	if err != nil {
 		return 0, nil, fmt.Errorf("[DOGE] failed to create change script: %w", err)
 	}

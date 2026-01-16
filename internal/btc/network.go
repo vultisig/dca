@@ -16,6 +16,7 @@ import (
 
 	"github.com/vultisig/dca/internal/blockchair"
 	"github.com/vultisig/dca/internal/types"
+	"github.com/vultisig/dca/internal/utxo/address"
 )
 
 type Network struct {
@@ -77,7 +78,12 @@ func (n *Network) Send(
 	amount uint64,
 	availableUTXOs []btcsdk.UTXO,
 ) (txHash string, usedUTXOs []btcsdk.UTXO, changeUTXO *btcsdk.UTXO, err error) {
-	outputs, changeOutputIndex, err := n.send.BuildTransfer(toAddress, from.Address, amount)
+	toAddr, err := address.NewBTCAddress(toAddress)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to decode to address: %w", err)
+	}
+
+	outputs, changeOutputIndex, err := n.send.BuildTransfer(toAddr, from.Address, amount)
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("failed to build transfer outputs: %w", err)
 	}

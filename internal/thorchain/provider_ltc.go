@@ -102,7 +102,7 @@ func (p *ProviderLtc) MakeOutputs(
 		return 0, nil, fmt.Errorf("[LTC] failed to create inbound script: %w", err)
 	}
 
-	changeScript, err := payToAddrScript(from.Address)
+	changeScript, err := from.Address.PayToAddrScript()
 	if err != nil {
 		return 0, nil, fmt.Errorf("[LTC] failed to create change script: %w", err)
 	}
