@@ -74,7 +74,17 @@ func main() {
 		logger.Fatalf("failed to initialize scheduler storage: %v", err)
 	}
 
-	safetyMgr := safety.NewManager(safety_pg.NewRepo(pgPool), logger)
+	safetyStorage, err := plugin.WithMigrations(
+		logger,
+		pgPool,
+		safety_pg.NewRepo,
+		"safety/safety_pg/migrations",
+	)
+	if err != nil {
+		logger.Fatalf("failed to initialize safety storage: %v", err)
+	}
+
+	safetyMgr := safety.NewManager(safetyStorage, logger)
 
 	schedulerMetrics := metrics.NewSchedulerMetrics()
 	worker := scheduler.NewWorker(
