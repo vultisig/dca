@@ -26,8 +26,8 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20260114093150-904c0eefd906
-	github.com/vultisig/verifier v0.0.0-20260114144253-c2cfa7f75b9b
+	github.com/vultisig/recipes v0.0.0-20260115094915-a341566fd1e4
+	github.com/vultisig/verifier v0.0.0-20260116073131-6f6d73de4bf9
 	github.com/vultisig/vultisig-go v0.0.0-20260114092710-6c38516a0c85
 	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
 	golang.org/x/crypto v0.45.0
