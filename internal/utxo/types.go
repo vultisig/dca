@@ -3,8 +3,8 @@ package utxo
 import (
 	"context"
 
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/vultisig/dca/internal/utxo/address"
 	"github.com/vultisig/vultisig-go/common"
 )
 
@@ -13,7 +13,7 @@ type From struct {
 	// PubKey is the compressed ECDSA public key (33 bytes).
 	// This is chain-agnostic and used for signing.
 	PubKey  []byte
-	Address btcutil.Address
+	Address address.UTXOAddress
 	Amount  uint64
 }
 

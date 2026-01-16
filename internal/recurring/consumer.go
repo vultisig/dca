@@ -26,6 +26,7 @@ import (
 	"github.com/vultisig/dca/internal/tron"
 	"github.com/vultisig/dca/internal/util"
 	"github.com/vultisig/dca/internal/utxo"
+	utxoaddress "github.com/vultisig/dca/internal/utxo/address"
 	"github.com/vultisig/dca/internal/xrp"
 	"github.com/vultisig/dca/internal/zcash"
 	"github.com/vultisig/mobile-tss-lib/tss"
@@ -573,7 +574,7 @@ func (c *Consumer) evmPubToAddress(chain common.Chain, pub string, pluginID stri
 	return ecommon.HexToAddress(addr), nil
 }
 
-func (c *Consumer) btcPubToAddress(rootPub string, pluginID string) (btcutil.Address, *btcutil.AddressPubKey, error) {
+func (c *Consumer) btcPubToAddress(rootPub string, pluginID string) (utxoaddress.UTXOAddress, *btcutil.AddressPubKey, error) {
 	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get vault content: %w", err)
@@ -594,7 +595,7 @@ func (c *Consumer) btcPubToAddress(rootPub string, pluginID string) (btcutil.Add
 		return nil, nil, fmt.Errorf("failed to get address: %w", err)
 	}
 
-	btcAddr, err := btcutil.DecodeAddress(addr, &chaincfg.MainNetParams)
+	btcAddr, err := utxoaddress.NewBTCAddress(addr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to decode BTC address: %w", err)
 	}
@@ -1662,7 +1663,7 @@ func (c *Consumer) getTokenDecimals(ctx context.Context, chain common.Chain, tok
 // Litecoin (LTC) handlers
 // ============================================================================
 
-func (c *Consumer) ltcPubToAddress(rootPub string, pluginID string) (btcutil.Address, []byte, error) {
+func (c *Consumer) ltcPubToAddress(rootPub string, pluginID string) (utxoaddress.UTXOAddress, []byte, error) {
 	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
 		return nil, nil, fmt.Errorf("[LTC] failed to get vault content: %w", err)
@@ -1683,7 +1684,7 @@ func (c *Consumer) ltcPubToAddress(rootPub string, pluginID string) (btcutil.Add
 		return nil, nil, fmt.Errorf("[LTC] failed to get address: %w", err)
 	}
 
-	ltcAddr, err := btcutil.DecodeAddress(addr, nil)
+	ltcAddr, err := utxoaddress.NewLTCAddress(addr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("[LTC] failed to decode address: %w", err)
 	}
@@ -1825,7 +1826,7 @@ func (c *Consumer) handleLtcSwap(
 // Dogecoin (DOGE) handlers
 // ============================================================================
 
-func (c *Consumer) dogePubToAddress(rootPub string, pluginID string) (btcutil.Address, []byte, error) {
+func (c *Consumer) dogePubToAddress(rootPub string, pluginID string) (utxoaddress.UTXOAddress, []byte, error) {
 	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
 		return nil, nil, fmt.Errorf("[DOGE] failed to get vault content: %w", err)
@@ -1846,7 +1847,7 @@ func (c *Consumer) dogePubToAddress(rootPub string, pluginID string) (btcutil.Ad
 		return nil, nil, fmt.Errorf("[DOGE] failed to get address: %w", err)
 	}
 
-	dogeAddr, err := btcutil.DecodeAddress(addr, nil)
+	dogeAddr, err := utxoaddress.NewDOGEAddress(addr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("[DOGE] failed to decode address: %w", err)
 	}
@@ -1988,7 +1989,7 @@ func (c *Consumer) handleDogeSwap(
 // Bitcoin Cash (BCH) handlers
 // ============================================================================
 
-func (c *Consumer) bchPubToAddress(rootPub string, pluginID string) (btcutil.Address, []byte, error) {
+func (c *Consumer) bchPubToAddress(rootPub string, pluginID string) (utxoaddress.UTXOAddress, []byte, error) {
 	vaultContent, err := c.vault.GetVault(common.GetVaultBackupFilename(rootPub, pluginID))
 	if err != nil {
 		return nil, nil, fmt.Errorf("[BCH] failed to get vault content: %w", err)
@@ -2009,7 +2010,7 @@ func (c *Consumer) bchPubToAddress(rootPub string, pluginID string) (btcutil.Add
 		return nil, nil, fmt.Errorf("[BCH] failed to get address: %w", err)
 	}
 
-	bchAddr, err := btcutil.DecodeAddress(addr, nil)
+	bchAddr, err := utxoaddress.NewBCHAddress(addr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("[BCH] failed to decode address: %w", err)
 	}
