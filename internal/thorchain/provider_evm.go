@@ -10,7 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	evm_swap "github.com/vultisig/dca/internal/evm"
+	evm_swap "github.com/vultisig/app-recurring/internal/evm"
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/recipes/sdk/evm/codegen/erc20"
 	"github.com/vultisig/recipes/sdk/evm/codegen/thorchain_router"

@@ -7,7 +7,7 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
-	"github.com/vultisig/dca/internal/status"
+	"github.com/vultisig/app-recurring/internal/status"
 	"github.com/vultisig/recipes/engine"
 	sdk "github.com/vultisig/recipes/sdk/solana"
 	"github.com/vultisig/verifier/plugin/keysign"

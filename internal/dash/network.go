@@ -16,7 +16,7 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/common"
 
-	"github.com/vultisig/dca/internal/blockchair"
+	"github.com/vultisig/app-recurring/internal/blockchair"
 )
 
 // Network orchestrates Dash transaction operations

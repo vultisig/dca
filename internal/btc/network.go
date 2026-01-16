@@ -14,9 +14,9 @@ import (
 	vtypes "github.com/vultisig/verifier/types"
 	"github.com/vultisig/vultisig-go/common"
 
-	"github.com/vultisig/dca/internal/blockchair"
-	"github.com/vultisig/dca/internal/types"
-	"github.com/vultisig/dca/internal/utxo/address"
+	"github.com/vultisig/app-recurring/internal/blockchair"
+	"github.com/vultisig/app-recurring/internal/types"
+	"github.com/vultisig/app-recurring/internal/utxo/address"
 )
 
 type Network struct {

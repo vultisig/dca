@@ -1,4 +1,4 @@
-module github.com/vultisig/dca
+module github.com/vultisig/app-recurring
 
 go 1.25
 

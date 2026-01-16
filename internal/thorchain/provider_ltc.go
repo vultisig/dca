@@ -11,7 +11,7 @@ import (
 	ltcchaincfg "github.com/ltcsuite/ltcd/chaincfg"
 	"github.com/ltcsuite/ltcd/ltcutil"
 
-	utxo_swap "github.com/vultisig/dca/internal/utxo"
+	utxo_swap "github.com/vultisig/app-recurring/internal/utxo"
 	"github.com/vultisig/vultisig-go/common"
 )
 

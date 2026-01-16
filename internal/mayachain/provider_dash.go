@@ -9,7 +9,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	dashpkg "github.com/vultisig/dca/internal/dash"
+	dashpkg "github.com/vultisig/app-recurring/internal/dash"
 	"github.com/vultisig/vultisig-go/common"
 )
 

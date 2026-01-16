@@ -6,7 +6,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/vultisig/dca/internal/zcash"
+	"github.com/vultisig/app-recurring/internal/zcash"
 	"github.com/vultisig/vultisig-go/common"
 )
 
