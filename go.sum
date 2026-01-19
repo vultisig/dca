@@ -699,6 +699,8 @@ github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5
 github.com/mfridman/interpolate v0.0.2 h1:pnuTK7MQIxxFz1Gr+rjSIx9u7qVjf5VOoM/u6BbAxPY=
 github.com/mfridman/interpolate v0.0.2/go.mod h1:p+7uk6oE07mpE/Ik1b8EckO0O4ZXiGAfshKBWLUM9Xg=
 github.com/miekg/dns v1.0.14/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nrg=
+github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 h1:lYpkrQH5ajf0OXOcUbGjvZxxijuBwbbmlSxLiuofa+g=
+github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1/go.mod h1:pD8RvIylQ358TN4wwqatJ8rNavkEINozVn9DtGI3dfQ=
 github.com/minio/highwayhash v1.0.3 h1:kbnuUMoHYyVl7szWjSxJnxw11k2U709jqFPPmIUyD6Q=
 github.com/minio/highwayhash v1.0.3/go.mod h1:GGYsuwP/fPD6Y9hMiXuapVvlIUEhFhMTh0rxU3ik1LQ=
 github.com/minio/sha256-simd v1.0.0 h1:v1ta+49hkWZyvaKwrQB8elexRqm6Y0aMLjCNsrYxo6g=
@@ -1008,8 +1010,8 @@ github.com/vultisig/go-wrappers v0.0.0-20260106233302-7e12f0dd6a93 h1:gQr4sjxsRr
 github.com/vultisig/go-wrappers v0.0.0-20260106233302-7e12f0dd6a93/go.mod h1:vEP0x0RmNlghWxfalt13FvVsBwmobSwimMhJxGfqCD4=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4nQ/NEVIb3OPP9SUx7/u9ZfsUIcd5fIN/e4DVU=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
-github.com/vultisig/recipes v0.0.0-20260115094915-a341566fd1e4 h1:S2e9l7KJL1JXGEi4rOsOUeekJzCP6ZM3uEC9KMzmFB4=
-github.com/vultisig/recipes v0.0.0-20260115094915-a341566fd1e4/go.mod h1:Zv+2HR5FRbC/RXeBM4goKGCu70O2N2mJvAXUVuY/e8c=
+github.com/vultisig/recipes v0.0.0-20260119070447-2be898802113 h1:N+xAMsa+s8fpwkyx3HeXL1ZzL8aSRa8IKflrlz1Ds/I=
+github.com/vultisig/recipes v0.0.0-20260119070447-2be898802113/go.mod h1:fvawHV4UGuZ/Cj/P1MJDOqsZKsgalCX/MJihGwDV9Aw=
 github.com/vultisig/verifier v0.0.0-20260116073131-6f6d73de4bf9 h1:tvkHtPNIK+fTmn0EiXW34ot8KKHp6HyJIdZi1cah/Ns=
 github.com/vultisig/verifier v0.0.0-20260116073131-6f6d73de4bf9/go.mod h1:9OUC+4tlxVZzaYGhb+pEtur8lThSHM+2R/wDJx5zjPI=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 h1:7WDQ92FAdu08Byjgm3RNS8Sok49sK521PzPcbRpbzCE=
