@@ -61,13 +61,13 @@ type addrInfoResponse struct {
 		Utxo         []Utxo   `json:"utxo"`
 	} `json:"data"`
 	Context struct {
-		Code           int    `json:"code"`
-		Source         string `json:"source"`
-		Limit          string `json:"limit"`
-		Offset         string `json:"offset"`
-		Results        int    `json:"results"`
-		State          int    `json:"state"`
-		MarketPriceUsd int    `json:"market_price_usd"`
+		Code           int     `json:"code"`
+		Source         string  `json:"source"`
+		Limit          string  `json:"limit"`
+		Offset         string  `json:"offset"`
+		Results        int     `json:"results"`
+		State          int     `json:"state"`
+		MarketPriceUsd float64 `json:"market_price_usd"`
 	} `json:"context"`
 }
 
@@ -226,4 +226,3 @@ type TxBroadcaster interface {
 
 // Ensure Client implements TxBroadcaster
 var _ TxBroadcaster = (*Client)(nil)
-
