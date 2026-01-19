@@ -74,18 +74,18 @@ func (p *ProviderZcash) MakeOutputs(
 		return 0, nil, fmt.Errorf("invalid swap: %w", err)
 	}
 
-	toAsset, err := makeMayaAsset(ctx, p.client, to.Chain, to.AssetID)
+	toAsset, err := MakeMayaAsset(ctx, p.client, to.Chain, to.AssetID)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to convert maya asset: %w", err)
 	}
 
-	quote, err := p.client.getQuote(ctx, quoteSwapRequest{
+	quote, err := p.client.GetQuote(ctx, QuoteSwapRequest{
 		FromAsset:         string(zec) + "." + string(zec),
 		ToAsset:           toAsset,
 		Amount:            fmt.Sprintf("%d", from.Amount),
 		Destination:       to.Address,
-		StreamingInterval: defaultStreamingInterval,
-		StreamingQuantity: defaultStreamingQuantity,
+		StreamingInterval: DefaultStreamingInterval,
+		StreamingQuantity: DefaultStreamingQuantity,
 	})
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to get quote: %w", err)
