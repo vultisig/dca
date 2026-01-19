@@ -30,6 +30,17 @@ func parseMayaNetwork(c common.Chain) (mayaNetwork, error) {
 	}
 }
 
+// IsMayaChainSupported checks if all provided chains are supported by the
+// MayaChain router for cross-chain swaps.
+func IsMayaChainSupported(chains ...common.Chain) bool {
+	for _, c := range chains {
+		if _, err := parseMayaNetwork(c); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
 type mayaNetwork string
 
 const (

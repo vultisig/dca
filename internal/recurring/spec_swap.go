@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/kaptinlin/jsonschema"
+	"github.com/vultisig/app-recurring/internal/mayachain"
 	"github.com/vultisig/app-recurring/internal/thorchain"
 	"github.com/vultisig/app-recurring/internal/util"
 	rjsonschema "github.com/vultisig/recipes/jsonschema"
@@ -174,9 +175,18 @@ func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.
 		return nil, fmt.Errorf("unsupported chain: %s", toChainStr)
 	}
 
-	// Cross-chain swaps require THORChain support for both chains
+	// Cross-chain swaps require either THORChain or MayaChain support for both chains.
+	//
+	// TODO: This is a workaround - checking IsThorChainSupported and IsMayaChainSupported separately.
+	// Eventually, EVM chains should use the canonical swap router (recipes/sdk/swap) which has all
+	// providers (THORChain, MayaChain, 1inch, LiFi, etc.). Once that's done, this check should be
+	// replaced with canonical.CanRoute() to ensure Suggest() validation matches runtime behavior.
+	// Currently, MayaChain routes like Arbitrum→Ethereum pass validation but fail at runtime because
+	// EVM chains don't have MayaChain configured as a provider.
 	if fromChainTyped != toChainTyped {
-		if !thorchain.IsThorChainSupported(fromChainTyped, toChainTyped) {
+		thorSupported := thorchain.IsThorChainSupported(fromChainTyped, toChainTyped)
+		mayaSupported := mayachain.IsMayaChainSupported(fromChainTyped, toChainTyped)
+		if !thorSupported && !mayaSupported {
 			return nil, fmt.Errorf("cross-chain swaps between %s and %s are not supported", fromChainTyped, toChainTyped)
 		}
 	}
