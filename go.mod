@@ -26,7 +26,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20260119070447-2be898802113
+	github.com/vultisig/recipes v0.0.0-20260119080143-117286f2b19a
 	github.com/vultisig/verifier v0.0.0-20260116073131-6f6d73de4bf9
 	github.com/vultisig/vultisig-go v0.0.0-20260114092710-6c38516a0c85
 	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
@@ -144,6 +144,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
+	github.com/gtank/blake2 v0.1.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
@@ -180,7 +181,6 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
-	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
