@@ -271,7 +271,6 @@ func main() {
 	zcashClient := zcash.NewClient(cfg.ZEC.BlockchairURL)
 
 	zcashNetwork := zcash.NewNetwork(
-		mayachainZcash,
 		zcash.NewSwapService([]zcash.SwapProvider{mayachainZcash}),
 		zcash.NewSendService(),
 		zcash.NewSignerService(zcashClient, signerSend, txIndexerService),
