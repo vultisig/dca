@@ -12,6 +12,7 @@ import (
 	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	cosmostypes "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/bech32"
 	"github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
@@ -23,11 +24,23 @@ import (
 )
 
 const (
-	runeGasLimit  = uint64(4000000000)
-	runeFeeAmount = "2000000"
-	runeChainID   = "thorchain-1"
-	runeDenom     = "rune"
+	runeGasLimit   = uint64(4000000000)
+	runeFeeAmount  = "2000000"
+	runeChainID    = "thorchain-1"
+	runeDenom      = "rune"
+	thorBech32HRP  = "thor"
 )
+
+func decodeThorAddress(addr string) (cosmostypes.AccAddress, error) {
+	hrp, bz, err := bech32.DecodeAndConvert(addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode bech32 address: %w", err)
+	}
+	if hrp != thorBech32HRP {
+		return nil, fmt.Errorf("invalid bech32 prefix: expected %s, got %s", thorBech32HRP, hrp)
+	}
+	return cosmostypes.AccAddress(bz), nil
+}
 
 // ProviderRune implements the rune.SwapProvider interface for THORChain swaps from RUNE
 // with Maya fallback for chains not supported by THORChain (ARB, ZEC, DASH)
@@ -67,6 +80,7 @@ func (p *ProviderRune) MakeTransaction(
 		if err == nil {
 			return txData, signBytes, toAmount, nil
 		}
+		return nil, nil, 0, fmt.Errorf("[RUNE] THORChain swap failed: %w", err)
 	}
 
 	if p.mayaClient != nil {
@@ -74,13 +88,10 @@ func (p *ProviderRune) MakeTransaction(
 		if err == nil {
 			return txData, signBytes, toAmount, nil
 		}
-		return nil, nil, 0, fmt.Errorf("[RUNE] THORChain failed: %v, Maya fallback also failed: %w", thorErr, err)
+		return nil, nil, 0, fmt.Errorf("[RUNE] chain not supported by THORChain (%v), Maya fallback failed: %w", thorErr, err)
 	}
 
-	if thorErr != nil {
-		return nil, nil, 0, fmt.Errorf("[RUNE] unsupported destination chain: %w", thorErr)
-	}
-	return nil, nil, 0, fmt.Errorf("[RUNE] failed to get quote: %w", err)
+	return nil, nil, 0, fmt.Errorf("[RUNE] unsupported destination chain: %w", thorErr)
 }
 
 func (p *ProviderRune) makeTransactionViaThorchain(
@@ -110,13 +121,21 @@ func (p *ProviderRune) makeTransactionViaThorchain(
 		return nil, nil, 0, fmt.Errorf("failed to get quote: %w", err)
 	}
 
-	dustThreshold, err := strconv.ParseUint(quote.DustThreshold, 10, 64)
+	// For RUNE swaps, THORChain returns recommended_min_amount_in instead of dust_threshold
+	minAmountStr := quote.RecommendedMinAmountIn
+	if minAmountStr == "" {
+		minAmountStr = quote.DustThreshold
+	}
+	if minAmountStr == "" {
+		minAmountStr = "0"
+	}
+	minAmount, err := strconv.ParseUint(minAmountStr, 10, 64)
 	if err != nil {
-		return nil, nil, 0, fmt.Errorf("failed to parse dust threshold: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to parse min amount: %w", err)
 	}
 
-	if thorAmount < dustThreshold {
-		return nil, nil, 0, fmt.Errorf("amount %d below dust threshold %d", thorAmount, dustThreshold)
+	if thorAmount < minAmount {
+		return nil, nil, 0, fmt.Errorf("amount %d below minimum %d", thorAmount, minAmount)
 	}
 
 	txData, signBytes, err = p.buildMsgDepositTransaction(
@@ -163,13 +182,20 @@ func (p *ProviderRune) makeTransactionViaMaya(
 		return nil, nil, 0, fmt.Errorf("failed to get maya quote: %w", err)
 	}
 
-	dustThreshold, err := strconv.ParseUint(quote.DustThreshold, 10, 64)
+	minAmountStr := quote.RecommendedMinAmountIn
+	if minAmountStr == "" {
+		minAmountStr = quote.DustThreshold
+	}
+	if minAmountStr == "" {
+		minAmountStr = "0"
+	}
+	minAmount, err := strconv.ParseUint(minAmountStr, 10, 64)
 	if err != nil {
-		return nil, nil, 0, fmt.Errorf("failed to parse dust threshold: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to parse min amount: %w", err)
 	}
 
-	if from.Amount < dustThreshold {
-		return nil, nil, 0, fmt.Errorf("amount %d below dust threshold %d", from.Amount, dustThreshold)
+	if from.Amount < minAmount {
+		return nil, nil, 0, fmt.Errorf("amount %d below minimum %d", from.Amount, minAmount)
 	}
 
 	txData, signBytes, err = p.buildMsgSendTransaction(
@@ -202,7 +228,7 @@ func (p *ProviderRune) buildMsgDepositTransaction(
 	sequence uint64,
 	memo string,
 ) ([]byte, []byte, error) {
-	fromAddr, err := cosmostypes.AccAddressFromBech32(from)
+	fromAddr, err := decodeThorAddress(from)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid from address: %w", err)
 	}
@@ -319,12 +345,12 @@ func (p *ProviderRune) buildMsgSendTransaction(
 	sequence uint64,
 	memo string,
 ) ([]byte, []byte, error) {
-	fromAddr, err := cosmostypes.AccAddressFromBech32(from)
+	fromAddr, err := decodeThorAddress(from)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid from address: %w", err)
 	}
 
-	toAddr, err := cosmostypes.AccAddressFromBech32(inboundAddress)
+	toAddr, err := decodeThorAddress(inboundAddress)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid inbound address: %w", err)
 	}

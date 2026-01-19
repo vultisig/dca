@@ -36,6 +36,7 @@ import (
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
 	tronsdk "github.com/vultisig/recipes/sdk/tron"
 	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
+	thorchaintypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -374,9 +375,12 @@ func main() {
 	)
 
 	// Initialize THORChain (RUNE) network
-	runeClient := rune.NewClient(cfg.Rpc.THORChain.URL)
-	runeRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.Rpc.THORChain.URL})
+	// Both runeClient and runeRpcClient use REST API (thornode) for account info and broadcasting
+	runeClient := rune.NewClient(cfg.ThorChain.URL)
+	runeRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.ThorChain.URL})
 	runeSDK := cosmossdk.NewSDK(runeRpcClient)
+	thorchaintypes.RegisterInterfaces(runeSDK.InterfaceRegistry())
+	runeSDK.RefreshCodec()
 
 	runeProvider := thorchain.NewProviderRune(thorchainClient, mayachainClient)
 
