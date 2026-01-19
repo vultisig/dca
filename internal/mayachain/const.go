@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	defaultStreamingInterval = "3"
-	defaultStreamingQuantity = "0"
+	DefaultStreamingInterval = "3"
+	DefaultStreamingQuantity = "0"
 )
 
 func parseMayaNetwork(c common.Chain) (mayaNetwork, error) {

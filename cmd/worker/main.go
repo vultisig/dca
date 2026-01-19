@@ -24,6 +24,7 @@ import (
 	"github.com/vultisig/app-recurring/internal/metrics"
 	"github.com/vultisig/app-recurring/internal/oneinch"
 	"github.com/vultisig/app-recurring/internal/recurring"
+	"github.com/vultisig/app-recurring/internal/rune"
 	"github.com/vultisig/app-recurring/internal/solana"
 	"github.com/vultisig/app-recurring/internal/thorchain"
 	"github.com/vultisig/app-recurring/internal/tron"
@@ -372,6 +373,21 @@ func main() {
 		mayaClient,
 	)
 
+	// Initialize THORChain (RUNE) network
+	runeClient := rune.NewClient(cfg.Rpc.THORChain.URL)
+	runeRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.Rpc.THORChain.URL})
+	runeSDK := cosmossdk.NewSDK(runeRpcClient)
+
+	runeProvider := thorchain.NewProviderRune(thorchainClient, mayachainClient)
+
+	runeNetwork := rune.NewNetwork(
+		rune.NewSwapService([]rune.SwapProvider{runeProvider}),
+		rune.NewSendService(runeClient, rune.THORChainID),
+		rune.NewSignerService(runeSDK, signerSend, txIndexerService),
+		rune.NewSignerService(runeSDK, signerSwap, txIndexerService),
+		runeClient,
+	)
+
 	// Initialize TRON network with TRC-20 support
 	tronClient := tron.NewClient(cfg.Rpc.Tron.URL)
 	tronRpcClient := tronsdk.NewHTTPRPCClient([]string{cfg.Rpc.Tron.URL})
@@ -411,6 +427,7 @@ func main() {
 		cosmosNetwork,
 		mayaNetwork,
 		tronNetwork,
+		runeNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)

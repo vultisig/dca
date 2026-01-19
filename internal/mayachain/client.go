@@ -21,7 +21,7 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-type quoteSwapRequest struct {
+type QuoteSwapRequest struct {
 	FromAsset             string `json:"from_asset"`
 	ToAsset               string `json:"to_asset"`
 	Amount                string `json:"amount"`
@@ -35,13 +35,13 @@ type quoteSwapRequest struct {
 	Affiliate             string `json:"affiliate,omitempty"`
 }
 
-type quoteSwapResponse struct {
+type QuoteSwapResponse struct {
 	InboundAddress             string    `json:"inbound_address"`
 	InboundConfirmationBlocks  int64     `json:"inbound_confirmation_blocks"`
 	InboundConfirmationSeconds int64     `json:"inbound_confirmation_seconds"`
 	OutboundDelayBlocks        int64     `json:"outbound_delay_blocks"`
 	OutboundDelaySeconds       int64     `json:"outbound_delay_seconds"`
-	Fees                       quoteFees `json:"fees"`
+	Fees                       QuoteFees `json:"fees"`
 	Router                     string    `json:"router"`
 	Expiry                     int64     `json:"expiry"`
 	Warning                    string    `json:"warning"`
@@ -57,7 +57,7 @@ type quoteSwapResponse struct {
 	TotalSwapSeconds           int64     `json:"total_swap_seconds"`
 }
 
-type quoteFees struct {
+type QuoteFees struct {
 	Asset       string `json:"asset"`
 	Affiliate   string `json:"affiliate"`
 	Outbound    string `json:"outbound"`
@@ -104,16 +104,16 @@ type pool struct {
 	SaversUnits         string `json:"savers_units"`
 }
 
-func (c *Client) getQuote(
+func (c *Client) GetQuote(
 	ctx context.Context,
-	req quoteSwapRequest,
-) (quoteSwapResponse, error) {
+	req QuoteSwapRequest,
+) (QuoteSwapResponse, error) {
 	params, err := structToParams(req)
 	if err != nil {
-		return quoteSwapResponse{}, fmt.Errorf("failed to convert request to params: %w", err)
+		return QuoteSwapResponse{}, fmt.Errorf("failed to convert request to params: %w", err)
 	}
 
-	resp, err := libhttp.Call[quoteSwapResponse](
+	resp, err := libhttp.Call[QuoteSwapResponse](
 		ctx,
 		http.MethodGet,
 		c.baseURL+"/mayachain/quote/swap",
@@ -122,7 +122,7 @@ func (c *Client) getQuote(
 		params,
 	)
 	if err != nil {
-		return quoteSwapResponse{}, fmt.Errorf("failed to get quote: %w", err)
+		return QuoteSwapResponse{}, fmt.Errorf("failed to get quote: %w", err)
 	}
 
 	return resp, nil

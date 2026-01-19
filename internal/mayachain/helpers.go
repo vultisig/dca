@@ -8,7 +8,7 @@ import (
 	"github.com/vultisig/vultisig-go/common"
 )
 
-func makeMayaAsset(ctx context.Context, client *Client, chain common.Chain, asset string) (string, error) {
+func MakeMayaAsset(ctx context.Context, client *Client, chain common.Chain, asset string) (string, error) {
 	mayaNet, err := parseMayaNetwork(chain)
 	if err != nil {
 		return "", fmt.Errorf("unsupported chain: %w", err)
