@@ -23,21 +23,13 @@ import (
 	"github.com/vultisig/vultisig-go/common"
 )
 
-const (
-	runeGasLimit   = uint64(4000000000)
-	runeFeeAmount  = "2000000"
-	runeChainID    = "thorchain-1"
-	runeDenom      = "rune"
-	thorBech32HRP  = "thor"
-)
-
 func decodeThorAddress(addr string) (cosmostypes.AccAddress, error) {
 	hrp, bz, err := bech32.DecodeAndConvert(addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode bech32 address: %w", err)
 	}
-	if hrp != thorBech32HRP {
-		return nil, fmt.Errorf("invalid bech32 prefix: expected %s, got %s", thorBech32HRP, hrp)
+	if hrp != rune_swap.ThorBech32HRP {
+		return nil, fmt.Errorf("invalid bech32 prefix: expected %s, got %s", rune_swap.ThorBech32HRP, hrp)
 	}
 	return cosmostypes.AccAddress(bz), nil
 }
@@ -267,13 +259,13 @@ func (p *ProviderRune) buildMsgDepositTransaction(
 		return nil, nil, fmt.Errorf("failed to create pubkey any: %w", err)
 	}
 
-	feeAmount, ok := math.NewIntFromString(runeFeeAmount)
+	feeAmount, ok := math.NewIntFromString(rune_swap.DefaultFeeAmount)
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid fee amount")
 	}
 	fee := &tx.Fee{
-		Amount:   cosmostypes.NewCoins(cosmostypes.NewCoin(runeDenom, feeAmount)),
-		GasLimit: runeGasLimit,
+		Amount:   cosmostypes.NewCoins(cosmostypes.NewCoin(rune_swap.RuneDenom, feeAmount)),
+		GasLimit: rune_swap.DefaultGasLimit,
 	}
 
 	signerInfo := &tx.SignerInfo{
@@ -311,7 +303,7 @@ func (p *ProviderRune) buildMsgDepositTransaction(
 	signDoc := &tx.SignDoc{
 		BodyBytes:     bodyBytes,
 		AuthInfoBytes: authInfoBytes,
-		ChainId:       runeChainID,
+		ChainId:       rune_swap.THORChainID,
 		AccountNumber: accountNumber,
 	}
 
@@ -355,7 +347,7 @@ func (p *ProviderRune) buildMsgSendTransaction(
 		return nil, nil, fmt.Errorf("invalid inbound address: %w", err)
 	}
 
-	coins := cosmostypes.NewCoins(cosmostypes.NewCoin(runeDenom, math.NewIntFromUint64(amountRune)))
+	coins := cosmostypes.NewCoins(cosmostypes.NewCoin(rune_swap.RuneDenom, math.NewIntFromUint64(amountRune)))
 	sendMsg := banktypes.NewMsgSend(fromAddr, toAddr, coins)
 
 	msgAny, err := codectypes.NewAnyWithValue(sendMsg)
@@ -378,13 +370,13 @@ func (p *ProviderRune) buildMsgSendTransaction(
 		return nil, nil, fmt.Errorf("failed to create pubkey any: %w", err)
 	}
 
-	feeAmount, ok := math.NewIntFromString(runeFeeAmount)
+	feeAmount, ok := math.NewIntFromString(rune_swap.DefaultFeeAmount)
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid fee amount")
 	}
 	fee := &tx.Fee{
-		Amount:   cosmostypes.NewCoins(cosmostypes.NewCoin(runeDenom, feeAmount)),
-		GasLimit: runeGasLimit,
+		Amount:   cosmostypes.NewCoins(cosmostypes.NewCoin(rune_swap.RuneDenom, feeAmount)),
+		GasLimit: rune_swap.DefaultGasLimit,
 	}
 
 	signerInfo := &tx.SignerInfo{
@@ -422,7 +414,7 @@ func (p *ProviderRune) buildMsgSendTransaction(
 	signDoc := &tx.SignDoc{
 		BodyBytes:     bodyBytes,
 		AuthInfoBytes: authInfoBytes,
-		ChainId:       runeChainID,
+		ChainId:       rune_swap.THORChainID,
 		AccountNumber: accountNumber,
 	}
 
