@@ -25,6 +25,8 @@ const (
 	THORChainID = "thorchain-1"
 	// RuneDenom is the denomination for RUNE
 	RuneDenom = "rune"
+	// ThorBech32HRP is the Bech32 human-readable prefix for THORChain addresses
+	ThorBech32HRP = "thor"
 )
 
 // SendService handles building THORChain send transactions

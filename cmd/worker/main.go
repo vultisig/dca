@@ -24,6 +24,7 @@ import (
 	"github.com/vultisig/app-recurring/internal/metrics"
 	"github.com/vultisig/app-recurring/internal/oneinch"
 	"github.com/vultisig/app-recurring/internal/recurring"
+	"github.com/vultisig/app-recurring/internal/rune"
 	"github.com/vultisig/app-recurring/internal/solana"
 	"github.com/vultisig/app-recurring/internal/thorchain"
 	"github.com/vultisig/app-recurring/internal/tron"
@@ -36,6 +37,7 @@ import (
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
 	tronsdk "github.com/vultisig/recipes/sdk/tron"
 	xrplsdk "github.com/vultisig/recipes/sdk/xrpl"
+	thorchaintypes "github.com/vultisig/recipes/types"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
 	"github.com/vultisig/verifier/plugin/keysign"
@@ -374,6 +376,24 @@ func main() {
 		mayaClient,
 	)
 
+	// Initialize THORChain (RUNE) network
+	// Both runeClient and runeRpcClient use REST API (thornode) for account info and broadcasting
+	runeClient := rune.NewClient(cfg.ThorChain.URL)
+	runeRpcClient := cosmossdk.NewHTTPRPCClient([]string{cfg.ThorChain.URL})
+	runeSDK := cosmossdk.NewSDK(runeRpcClient)
+	thorchaintypes.RegisterInterfaces(runeSDK.InterfaceRegistry())
+	runeSDK.RefreshCodec()
+
+	runeProvider := thorchain.NewProviderRune(thorchainClient, mayachainClient)
+
+	runeNetwork := rune.NewNetwork(
+		rune.NewSwapService([]rune.SwapProvider{runeProvider}),
+		rune.NewSendService(runeClient, rune.THORChainID),
+		rune.NewSignerService(runeSDK, signerSend, txIndexerService),
+		rune.NewSignerService(runeSDK, signerSwap, txIndexerService),
+		runeClient,
+	)
+
 	// Initialize TRON network with TRC-20 support
 	tronClient := tron.NewClient(cfg.Rpc.Tron.URL)
 	tronRpcClient := tronsdk.NewHTTPRPCClient([]string{cfg.Rpc.Tron.URL})
@@ -413,6 +433,7 @@ func main() {
 		cosmosNetwork,
 		mayaNetwork,
 		tronNetwork,
+		runeNetwork,
 		vaultStorage,
 		cfg.VaultService.EncryptionSecret,
 	)
