@@ -17,7 +17,6 @@ import (
 // Network handles Zcash transaction building, signing, and broadcasting
 type Network struct {
 	utxo       UtxoProvider
-	fee        feeProvider
 	swap       *SwapService
 	send       *SendService
 	signerSend *SignerService
@@ -27,7 +26,6 @@ type Network struct {
 
 // NewNetwork creates a new Zcash network handler
 func NewNetwork(
-	fee feeProvider,
 	swap *SwapService,
 	send *SendService,
 	signerSend *SignerService,
@@ -36,7 +34,6 @@ func NewNetwork(
 ) *Network {
 	return &Network{
 		utxo:       utxo,
-		fee:        fee,
 		swap:       swap,
 		send:       send,
 		signerSend: signerSend,
@@ -134,10 +131,6 @@ func (n *Network) buildUnsignedTx(
 ) (*UnsignedTx, error) {
 	if changeOutputIndex < 0 || changeOutputIndex >= len(outputs) {
 		return nil, fmt.Errorf("zcash: invalid change output index %d for %d outputs", changeOutputIndex, len(outputs))
-	}
-
-	if _, err := n.fee.ZatoshisPerByte(ctx); err != nil {
-		return nil, fmt.Errorf("zcash: failed to get zatoshis per byte: %w", err)
 	}
 
 	utxoCtx, utxoCtxCancel := context.WithCancel(ctx)
