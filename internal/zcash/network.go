@@ -152,7 +152,7 @@ func (n *Network) buildUnsignedTx(
 			return nil, ctx.Err()
 		case utxoBatch, ok := <-utxoCh:
 			if !ok {
-				return nil, fmt.Errorf("zcash: insufficient UTXOs (have %d, need %d)", totalInputsValue, from.Amount)
+				return nil, fmt.Errorf("zcash: utxo channel closed (have %d zatoshis, need %d)", totalInputsValue, from.Amount)
 			}
 			if utxoBatch.Err != nil {
 				return nil, fmt.Errorf("zcash: failed to get utxos: %w", utxoBatch.Err)
