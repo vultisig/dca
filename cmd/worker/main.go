@@ -30,6 +30,7 @@ import (
 	"github.com/vultisig/app-recurring/internal/utxo"
 	"github.com/vultisig/app-recurring/internal/xrp"
 	"github.com/vultisig/app-recurring/internal/zcash"
+	bchsdk "github.com/vultisig/recipes/sdk/bch"
 	btcsdk "github.com/vultisig/recipes/sdk/btc"
 	cosmossdk "github.com/vultisig/recipes/sdk/cosmos"
 	evmsdk "github.com/vultisig/recipes/sdk/evm"
@@ -323,13 +324,14 @@ func main() {
 	)
 
 	// Initialize BCH network with chain-specific provider
+	// BCH uses its own SDK because it requires SIGHASH_FORKID and BIP143-style signature hashing
 	bchNetwork := utxo.NewNetwork(
 		common.BitcoinCash,
 		thorchainBch,
 		utxo.NewSwapService([]utxo.SwapProvider{thorchainBch}),
 		utxo.NewSendService(),
-		utxo.NewSignerService(common.BitcoinCash, btcsdk.NewSDK(blockchairBchClient), signerSend, txIndexerService),
-		utxo.NewSignerService(common.BitcoinCash, btcsdk.NewSDK(blockchairBchClient), signerSwap, txIndexerService),
+		utxo.NewSignerService(common.BitcoinCash, bchsdk.NewSDK(blockchairBchClient), signerSend, txIndexerService),
+		utxo.NewSignerService(common.BitcoinCash, bchsdk.NewSDK(blockchairBchClient), signerSwap, txIndexerService),
 		blockchairBchClient,
 	)
 
