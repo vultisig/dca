@@ -43,7 +43,7 @@ func (s *SignerService) SignAndBroadcast(
 	signBytes []byte,
 	pubKey []byte,
 ) (string, error) {
-	keysignRequest, err := s.buildKeysignRequest(ctx, policy, txData, signBytes)
+	keysignRequest, err := s.buildKeysignRequest(ctx, policy, txData, signBytes, pubKey)
 	if err != nil {
 		return "", fmt.Errorf("rune: failed to build keysign request: %w", err)
 	}
@@ -74,6 +74,7 @@ func (s *SignerService) buildKeysignRequest(
 	policy types.PluginPolicy,
 	txData []byte,
 	signBytes []byte,
+	pubKey []byte,
 ) (types.PluginKeysignRequest, error) {
 	// For Cosmos-based chains, the hash to sign is SHA256 of the sign bytes
 	hashToSign := sha256.Sum256(signBytes)
@@ -85,7 +86,7 @@ func (s *SignerService) buildKeysignRequest(
 		PolicyID:      policy.ID,
 		ChainID:       common.THORChain,
 		TokenID:       "",
-		FromPublicKey: policy.PublicKey,
+		FromPublicKey: hex.EncodeToString(pubKey),
 		ToPublicKey:   "",
 		ProposedTxHex: txBase64,
 	})

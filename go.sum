@@ -499,6 +499,8 @@ github.com/grpc-ecosystem/grpc-gateway v1.16.0 h1:gmcG1KaJ57LophUzW0Hy8NmPhnMZb4
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
 github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c h1:6rhixN/i8ZofjG1Y75iExal34USq5p+wiN1tpie8IrU=
 github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c/go.mod h1:NMPJylDgVpX0MLRlPy15sqSwOFv/U1GZ2m21JhFfek0=
+github.com/gtank/blake2 v0.1.1 h1:gH1q+hkkXvUC5Mmu/B+V2KNjsXZfdc2X1PAUE9oU50w=
+github.com/gtank/blake2 v0.1.1/go.mod h1:84L+tmDOofhAKi06/rbQ94KUHs4kA/JqiA8M/6LToXA=
 github.com/hashicorp/consul/api v1.3.0/go.mod h1:MmDNSzIMUjNpY/mQ398R4bk2FnqQLoPndWW5VkKPlCE=
 github.com/hashicorp/consul/sdk v0.3.0/go.mod h1:VKf9jXwCTEY1QZP2MOLRhb5i/I/ssyNV1vwHyQBF0x8=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
@@ -1008,10 +1010,10 @@ github.com/vultisig/go-wrappers v0.0.0-20260106233302-7e12f0dd6a93 h1:gQr4sjxsRr
 github.com/vultisig/go-wrappers v0.0.0-20260106233302-7e12f0dd6a93/go.mod h1:vEP0x0RmNlghWxfalt13FvVsBwmobSwimMhJxGfqCD4=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4nQ/NEVIb3OPP9SUx7/u9ZfsUIcd5fIN/e4DVU=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
-github.com/vultisig/recipes v0.0.0-20260119052538-42eb0647eea9 h1:O67ZerfO3NIfWgq+SsP15gToySTrWMOe98F9+TpgJg0=
-github.com/vultisig/recipes v0.0.0-20260119052538-42eb0647eea9/go.mod h1:Zv+2HR5FRbC/RXeBM4goKGCu70O2N2mJvAXUVuY/e8c=
-github.com/vultisig/verifier v0.0.0-20260119120907-0f6121f46eb8 h1:LSZ14uPnfZU82kOkCN5so5yztRjtOFz2px7Jkyl0vYY=
-github.com/vultisig/verifier v0.0.0-20260119120907-0f6121f46eb8/go.mod h1:9OUC+4tlxVZzaYGhb+pEtur8lThSHM+2R/wDJx5zjPI=
+github.com/vultisig/recipes v0.0.0-20260119125552-4c868dfbcba6 h1:2WfVi7AKpI6IbmX8fiFx8Ig9b0u0xPI8OHrhyjK89fo=
+github.com/vultisig/recipes v0.0.0-20260119125552-4c868dfbcba6/go.mod h1:PUz2BoPkuCrk9EFeWavynFSIMM2DNULfFeSS0CGVIVc=
+github.com/vultisig/verifier v0.0.0-20260120005653-61fb3e927e2e h1:Fnpjxd3sLTGHeBMzD1/h0IMCX0L+8OBztlDWX+6xaJA=
+github.com/vultisig/verifier v0.0.0-20260120005653-61fb3e927e2e/go.mod h1:9OUC+4tlxVZzaYGhb+pEtur8lThSHM+2R/wDJx5zjPI=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 h1:7WDQ92FAdu08Byjgm3RNS8Sok49sK521PzPcbRpbzCE=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/vultisig/vultisig-go v0.0.0-20260114092710-6c38516a0c85 h1:NAVXp2Mm791Z/teQHUA8T7mhmx3bouyrXvQkLXvAu3M=
