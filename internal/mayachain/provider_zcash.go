@@ -40,25 +40,6 @@ func (p *ProviderZcash) validateZcash(from zcash.From, to zcash.To) error {
 	return nil
 }
 
-// ZatoshisPerByte returns the current fee rate for Zcash transactions
-func (p *ProviderZcash) ZatoshisPerByte(ctx context.Context) (uint64, error) {
-	info, err := p.client.getInboundAddresses(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get inbound addresses: %w", err)
-	}
-
-	for _, addr := range info {
-		if addr.Chain == zec {
-			zatoshisPerByte, er := strconv.ParseUint(addr.GasRate, 10, 64)
-			if er != nil {
-				return 0, fmt.Errorf("failed to parse gas rate: %w", er)
-			}
-			return zatoshisPerByte, nil
-		}
-	}
-	return 0, fmt.Errorf("no gas info found for ZEC")
-}
-
 // ChangeOutputIndex returns the index of the change output in swap transactions
 func (p *ProviderZcash) ChangeOutputIndex() int {
 	return 1

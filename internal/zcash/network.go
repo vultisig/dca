@@ -17,7 +17,6 @@ import (
 // Network handles Zcash transaction building, signing, and broadcasting
 type Network struct {
 	utxo       UtxoProvider
-	fee        feeProvider
 	swap       *SwapService
 	send       *SendService
 	signerSend *SignerService
@@ -27,7 +26,6 @@ type Network struct {
 
 // NewNetwork creates a new Zcash network handler
 func NewNetwork(
-	fee feeProvider,
 	swap *SwapService,
 	send *SendService,
 	signerSend *SignerService,
@@ -36,7 +34,6 @@ func NewNetwork(
 ) *Network {
 	return &Network{
 		utxo:       utxo,
-		fee:        fee,
 		swap:       swap,
 		send:       send,
 		signerSend: signerSend,
@@ -136,11 +133,6 @@ func (n *Network) buildUnsignedTx(
 		return nil, fmt.Errorf("zcash: invalid change output index %d for %d outputs", changeOutputIndex, len(outputs))
 	}
 
-	zatoshisPerByte, err := n.fee.ZatoshisPerByte(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("zcash: failed to get zatoshis per byte: %w", err)
-	}
-
 	utxoCtx, utxoCtxCancel := context.WithCancel(ctx)
 	defer utxoCtxCancel()
 	utxoCh := n.utxo.GetUnspent(utxoCtx, from.Address)
@@ -160,9 +152,7 @@ func (n *Network) buildUnsignedTx(
 			return nil, ctx.Err()
 		case utxoBatch, ok := <-utxoCh:
 			if !ok {
-				return nil, errors.New(
-					"zcash: utxo channel closed (cannot pick enough utxos to cover desired fromAmount)",
-				)
+				return nil, fmt.Errorf("zcash: utxo channel closed (have %d zatoshis, need %d)", totalInputsValue, from.Amount)
 			}
 			if utxoBatch.Err != nil {
 				return nil, fmt.Errorf("zcash: failed to get utxos: %w", utxoBatch.Err)
@@ -184,9 +174,10 @@ func (n *Network) buildUnsignedTx(
 				inputs = append(inputs, input)
 				totalInputsValue += u.Value
 
-				fee := estimateFee(len(inputs), len(outputs), zatoshisPerByte)
+				fee := estimateFee(len(inputs), outputs)
 				if totalInputsValue > from.Amount+fee {
-					outputs[changeOutputIndex].Value = int64(totalInputsValue - from.Amount - fee)
+					changeValue := int64(totalInputsValue - from.Amount - fee)
+					outputs[changeOutputIndex].Value = changeValue
 
 					utxoCtxCancel()
 					<-utxoCh // Drain channel after cancel
@@ -255,23 +246,46 @@ func toSDKOutputs(outputs []*TxOutput) []*zcash.TxOutput {
 	return sdkOutputs
 }
 
-// estimateFee estimates the transaction fee based on size
-func estimateFee(numInputs, numOutputs int, zatoshisPerByte uint64) uint64 {
-	// Zcash v4 (Sapling) transaction overhead
-	// Version: 4, VersionGroupID: 4, LockTime: 4, ExpiryHeight: 4, ValueBalance: 8
-	// Plus empty shielded sections and joinsplits: 3 bytes
-	baseSize := 4 + 4 + 4 + 4 + 8 + 3
+// estimateFee estimates the transaction fee based on ZIP-317 logical actions.
+// ZIP-317 requires: conventional_fee = marginal_fee × max(grace_actions, logical_actions)
+// where marginal_fee = 5000 zatoshis, grace_actions = 2
+// For transparent-only txs: logical_actions = max(ceil(input_bytes/150), ceil(output_bytes/34))
+// See: https://zips.z.cash/zip-0317
+func estimateFee(numInputs int, outputs []*TxOutput) uint64 {
+	const (
+		marginalFee          = 5000 // zatoshis per logical action
+		graceActions         = 2    // minimum actions charged
+		p2pkhInputSize       = 150  // standard P2PKH input size
+		p2pkhOutputSize      = 34   // standard P2PKH output size (8 value + 1 len + 25 script)
+	)
 
-	// Input size: prevout (32+4) + script (~107 for P2PKH sig) + sequence (4)
-	inputSize := (32 + 4 + 107 + 4) * numInputs
+	// Calculate total output size (value + compactSize + script for each output)
+	totalOutputSize := 0
+	for _, out := range outputs {
+		// 8 bytes for value + 1 byte for script length (assuming < 253) + script length
+		totalOutputSize += 8 + 1 + len(out.Script)
+	}
 
-	// Output size: value (8) + script (~25 for P2PKH)
-	outputSize := (8 + 1 + 25) * numOutputs
+	// Input actions = ceil(total_input_bytes / 150)
+	totalInputSize := numInputs * p2pkhInputSize
+	inputActions := (totalInputSize + p2pkhInputSize - 1) / p2pkhInputSize
 
-	// Add some buffer for varint encoding
-	totalSize := baseSize + inputSize + outputSize + 10
+	// Output actions = ceil(total_output_bytes / 34)
+	outputActions := (totalOutputSize + p2pkhOutputSize - 1) / p2pkhOutputSize
 
-	return uint64(totalSize) * zatoshisPerByte
+	// Logical actions = max(input_actions, output_actions)
+	logicalActions := inputActions
+	if outputActions > logicalActions {
+		logicalActions = outputActions
+	}
+
+	// Fee = marginal_fee × max(grace_actions, logical_actions)
+	actions := graceActions
+	if logicalActions > actions {
+		actions = logicalActions
+	}
+
+	return uint64(marginalFee * actions)
 }
 
 // GetAddressFromPubKey generates a Zcash address from a hex-encoded public key
