@@ -1,0 +1,53 @@
+# Development Dockerfile with hot-reloading using air
+# Usage: docker build --build-arg SERVICE=server -f Dockerfile.dev -t app-recurring-dev .
+#
+# Supports: server, worker, scheduler, tx_indexer
+
+FROM --platform=linux/amd64 golang:1.25
+
+# Install air for hot reloading and required build tools
+RUN go install github.com/air-verse/air@latest
+RUN apt-get update && apt-get install -y clang lld wget && rm -rf /var/lib/apt/lists/*
+
+# Download go-wrappers for TSS library
+RUN wget https://github.com/vultisig/go-wrappers/archive/refs/heads/master.tar.gz && \
+    tar -xzf master.tar.gz && \
+    cd go-wrappers-master && \
+    mkdir -p /usr/local/lib/dkls && \
+    cp -r includes /usr/local/lib/dkls && \
+    cd .. && rm -rf master.tar.gz go-wrappers-master
+
+ARG SERVICE=server
+ENV SERVICE=${SERVICE}
+
+WORKDIR /app
+
+# Copy go.mod and go.sum to install dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the source code
+COPY . .
+
+# Set up environment for CGO
+ENV CGO_ENABLED=1
+ENV CC=clang
+ENV CGO_LDFLAGS=-fuse-ld=lld
+ENV LD_LIBRARY_PATH=/usr/local/lib/dkls/includes/linux:${LD_LIBRARY_PATH:-}
+
+RUN mkdir -p /app/tmp
+
+# Generate air config dynamically based on SERVICE
+RUN echo 'root = "."' > .air.toml && \
+    echo '' >> .air.toml && \
+    echo '[build]' >> .air.toml && \
+    echo "  bin = \"./tmp/${SERVICE}\"" >> .air.toml && \
+    echo "  cmd = \"go build -o ./tmp/${SERVICE} ./cmd/${SERVICE}\"" >> .air.toml && \
+    echo '  delay = 1000' >> .air.toml && \
+    echo '  exclude_dir = ["assets", "tmp", "vendor", "testdata", "deploy"]' >> .air.toml && \
+    echo '  exclude_regex = ["_test.go"]' >> .air.toml && \
+    echo '  include_ext = ["go", "tpl", "tmpl", "html"]' >> .air.toml && \
+    echo '  kill_delay = "2s"' >> .air.toml
+
+# Run the application with air for hot-reloading
+CMD ["air"]
