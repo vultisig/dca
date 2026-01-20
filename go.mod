@@ -27,7 +27,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
 	github.com/vultisig/recipes v0.0.0-20260119125552-4c868dfbcba6
-	github.com/vultisig/verifier v0.0.0-20260116073131-6f6d73de4bf9
+	github.com/vultisig/verifier v0.0.0-20260120005653-61fb3e927e2e
 	github.com/vultisig/vultisig-go v0.0.0-20260114092710-6c38516a0c85
 	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
 	golang.org/x/crypto v0.45.0
