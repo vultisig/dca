@@ -49,5 +49,6 @@ func NewNetwork(
 		SignerSwap: newSignerService(sdk, chain, signerSwap, txIndexer),
 		Status:     status.NewStatus(rpcCaller),
 		Decimals:   newDecimalsService(rpc),
+		Balance:    newBalanceService(rpc),
 	}, nil
 }

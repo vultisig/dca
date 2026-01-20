@@ -13,6 +13,7 @@ import (
 type AccountInfo struct {
 	AccountNumber uint64
 	Sequence      uint64
+	Balance       uint64
 }
 
 // AccountInfoProvider interface defines methods for fetching THORChain account data
@@ -93,9 +94,60 @@ func (c *Client) GetAccount(ctx context.Context, address string) (*AccountInfo, 
 		return nil, fmt.Errorf("rune: failed to parse sequence: %w", err)
 	}
 
+	balance, err := c.getRuneBalance(ctx, address)
+	if err != nil {
+		return nil, fmt.Errorf("rune: failed to get balance: %w", err)
+	}
+
 	return &AccountInfo{
 		AccountNumber: accountNum,
 		Sequence:      sequence,
+		Balance:       balance,
 	}, nil
+}
+
+type balanceResponse struct {
+	Balances []struct {
+		Denom  string `json:"denom"`
+		Amount string `json:"amount"`
+	} `json:"balances"`
+}
+
+func (c *Client) getRuneBalance(ctx context.Context, address string) (uint64, error) {
+	url := fmt.Sprintf("%s/cosmos/bank/v1beta1/balances/%s", c.baseURL, address)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get balance: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return 0, fmt.Errorf("balance request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var balResp balanceResponse
+	err = json.NewDecoder(resp.Body).Decode(&balResp)
+	if err != nil {
+		return 0, fmt.Errorf("failed to decode balance response: %w", err)
+	}
+
+	for _, bal := range balResp.Balances {
+		if bal.Denom == "rune" {
+			balance, err := strconv.ParseUint(bal.Amount, 10, 64)
+			if err != nil {
+				return 0, fmt.Errorf("failed to parse balance: %w", err)
+			}
+			return balance, nil
+		}
+	}
+
+	return 0, nil
 }
 
