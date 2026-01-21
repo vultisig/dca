@@ -93,8 +93,12 @@ func (p *ProviderTron) MakeTransaction(
 		return nil, 0, fmt.Errorf("[TRON] failed to get quote: %w", err)
 	}
 
-	// Check dust threshold
-	dustThreshold, err := strconv.ParseUint(quote.DustThreshold, 10, 64)
+	// Check dust threshold (may be empty for some destination chains)
+	dustThresholdStr := quote.DustThreshold
+	if dustThresholdStr == "" {
+		dustThresholdStr = "0"
+	}
+	dustThreshold, err := strconv.ParseUint(dustThresholdStr, 10, 64)
 	if err != nil {
 		return nil, 0, fmt.Errorf("[TRON] failed to parse dust threshold: %w", err)
 	}
