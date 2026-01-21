@@ -129,6 +129,7 @@ func main() {
 		middlewares,
 		smetrics.NewNilPluginServerMetrics(),
 		logger,
+		nil,
 	)
 
 	if cfg.Verifier.Token != "" {
