@@ -1104,6 +1104,15 @@ func (c *Consumer) handleEvmSwap(
 		return fmt.Errorf("failed to get network: %w", err)
 	}
 
+	// Check sufficient balance before signing
+	balance, err := network.Balance.GetERC20Balance(ctx, fromAssetTyped, fromAddressTyped)
+	if err != nil {
+		return fmt.Errorf("failed to get balance: %w", err)
+	}
+	if balance.Cmp(fromAmountTyped) < 0 {
+		return fmt.Errorf("insufficient balance: have %s, need %s", balance.String(), fromAmountTyped.String())
+	}
+
 	spender, err := findSpender(fromChain, recipe.GetRules())
 	if err != nil {
 		return fmt.Errorf("failed to find approve rule: %w", err)
@@ -1269,6 +1278,15 @@ func (c *Consumer) sendToEvmRecipient(
 		return fmt.Errorf("failed to parse amount %q as integer", recipient.Amount)
 	}
 
+	// Check sufficient balance before signing
+	balance, err := network.Balance.GetERC20Balance(ctx, fromAssetTyped, fromAddressTyped)
+	if err != nil {
+		return fmt.Errorf("failed to get balance: %w", err)
+	}
+	if balance.Cmp(fromAmountTyped) < 0 {
+		return fmt.Errorf("insufficient balance: have %s, need %s", balance.String(), fromAmountTyped.String())
+	}
+
 	toAddressTyped := ecommon.HexToAddress(recipient.ToAddress)
 
 	l := c.logger.WithFields(logrus.Fields{
@@ -1278,7 +1296,6 @@ func (c *Consumer) sendToEvmRecipient(
 	})
 
 	var sendTx []byte
-	var err error
 
 	nonceOffset := uint64(recipientIndex)
 

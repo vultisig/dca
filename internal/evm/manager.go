@@ -16,6 +16,7 @@ type Network struct {
 	SignerSwap *signerService
 	Status     *status.Status
 	Decimals   *decimalsService
+	Balance    *balanceService
 }
 
 type Manager struct {

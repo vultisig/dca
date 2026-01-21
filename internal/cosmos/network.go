@@ -45,6 +45,15 @@ func (n *Network) SendPayment(
 	amountUatom uint64,
 	pubKeyHex string,
 ) (string, error) {
+	// Check balance before signing
+	accountInfo, err := n.client.GetAccount(ctx, fromAddress)
+	if err != nil {
+		return "", fmt.Errorf("cosmos: failed to get account info: %w", err)
+	}
+	if accountInfo.Balance < amountUatom {
+		return "", fmt.Errorf("cosmos: insufficient balance: have %d uatom, need %d uatom", accountInfo.Balance, amountUatom)
+	}
+
 	// Build transfer transaction
 	txData, signBytes, err := n.Send.BuildTransfer(ctx, fromAddress, toAddress, amountUatom, pubKeyHex)
 	if err != nil {
@@ -77,10 +86,15 @@ func (n *Network) SwapAssets(
 		return "", errors.New("cosmos: can't swap ATOM to ATOM")
 	}
 
-	// Get account info for sequence
+	// Get account info for sequence and balance
 	accountInfo, err := n.client.GetAccount(ctx, from.Address)
 	if err != nil {
 		return "", fmt.Errorf("cosmos: failed to get account info: %w", err)
+	}
+
+	// Check sufficient balance before signing
+	if accountInfo.Balance < from.Amount {
+		return "", fmt.Errorf("cosmos: insufficient balance: have %d uatom, need %d uatom", accountInfo.Balance, from.Amount)
 	}
 
 	// Update from struct with fetched data
