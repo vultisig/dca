@@ -45,6 +45,15 @@ func (n *Network) SendPayment(
 	amountRune uint64,
 	pubKeyHex string,
 ) (string, error) {
+	// Check balance before signing
+	accountInfo, err := n.client.GetAccount(ctx, fromAddress)
+	if err != nil {
+		return "", fmt.Errorf("rune: failed to get account info: %w", err)
+	}
+	if accountInfo.Balance < amountRune {
+		return "", fmt.Errorf("rune: insufficient balance: have %d, need %d", accountInfo.Balance, amountRune)
+	}
+
 	// Build transfer transaction
 	txData, signBytes, err := n.Send.BuildTransfer(ctx, fromAddress, toAddress, amountRune, pubKeyHex)
 	if err != nil {
@@ -77,10 +86,15 @@ func (n *Network) SwapAssets(
 		return "", errors.New("rune: can't swap same asset to same asset")
 	}
 
-	// Get account info for sequence
+	// Get account info for sequence and balance
 	accountInfo, err := n.client.GetAccount(ctx, from.Address)
 	if err != nil {
 		return "", fmt.Errorf("rune: failed to get account info: %w", err)
+	}
+
+	// Check sufficient balance before signing
+	if accountInfo.Balance < from.Amount {
+		return "", fmt.Errorf("rune: insufficient balance: have %d, need %d", accountInfo.Balance, from.Amount)
 	}
 
 	// Update from struct with fetched data

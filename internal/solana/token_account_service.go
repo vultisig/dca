@@ -145,6 +145,14 @@ func (s *tokenAccountService) BuildCreateATATransaction(
 	return tx, nil
 }
 
+func (s *tokenAccountService) GetNativeBalance(ctx context.Context, account solana.PublicKey) (uint64, error) {
+	balance, err := s.rpcClient.GetBalance(ctx, account, rpc.CommitmentFinalized)
+	if err != nil {
+		return 0, fmt.Errorf("solana: failed to get native balance: %w", err)
+	}
+	return balance.Value, nil
+}
+
 func (s *tokenAccountService) GetTokenBalance(ctx context.Context, tokenAccount solana.PublicKey) (uint64, error) {
 	balance, err := s.rpcClient.GetTokenAccountBalance(ctx, tokenAccount, rpc.CommitmentFinalized)
 	if err != nil {

@@ -51,6 +51,19 @@ func (n *Network) Swap(ctx context.Context, policy vtypes.PluginPolicy, from Fro
 		return "", errors.New("can't swap btc to btc")
 	}
 
+	// Check sufficient balance before signing
+	utxos, err := n.FetchUTXOs(ctx, from.Address.String())
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch UTXOs: %w", err)
+	}
+	var totalBalance uint64
+	for _, u := range utxos {
+		totalBalance += u.Value
+	}
+	if totalBalance < from.Amount {
+		return "", fmt.Errorf("insufficient balance: have %d sats, need %d sats", totalBalance, from.Amount)
+	}
+
 	changeOutputIndex, _, outputs, err := n.swap.FindBestAmountOut(ctx, from, to)
 	if err != nil {
 		return "", fmt.Errorf("find best amount out: %w", err)

@@ -3,6 +3,7 @@ package solana
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
@@ -73,6 +74,39 @@ func (n *Network) Swap(ctx context.Context, policy types.PluginPolicy, from From
 	ownerPubKey, err := solana.PublicKeyFromBase58(from.Address)
 	if err != nil {
 		return "", fmt.Errorf("invalid owner public key: %w", err)
+	}
+
+	// Check sufficient balance before signing
+	if from.AssetID == "" {
+		balance, err := n.tokenAccount.GetNativeBalance(ctx, ownerPubKey)
+		if err != nil {
+			return "", fmt.Errorf("failed to get native balance: %w", err)
+		}
+		balanceBig := new(big.Int).SetUint64(balance)
+		if balanceBig.Cmp(from.Amount) < 0 {
+			return "", fmt.Errorf("insufficient SOL balance: have %d lamports, need %s lamports", balance, from.Amount.String())
+		}
+	} else {
+		mintPubKey, err := solana.PublicKeyFromBase58(from.AssetID)
+		if err != nil {
+			return "", fmt.Errorf("invalid mint public key: %w", err)
+		}
+		tokenProgram, _, err := n.tokenAccount.GetTokenProgram(ctx, mintPubKey)
+		if err != nil {
+			return "", fmt.Errorf("failed to get token program: %w", err)
+		}
+		ata, err := n.tokenAccount.GetAssociatedTokenAddress(ownerPubKey, mintPubKey, tokenProgram)
+		if err != nil {
+			return "", fmt.Errorf("failed to get ATA: %w", err)
+		}
+		balance, err := n.tokenAccount.GetTokenBalance(ctx, ata)
+		if err != nil {
+			return "", fmt.Errorf("failed to get token balance: %w", err)
+		}
+		balanceBig := new(big.Int).SetUint64(balance)
+		if balanceBig.Cmp(from.Amount) < 0 {
+			return "", fmt.Errorf("insufficient token balance: have %d, need %s", balance, from.Amount.String())
+		}
 	}
 
 	if from.AssetID != "" {
@@ -225,6 +259,37 @@ func (n *Network) Send(
 	mint string,
 	amount uint64,
 ) (string, error) {
+	// Check sufficient balance before signing
+	if mint == "" {
+		balance, err := n.tokenAccount.GetNativeBalance(ctx, from)
+		if err != nil {
+			return "", fmt.Errorf("failed to get native balance: %w", err)
+		}
+		if balance < amount {
+			return "", fmt.Errorf("insufficient SOL balance: have %d lamports, need %d lamports", balance, amount)
+		}
+	} else {
+		mintPubKey, err := solana.PublicKeyFromBase58(mint)
+		if err != nil {
+			return "", fmt.Errorf("invalid mint address: %w", err)
+		}
+		tokenProgram, _, err := n.tokenAccount.GetTokenProgram(ctx, mintPubKey)
+		if err != nil {
+			return "", fmt.Errorf("failed to get token program: %w", err)
+		}
+		ata, err := n.tokenAccount.GetAssociatedTokenAddress(from, mintPubKey, tokenProgram)
+		if err != nil {
+			return "", fmt.Errorf("failed to get ATA: %w", err)
+		}
+		balance, err := n.tokenAccount.GetTokenBalance(ctx, ata)
+		if err != nil {
+			return "", fmt.Errorf("failed to get token balance: %w", err)
+		}
+		if balance < amount {
+			return "", fmt.Errorf("insufficient token balance: have %d, need %d", balance, amount)
+		}
+	}
+
 	var txBytes []byte
 	var err error
 

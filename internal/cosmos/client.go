@@ -20,6 +20,7 @@ type AccountInfo struct {
 	Address       string `json:"address"`
 	AccountNumber uint64 `json:"account_number"`
 	Sequence      uint64 `json:"sequence"`
+	Balance       uint64 `json:"balance"`
 }
 
 // BlockInfo represents Cosmos block information
@@ -81,11 +82,45 @@ func (c *Client) GetAccount(ctx context.Context, address string) (*AccountInfo, 
 		return nil, fmt.Errorf("cosmos: failed to parse sequence: %w", err)
 	}
 
+	balance, err := c.getAtomBalance(ctx, address)
+	if err != nil {
+		return nil, fmt.Errorf("cosmos: failed to get balance: %w", err)
+	}
+
 	return &AccountInfo{
 		Address:       lcdResp.Account.Address,
 		AccountNumber: accountNumber,
 		Sequence:      sequence,
+		Balance:       balance,
 	}, nil
+}
+
+type balanceResponse struct {
+	Balances []struct {
+		Denom  string `json:"denom"`
+		Amount string `json:"amount"`
+	} `json:"balances"`
+}
+
+func (c *Client) getAtomBalance(ctx context.Context, address string) (uint64, error) {
+	url := fmt.Sprintf("%s/cosmos/bank/v1beta1/balances/%s", c.baseURL, address)
+
+	balResp, err := libhttp.Call[balanceResponse](ctx, http.MethodGet, url, nil, nil, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get balance: %w", err)
+	}
+
+	for _, bal := range balResp.Balances {
+		if bal.Denom == "uatom" {
+			balance, err := strconv.ParseUint(bal.Amount, 10, 64)
+			if err != nil {
+				return 0, fmt.Errorf("failed to parse balance: %w", err)
+			}
+			return balance, nil
+		}
+	}
+
+	return 0, nil
 }
 
 // GetLatestBlock fetches the latest block information from Cosmos chain
