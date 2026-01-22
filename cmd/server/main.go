@@ -35,6 +35,8 @@ func main() {
 		logrus.Fatalf("failed to load config: %v", err)
 	}
 
+	cfg.Server.TaskQueueName = cfg.TaskQueueName
+
 	logger := logging.NewLogger(cfg.LogFormat)
 
 	// Start metrics server with HTTP metrics for server
@@ -129,7 +131,7 @@ func main() {
 		middlewares,
 		smetrics.NewNilPluginServerMetrics(),
 		logger,
-		nil,
+		nil, // safety storage not needed for DCA plugin
 	)
 
 	if cfg.Verifier.Token != "" {
@@ -149,15 +151,16 @@ func main() {
 }
 
 type config struct {
-	Mode         string `envconfig:"MODE" required:"true"`
-	LogFormat    logging.LogFormat
-	Server       server.Config
-	BlockStorage vault_config.BlockStorage
-	Postgres     plugin_config.Database
-	Redis        plugin_config.Redis
-	Metrics      metrics.Config
-	Verifier     plugin_config.Verifier
-	Rpc          rpcConfig
+	Mode          string `envconfig:"MODE" required:"true"`
+	LogFormat     logging.LogFormat
+	Server        server.Config
+	TaskQueueName string `envconfig:"TASK_QUEUE_NAME" default:"default_queue"`
+	BlockStorage  vault_config.BlockStorage
+	Postgres      plugin_config.Database
+	Redis         plugin_config.Redis
+	Metrics       metrics.Config
+	Verifier      plugin_config.Verifier
+	Rpc           rpcConfig
 }
 
 type rpcConfig struct {
