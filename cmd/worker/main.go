@@ -224,8 +224,8 @@ func main() {
 			c.chain,
 			c.rpcURL,
 			[]evm.Provider{
-				oneinch.NewProvider(oneInchClient, evmRpc, evmSdk),
 				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
+				oneinch.NewProvider(oneInchClient, evmRpc, evmSdk),
 			},
 			signerSend,
 			signerSwap,

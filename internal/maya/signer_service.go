@@ -113,6 +113,7 @@ func (s *SignerService) buildKeysignRequest(
 			PluginID:  policy.PluginID.String(),
 		},
 		Transaction: txBase64,
+		SignBytes:   base64.StdEncoding.EncodeToString(signBytes),
 	}, nil
 }
 

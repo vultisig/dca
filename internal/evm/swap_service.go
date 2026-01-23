@@ -3,9 +3,6 @@ package evm
 import (
 	"context"
 	"fmt"
-	"math/big"
-
-	"golang.org/x/sync/errgroup"
 )
 
 type swapService struct {
@@ -27,55 +24,18 @@ func (s *swapService) FindBestAmountOut(
 		return nil, fmt.Errorf("no providers available")
 	}
 
-	type providerResult struct {
-		amountOut *big.Int
-		tx        []byte
-		err       error
-	}
-	results := make([]providerResult, len(s.providers))
-
-	g, ctx := errgroup.WithContext(ctx)
-
-	for _i, _provider := range s.providers {
-		i, provider := _i, _provider
-		g.Go(func() error {
-			amountOut, tx, err := provider.MakeTx(ctx, from, to)
-
-			results[i] = providerResult{
-				amountOut: amountOut,
-				tx:        tx,
-				err:       err,
-			}
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		return nil, fmt.Errorf("errgroup failed: %w", err)
-	}
-
-	var bestTx []byte
-	var bestAmountOut = big.NewInt(0)
 	var lastErr error
-
-	for _, result := range results {
-		if result.err != nil {
-			lastErr = result.err
+	for _, provider := range s.providers {
+		_, tx, err := provider.MakeTx(ctx, from, to)
+		if err != nil {
+			lastErr = err
 			continue
 		}
-
-		if result.amountOut.Cmp(bestAmountOut) > 0 {
-			bestAmountOut = result.amountOut
-			bestTx = result.tx
-		}
+		return tx, nil
 	}
 
-	if bestTx == nil {
-		if lastErr != nil {
-			return nil, fmt.Errorf("all providers failed, last error: %w", lastErr)
-		}
-		return nil, fmt.Errorf("no valid transactions found")
+	if lastErr != nil {
+		return nil, fmt.Errorf("all providers failed, last error: %w", lastErr)
 	}
-
-	return bestTx, nil
+	return nil, fmt.Errorf("no valid transactions found")
 }
