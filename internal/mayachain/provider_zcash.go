@@ -95,9 +95,12 @@ func (p *ProviderZcash) MakeOutputs(
 		return 0, nil, fmt.Errorf("failed to parse expected amount out: %w", err)
 	}
 
-	dustThreshold, err := strconv.ParseUint(quote.DustThreshold, 10, 64)
-	if err != nil {
-		return 0, nil, fmt.Errorf("failed to parse dust threshold: %w", err)
+	var dustThreshold uint64
+	if quote.DustThreshold != "" {
+		dustThreshold, err = strconv.ParseUint(quote.DustThreshold, 10, 64)
+		if err != nil {
+			return 0, nil, fmt.Errorf("failed to parse dust threshold: %w", err)
+		}
 	}
 
 	if from.Amount < dustThreshold {

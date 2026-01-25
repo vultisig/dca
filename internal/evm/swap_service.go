@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -22,21 +23,28 @@ func (s *swapService) FindBestAmountOut(
 	ctx context.Context,
 	from From,
 	to To,
+	routePreference string,
 ) ([]byte, error) {
 	if len(s.providers) == 0 {
 		return nil, fmt.Errorf("no providers available")
+	}
+
+	providers := s.filterProviders(routePreference)
+	if len(providers) == 0 {
+		return nil, fmt.Errorf("no providers available for route preference: %s", routePreference)
 	}
 
 	type providerResult struct {
 		amountOut *big.Int
 		tx        []byte
 		err       error
+		name      string
 	}
-	results := make([]providerResult, len(s.providers))
+	results := make([]providerResult, len(providers))
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	for _i, _provider := range s.providers {
+	for _i, _provider := range providers {
 		i, provider := _i, _provider
 		g.Go(func() error {
 			amountOut, tx, err := provider.MakeTx(ctx, from, to)
@@ -45,6 +53,7 @@ func (s *swapService) FindBestAmountOut(
 				amountOut: amountOut,
 				tx:        tx,
 				err:       err,
+				name:      provider.Name(),
 			}
 			return nil
 		})
@@ -60,6 +69,10 @@ func (s *swapService) FindBestAmountOut(
 
 	for _, result := range results {
 		if result.err != nil {
+			logrus.WithFields(logrus.Fields{
+				"provider": result.name,
+				"error":    result.err.Error(),
+			}).Debug("evm swap provider failed")
 			lastErr = result.err
 			continue
 		}
@@ -78,4 +91,24 @@ func (s *swapService) FindBestAmountOut(
 	}
 
 	return bestTx, nil
+}
+
+func (s *swapService) filterProviders(routePreference string) []Provider {
+	if routePreference == "" || routePreference == "auto" {
+		return s.providers
+	}
+
+	var filtered []Provider
+	for _, p := range s.providers {
+		if p.Name() == routePreference {
+			filtered = append(filtered, p)
+		}
+	}
+
+	if len(filtered) == 0 {
+		logrus.WithField("routePreference", routePreference).Warn("no providers match route preference, falling back to all providers")
+		return s.providers
+	}
+
+	return filtered
 }

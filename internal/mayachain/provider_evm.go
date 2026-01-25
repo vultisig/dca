@@ -1,4 +1,4 @@
-package thorchain
+package mayachain
 
 import (
 	"bytes"
@@ -14,13 +14,14 @@ import (
 	"github.com/vultisig/recipes/sdk/evm"
 	"github.com/vultisig/recipes/sdk/evm/codegen/erc20"
 	"github.com/vultisig/recipes/sdk/evm/codegen/thorchain_router"
+	vcommon "github.com/vultisig/vultisig-go/common"
 )
 
 type ProviderEvm struct {
 	client   *Client
 	rpc      *ethclient.Client
 	sdk      *evm.SDK
-	chainRpc map[string]*ethclient.Client // map of chain name -> RPC client for cross-chain decimals lookup
+	chainRpc map[string]*ethclient.Client
 }
 
 func NewProviderEvm(client *Client, rpc *ethclient.Client, sdk *evm.SDK, chainRpc map[string]*ethclient.Client) *ProviderEvm {
@@ -33,16 +34,16 @@ func NewProviderEvm(client *Client, rpc *ethclient.Client, sdk *evm.SDK, chainRp
 }
 
 func (p *ProviderEvm) Name() string {
-	return "thorchain"
+	return "mayachain"
 }
 
 func (p *ProviderEvm) validateEvm(from evm_swap.From, to evm_swap.To) error {
-	_, err := parseThorNetwork(from.Chain)
+	_, err := parseMayaNetwork(from.Chain)
 	if err != nil {
 		return fmt.Errorf("unsupported 'from' chain: %w", err)
 	}
 
-	_, err = parseThorNetwork(to.Chain)
+	_, err = parseMayaNetwork(to.Chain)
 	if err != nil {
 		return fmt.Errorf("unsupported 'to' chain: %w", err)
 	}
@@ -84,9 +85,6 @@ func (p *ProviderEvm) getTargetChainRpc(chain string) (*ethclient.Client, error)
 	return rpc, nil
 }
 
-// convertDecimals converts amount from originalDecimals to desiredDecimals and returns both
-// the converted amount and the exact amount that should be used in the transaction
-// to match what was quoted for
 func convertDecimals(amount *big.Int, originalDecimals, desiredDecimals uint8) (*big.Int, *big.Int) {
 	if originalDecimals == desiredDecimals {
 		return new(big.Int).Set(amount), new(big.Int).Set(amount)
@@ -117,7 +115,7 @@ func (p *ProviderEvm) MakeTx(
 		return nil, nil, fmt.Errorf("invalid swap: %w", err)
 	}
 
-	fromThorNet, err := parseThorNetwork(from.Chain)
+	fromMayaNet, err := parseMayaNetwork(from.Chain)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unsupported from chain: %w", err)
 	}
@@ -128,9 +126,9 @@ func (p *ProviderEvm) MakeTx(
 		if er != nil {
 			return nil, nil, fmt.Errorf("failed to get native symbol: %w", er)
 		}
-		fromAsset = string(fromThorNet) + "." + nativeSymbol
+		fromAsset = string(fromMayaNet) + "." + nativeSymbol
 	} else {
-		fromAsset, err = makeThorAsset(ctx, p.client, from.Chain, from.AssetID.Hex())
+		fromAsset, err = p.makeMayaAsset(ctx, from.Chain, from.AssetID.Hex())
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to resolve from asset: %w", err)
 		}
@@ -141,36 +139,38 @@ func (p *ProviderEvm) MakeTx(
 		return nil, nil, fmt.Errorf("failed to get token decimals: %w", err)
 	}
 
-	thorAmount, exactAmount := convertDecimals(from.Amount, tokenDecimals, 8)
+	mayaAmount, exactAmount := convertDecimals(from.Amount, tokenDecimals, 8)
 
-	toAsset, err := makeThorAsset(ctx, p.client, to.Chain, to.AssetID)
+	toAsset, err := MakeMayaAsset(ctx, p.client, to.Chain, to.AssetID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to resolve to asset: %w", err)
 	}
 
-	quote, err := p.client.getQuote(ctx, quoteSwapRequest{
+	quote, err := p.client.GetQuote(ctx, QuoteSwapRequest{
 		FromAsset:         fromAsset,
 		ToAsset:           toAsset,
-		Amount:            thorAmount.String(),
+		Amount:            mayaAmount.String(),
 		Destination:       to.Address,
-		StreamingInterval: defaultStreamingInterval,
-		StreamingQuantity: defaultStreamingQuantity,
-		ToleranceBps:      defaultToleranceBps,
+		StreamingInterval: DefaultStreamingInterval,
+		StreamingQuantity: DefaultStreamingQuantity,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get quote: %w", err)
 	}
 
-	dustThreshold, err := strconv.ParseUint(quote.DustThreshold, 10, 64)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse dust threshold: %w", err)
+	var dustThreshold uint64
+	if quote.DustThreshold != "" {
+		dustThreshold, err = strconv.ParseUint(quote.DustThreshold, 10, 64)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse dust threshold: %w", err)
+		}
 	}
 
-	if thorAmount.Uint64() < dustThreshold {
+	if mayaAmount.Uint64() < dustThreshold {
 		return nil, nil, fmt.Errorf(
 			"amount %s (8-decimal: %s, exact: %s) below dust threshold %d",
 			from.Amount.String(),
-			thorAmount.String(),
+			mayaAmount.String(),
 			exactAmount.String(),
 			dustThreshold,
 		)
@@ -215,7 +215,7 @@ func (p *ProviderEvm) MakeTx(
 		routerAddr,
 		value,
 		data,
-		0, // nonceOffset: swaps don't need offset
+		0,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build tx: %w", err)
@@ -244,4 +244,74 @@ func (p *ProviderEvm) MakeTx(
 	realExpectedOut, _ := convertDecimals(expectedOut, 8, targetDecimals)
 
 	return realExpectedOut, unsignedTx, nil
+}
+
+func (p *ProviderEvm) makeMayaAsset(ctx context.Context, chain vcommon.Chain, assetHex string) (string, error) {
+	pools, err := p.client.getPools(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get pools: %w", err)
+	}
+
+	mayaNet, err := parseMayaNetwork(chain)
+	if err != nil {
+		return "", fmt.Errorf("unsupported chain: %w", err)
+	}
+
+	networkPrefix := string(mayaNet) + "."
+
+	for _, pp := range pools {
+		if len(pp.Asset) <= len(networkPrefix) {
+			continue
+		}
+		if pp.Asset[:len(networkPrefix)] != networkPrefix {
+			continue
+		}
+
+		tokenPart := pp.Asset[len(networkPrefix):]
+		dashIdx := -1
+		for i, ch := range tokenPart {
+			if ch == '-' {
+				dashIdx = i
+				break
+			}
+		}
+
+		if dashIdx == -1 {
+			continue
+		}
+
+		poolAddress := tokenPart[dashIdx+1:]
+		if len(poolAddress) > 2 && poolAddress[:2] == "0x" {
+			poolAddress = poolAddress[2:]
+		}
+		if len(assetHex) > 2 && assetHex[:2] == "0x" {
+			assetHex = assetHex[2:]
+		}
+
+		if len(poolAddress) != len(assetHex) {
+			continue
+		}
+
+		match := true
+		for i := 0; i < len(poolAddress); i++ {
+			c1 := poolAddress[i]
+			c2 := assetHex[i]
+			if c1 >= 'A' && c1 <= 'Z' {
+				c1 = c1 + 32
+			}
+			if c2 >= 'A' && c2 <= 'Z' {
+				c2 = c2 + 32
+			}
+			if c1 != c2 {
+				match = false
+				break
+			}
+		}
+
+		if match {
+			return pp.Asset, nil
+		}
+	}
+
+	return "", fmt.Errorf("asset not found in MayaChain pools for chain %s and asset %s", mayaNet, assetHex)
 }

@@ -42,10 +42,18 @@ func (s *SignerService) SignAndBroadcast(
 	txData []byte,
 	pubKey []byte,
 ) (string, error) {
+	previewLen := len(txData)
+	if previewLen > 100 {
+		previewLen = 100
+	}
+	fmt.Printf("[TRON SIGNER DEBUG] SignAndBroadcast called with %d bytes: %s\n", len(txData), hex.EncodeToString(txData[:previewLen]))
+
 	keysignRequest, err := s.buildKeysignRequest(ctx, policy, txData)
 	if err != nil {
 		return "", fmt.Errorf("tron: failed to build keysign request: %w", err)
 	}
+
+	fmt.Printf("[TRON SIGNER DEBUG] keysignRequest.Transaction length: %d\n", len(keysignRequest.Transaction))
 
 	signatures, err := s.signer.Sign(ctx, keysignRequest)
 	if err != nil {

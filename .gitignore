@@ -1,2 +1,5 @@
 .idea
 .serena
+scheduler
+tx_indexer
+worker

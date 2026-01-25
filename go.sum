@@ -1006,8 +1006,8 @@ github.com/valyala/fasttemplate v1.2.2 h1:lxLXG0uE3Qnshl9QyaK6XJxMXlQZELvChBOCmQ
 github.com/valyala/fasttemplate v1.2.2/go.mod h1:KHLXt3tVN2HBp8eijSv/kGJopbvo7S+qRAEEKiv+SiQ=
 github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778 h1:XJ1hoo37JKGLmfxD4wYhXO8TJFBdUBnbxxK+zagJ4c4=
 github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778/go.mod h1:UMc5q0Myab+BvzAe67UQrXTXwKGYNxK7bky7DJM+dl8=
-github.com/vultisig/go-wrappers v0.0.0-20260106233302-7e12f0dd6a93 h1:gQr4sjxsRr8MzdgPB/HEVK2bHg/vOhV/H+igsYbYPz8=
-github.com/vultisig/go-wrappers v0.0.0-20260106233302-7e12f0dd6a93/go.mod h1:vEP0x0RmNlghWxfalt13FvVsBwmobSwimMhJxGfqCD4=
+github.com/vultisig/go-wrappers v0.0.0-20260116015747-e12e4d06cf57 h1:ZFlNC4JuaYlURN99W8xizSvOMyMppIkcCf3fEcpTnvo=
+github.com/vultisig/go-wrappers v0.0.0-20260116015747-e12e4d06cf57/go.mod h1:vEP0x0RmNlghWxfalt13FvVsBwmobSwimMhJxGfqCD4=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4nQ/NEVIb3OPP9SUx7/u9ZfsUIcd5fIN/e4DVU=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
 github.com/vultisig/recipes v0.0.0-20260120151228-f8985632c2e0 h1:AiJ2q7M/18pQn2YiaeClCwUtwoA8ZVDxIDp1lHZJBto=

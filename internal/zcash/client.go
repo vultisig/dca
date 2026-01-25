@@ -3,7 +3,9 @@ package zcash
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -12,13 +14,17 @@ import (
 
 // Client handles Zcash blockchain interactions via Blockchair API
 type Client struct {
-	url string
+	url        string
+	httpClient *http.Client
 }
 
 // NewClient creates a new Zcash client with the given Blockchair URL
 func NewClient(url string) *Client {
 	return &Client{
 		url: url,
+		httpClient: &http.Client{
+			Timeout: 45 * time.Second,
+		},
 	}
 }
 
@@ -95,20 +101,44 @@ func (c *Client) GetUnspent(ctx context.Context, address string) <-chan UnspentR
 		offset := 0
 		const limit = 50
 		for ctx.Err() == nil {
-			batch, err := libhttp.Call[addrInfoResponse](
-				ctx,
-				http.MethodGet,
-				c.url+"/zcash/dashboards/address/"+address,
-				nil,
-				nil,
-				map[string]string{
-					"offset": fmt.Sprintf("%d", offset),
-					"limit":  fmt.Sprintf("0,%d", limit),
-				},
-			)
+			url := fmt.Sprintf("%s/zcash/dashboards/address/%s?offset=%d&limit=0,%d", c.url, address, offset, limit)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			if err != nil {
+				ch <- UnspentResponse{
+					Err: fmt.Errorf("zcash: failed to create request: %w", err),
+				}
+				return
+			}
+
+			resp, err := c.httpClient.Do(req)
 			if err != nil {
 				ch <- UnspentResponse{
 					Err: fmt.Errorf("zcash: failed to fetch address info: %w", err),
+				}
+				return
+			}
+
+			body, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				ch <- UnspentResponse{
+					Err: fmt.Errorf("zcash: failed to read response: %w", err),
+				}
+				return
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				ch <- UnspentResponse{
+					Err: fmt.Errorf("zcash: API returned status %d: %s", resp.StatusCode, string(body)),
+				}
+				return
+			}
+
+			var batch addrInfoResponse
+			err = json.Unmarshal(body, &batch)
+			if err != nil {
+				ch <- UnspentResponse{
+					Err: fmt.Errorf("zcash: failed to parse response: %w", err),
 				}
 				return
 			}
@@ -190,16 +220,31 @@ func (c *Client) BroadcastTransaction(signedTx []byte) (string, error) {
 
 // GetAddressBalance returns the balance of an address in zatoshis
 func (c *Client) GetAddressBalance(ctx context.Context, address string) (int64, error) {
-	batch, err := libhttp.Call[addrInfoResponse](
-		ctx,
-		http.MethodGet,
-		c.url+"/zcash/dashboards/address/"+address,
-		nil,
-		nil,
-		nil,
-	)
+	url := c.url + "/zcash/dashboards/address/" + address
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("zcash: failed to create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("zcash: failed to fetch address info: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("zcash: failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("zcash: API returned status %d", resp.StatusCode)
+	}
+
+	var batch addrInfoResponse
+	err = json.Unmarshal(body, &batch)
+	if err != nil {
+		return 0, fmt.Errorf("zcash: failed to parse response: %w", err)
 	}
 
 	val, ok := batch.Data[address]
