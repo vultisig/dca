@@ -106,8 +106,7 @@ func (s *swapService) filterProviders(routePreference string) []Provider {
 	}
 
 	if len(filtered) == 0 {
-		logrus.WithField("routePreference", routePreference).Warn("no providers match route preference, falling back to all providers")
-		return s.providers
+		return nil // Return empty to enforce strict route preference
 	}
 
 	return filtered
