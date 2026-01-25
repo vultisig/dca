@@ -77,20 +77,20 @@ func (s *swapService) FindBestAmountOut(
 			continue
 		}
 
-		if result.amountOut.Cmp(bestAmountOut) > 0 {
+		if result.amountOut != nil && result.amountOut.Cmp(bestAmountOut) > 0 {
 			bestAmountOut = result.amountOut
 			bestTx = result.tx
 		}
 	}
 
-	if bestTx == nil {
-		if lastErr != nil {
-			return nil, fmt.Errorf("all providers failed, last error: %w", lastErr)
-		}
-		return nil, fmt.Errorf("no valid transactions found")
+	if bestTx != nil {
+		return bestTx, nil
 	}
 
-	return bestTx, nil
+	if lastErr != nil {
+		return nil, fmt.Errorf("all providers failed, last error: %w", lastErr)
+	}
+	return nil, fmt.Errorf("no valid transactions found")
 }
 
 func (s *swapService) filterProviders(routePreference string) []Provider {
