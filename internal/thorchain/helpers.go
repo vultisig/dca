@@ -5,12 +5,19 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/vultisig/vultisig-go/common"
 )
 
 func makeThorAsset(ctx context.Context, client *Client, chain common.Chain, asset string) (string, error) {
+	logrus.WithFields(logrus.Fields{
+		"chain": chain.String(),
+		"asset": asset,
+	}).Debug("makeThorAsset called")
+
 	thorNet, err := parseThorNetwork(chain)
 	if err != nil {
+		logrus.WithError(err).WithField("chain", chain.String()).Error("makeThorAsset: unsupported chain")
 		return "", fmt.Errorf("unsupported chain: %w", err)
 	}
 
@@ -33,6 +40,12 @@ func makeThorAsset(ctx context.Context, client *Client, chain common.Chain, asse
 
 	networkPrefix := string(thorNet) + "."
 	targetAsset := strings.ToUpper(asset)
+
+	logrus.WithFields(logrus.Fields{
+		"networkPrefix": networkPrefix,
+		"targetAsset":   targetAsset,
+		"poolCount":     len(pools),
+	}).Debug("makeThorAsset: searching pools")
 
 	for _, pp := range pools {
 		// Check if pool belongs to our network
@@ -65,5 +78,10 @@ func makeThorAsset(ctx context.Context, client *Client, chain common.Chain, asse
 		}
 	}
 
+	logrus.WithFields(logrus.Fields{
+		"chain":  thorNet,
+		"asset":  asset,
+		"target": targetAsset,
+	}).Warn("makeThorAsset: asset not found in pools")
 	return "", fmt.Errorf("asset not found in THORChain pools for chain %s and asset %s", thorNet, asset)
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
 	tronSdk "github.com/vultisig/recipes/sdk/tron"
 	"github.com/vultisig/verifier/plugin/keysign"
 	"github.com/vultisig/verifier/plugin/tx_indexer"
@@ -42,10 +43,21 @@ func (s *SignerService) SignAndBroadcast(
 	txData []byte,
 	pubKey []byte,
 ) (string, error) {
+	previewLen := len(txData)
+	if previewLen > 100 {
+		previewLen = 100
+	}
+	logrus.WithFields(logrus.Fields{
+		"txDataLen": len(txData),
+		"preview":   hex.EncodeToString(txData[:previewLen]),
+	}).Debug("tron: SignAndBroadcast called")
+
 	keysignRequest, err := s.buildKeysignRequest(ctx, policy, txData)
 	if err != nil {
 		return "", fmt.Errorf("tron: failed to build keysign request: %w", err)
 	}
+
+	logrus.WithField("transactionLen", len(keysignRequest.Transaction)).Debug("tron: keysign request built")
 
 	signatures, err := s.signer.Sign(ctx, keysignRequest)
 	if err != nil {

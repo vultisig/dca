@@ -18,7 +18,7 @@ func TestProviderRune_MakeTransaction_RUNEtoETH(t *testing.T) {
 
 	from := rune_swap.From{
 		Address:       "thor1ujn87mrfqqw4aksn9w8ggfl2zfaypdgxhax0qj",
-		Amount:        1000000000,
+		Amount:        2000000000, // 20 RUNE - above minimum swap amount
 		PubKey:        "02e5e2b8d8f1a6d3b9c7e1f3a2b4c6d8e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6",
 		AccountNumber: 123456,
 		Sequence:      0,
@@ -61,7 +61,7 @@ func TestProviderRune_MakeTransaction_RUNEtoBTC(t *testing.T) {
 
 	from := rune_swap.From{
 		Address:       "thor1ujn87mrfqqw4aksn9w8ggfl2zfaypdgxhax0qj",
-		Amount:        1000000000,
+		Amount:        2000000000, // 20 RUNE - above minimum swap amount
 		PubKey:        "02e5e2b8d8f1a6d3b9c7e1f3a2b4c6d8e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6",
 		AccountNumber: 123456,
 		Sequence:      0,

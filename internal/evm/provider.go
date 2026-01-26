@@ -23,6 +23,7 @@ type To struct {
 }
 
 type Provider interface {
+	Name() string
 	MakeTx(
 		ctx context.Context,
 		from From,

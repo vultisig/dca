@@ -13,6 +13,13 @@ import (
 	"github.com/vultisig/vultisig-go/common"
 )
 
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // TronTxBuilder interface for building TRON transactions with memos
 type TronTxBuilder interface {
 	CreateTransactionWithMemo(ctx context.Context, from, to string, amount int64, memo string) ([]byte, error)
@@ -144,6 +151,7 @@ func (p *ProviderTron) MakeTransaction(
 		return nil, 0, fmt.Errorf("[TRON] failed to parse expected amount out: %w", err)
 	}
 
+	fmt.Printf("[TRON PROVIDER DEBUG] MakeTransaction returning %d bytes: %s\n", len(txData), hex.EncodeToString(txData[:minInt(len(txData), 100)]))
 	return txData, expectedOut, nil
 }
 
@@ -178,6 +186,13 @@ func (b *TronSDKTxBuilder) CreateTransactionWithMemo(
 	})
 	if err != nil {
 		return nil, fmt.Errorf("tron: failed to create transaction: %w", err)
+	}
+
+	fmt.Printf("[TRON TX BUILDER DEBUG] CreateTransaction response: TxID=%s, RawDataHex len=%d\n", tx.TxID, len(tx.RawDataHex))
+
+	// Check for empty response - this can happen if insufficient balance or API error
+	if tx.RawDataHex == "" {
+		return nil, fmt.Errorf("tron: TRON API returned empty RawDataHex (may indicate insufficient balance)")
 	}
 
 	// Decode raw_data_hex

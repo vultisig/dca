@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/btcsuite/btcd/btcutil"
@@ -46,9 +47,10 @@ import (
 )
 
 const (
-	fromAsset  = "from"
-	fromAmount = "fromAmount"
-	toAsset    = "to"
+	fromAsset       = "from"
+	fromAmount      = "fromAmount"
+	toAsset         = "to"
+	routePreference = "routePreference"
 )
 
 // Recipient holds the parsed data for a single send recipient
@@ -59,16 +61,17 @@ type Recipient struct {
 
 // parsedConfig holds the parsed configuration from either send or swap schema
 type parsedConfig struct {
-	FromChain    common.Chain
-	FromChainStr string
-	FromAsset    string
-	FromAddress  string
-	FromAmount   string
-	ToChainStr   string
-	ToAsset      string
-	ToAddress    string
-	ToAssetMap   map[string]any
-	IsSend       bool
+	FromChain       common.Chain
+	FromChainStr    string
+	FromAsset       string
+	FromAddress     string
+	FromAmount      string
+	ToChainStr      string
+	ToAsset         string
+	ToAddress       string
+	ToAssetMap      map[string]any
+	IsSend          bool
+	RoutePreference string
 
 	// Recipients holds all parsed recipients for send operations.
 	// Chain handlers can use this for multi-recipient support,
@@ -200,17 +203,20 @@ func parseSwapConfig(cfg map[string]any) (*parsedConfig, error) {
 
 	isSend := fromChainStr == toChainStr && fromAssetToken == toAssetToken && fromAddressStr != toAddressStr
 
+	routePref := util.GetStr(cfg, routePreference)
+
 	return &parsedConfig{
-		FromChain:    fromChain,
-		FromChainStr: fromChainStr,
-		FromAsset:    fromAssetToken,
-		FromAddress:  fromAddressStr,
-		FromAmount:   fromAmountStr,
-		ToChainStr:   toChainStr,
-		ToAsset:      toAssetToken,
-		ToAddress:    toAddressStr,
-		ToAssetMap:   toAssetMap,
-		IsSend:       isSend,
+		FromChain:       fromChain,
+		FromChainStr:    fromChainStr,
+		FromAsset:       fromAssetToken,
+		FromAddress:     fromAddressStr,
+		FromAmount:      fromAmountStr,
+		ToChainStr:      toChainStr,
+		ToAsset:         toAssetToken,
+		ToAddress:       toAddressStr,
+		ToAssetMap:      toAssetMap,
+		IsSend:          isSend,
+		RoutePreference: routePref,
 	}, nil
 }
 
@@ -507,7 +513,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 	}
 
 	if pcfg.FromChain == common.Tron {
-		er := c.handleTronSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
+		er := c.handleTronSwap(ctx, pol, pcfg.ToAssetMap, pcfg.FromAsset, pcfg.FromAmount, pcfg.ToAsset, pcfg.ToAddress)
 		if er != nil {
 			return fmt.Errorf("failed to handle Tron swap: %w", er)
 		}
@@ -533,6 +539,7 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		pcfg.FromAmount,
 		pcfg.ToAsset,
 		pcfg.ToAddress,
+		pcfg.RoutePreference,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to handle EVM swap: %w", err)
@@ -555,20 +562,39 @@ func (c *Consumer) Handle(_ context.Context, t *asynq.Task) error {
 		policyID = trigger.PolicyID.String()
 	}
 
-	// Record policy execution metrics
-	success := err == nil
-	if c.metrics != nil {
-		c.metrics.RecordPolicyExecution(policyID, success, duration)
-	}
-
 	if err != nil {
+		if isInsufficientBalanceError(err) {
+			c.logger.WithFields(logrus.Fields{
+				"policyID": policyID,
+				"error":    err.Error(),
+			}).Warn("skipping execution: insufficient balance (no retry until next scheduled run)")
+			if c.metrics != nil {
+				c.metrics.RecordPolicyExecution(policyID, false, duration)
+			}
+			return asynq.SkipRetry
+		}
+
 		c.logger.WithError(err).Error("failed to handle trigger")
 		if c.metrics != nil {
+			c.metrics.RecordPolicyExecution(policyID, false, duration)
 			c.metrics.RecordError(metrics.ErrorTypeExecution)
 		}
 		return asynq.SkipRetry
 	}
+	if c.metrics != nil {
+		c.metrics.RecordPolicyExecution(policyID, true, duration)
+	}
 	return nil
+}
+
+func isInsufficientBalanceError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "insufficient balance") ||
+		strings.Contains(errStr, "insufficient funds") ||
+		strings.Contains(errStr, "not enough balance")
 }
 
 func (c *Consumer) evmPubToAddress(chain common.Chain, pub string, pluginID string) (ecommon.Address, error) {
@@ -1078,6 +1104,7 @@ func (c *Consumer) handleEvmSwap(
 	toAssetMap map[string]any,
 	fromChain common.Chain,
 	fromAsset, fromAmount, toAsset, toAddress string,
+	routePreference string,
 ) error {
 	fromAssetTyped := ecommon.HexToAddress(fromAsset)
 	fromAddressTyped, err := c.evmPubToAddress(fromChain, pol.PublicKey, string(pol.PluginID))
@@ -1178,6 +1205,7 @@ func (c *Consumer) handleEvmSwap(
 			AssetID: toAsset,
 			Address: toAddress,
 		},
+		routePreference,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to build swap tx: %w", err)
@@ -2628,7 +2656,7 @@ func (c *Consumer) handleTronSwap(
 	ctx context.Context,
 	pol *types.PluginPolicy,
 	toAssetMap map[string]any,
-	fromAmount, toAsset, toAddress string,
+	fromAsset, fromAmount, toAsset, toAddress string,
 ) error {
 	fromAddressStr, pubKeyBytes, err := c.tronPubToAddress(pol.PublicKey, string(pol.PluginID))
 	if err != nil {
@@ -2652,6 +2680,7 @@ func (c *Consumer) handleTronSwap(
 
 	from := tron.From{
 		Address: fromAddressStr,
+		AssetID: fromAsset,
 		Amount:  fromAmountSun,
 		PubKey:  hex.EncodeToString(pubKeyBytes),
 	}
@@ -2665,6 +2694,7 @@ func (c *Consumer) handleTronSwap(
 	c.logger.WithFields(logrus.Fields{
 		"policyID":    pol.ID.String(),
 		"fromAddress": fromAddressStr,
+		"fromAsset":   fromAsset,
 		"fromAmount":  fromAmountSun,
 		"toChain":     toChainTyped.String(),
 		"toAsset":     toAsset,
