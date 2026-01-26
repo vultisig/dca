@@ -71,10 +71,10 @@ jobs:
         run: |
           owner="${{ github.repository_owner }}"
           repo="${{ github.event.repository.name }}"
-          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fserver/visibility" -f visibility=public
-          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fscheduler/visibility" -f visibility=public
-          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fworker/visibility" -f visibility=public
-          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Ftx_indexer/visibility" -f visibility=public
+          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fserver/visibility" -f visibility=public || true
+          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fscheduler/visibility" -f visibility=public || true
+          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Fworker/visibility" -f visibility=public || true
+          gh api -X PATCH "/orgs/${owner}/packages/container/${repo}%2Ftx_indexer/visibility" -f visibility=public || true
 
   deploy:
     needs: [build-server, build-scheduler, build-worker, build-tx-indexer, set-public]
