@@ -122,6 +122,8 @@ VERIFIER_PARTYPREFIX="verifier"
 RPC_ETHEREUM_URL="https://ethereum-rpc.publicnode.com"
 RPC_ARBITRUM_URL="https://arbitrum-rpc.publicnode.com"
 RPC_AVALANCHE_URL="https://avalanche-c-chain-rpc.publicnode.com"
+RPC_DASH_URL="https://dash-rpc.publicnode.com"
+RPC_MAYACHAIN_URL="https://mayanode.mayachain.info"
 # ... (other chains)
 ```
 

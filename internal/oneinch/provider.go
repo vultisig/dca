@@ -27,6 +27,10 @@ func NewProvider(client *Client, rpc *ethclient.Client, sdk *evm.SDK) *Provider 
 	}
 }
 
+func (p *Provider) Name() string {
+	return "1inch"
+}
+
 func (p *Provider) validateSwap(from evm_swap.From, to evm_swap.To) error {
 	if !from.Chain.IsEvm() {
 		return fmt.Errorf("from chain %s is not EVM", from.Chain.String())

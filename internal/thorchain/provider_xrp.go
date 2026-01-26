@@ -133,10 +133,16 @@ func (p *ProviderXrp) MakeTransaction(
 		return nil, 0, fmt.Errorf("[XRP] failed to convert to thor asset: %w", err)
 	}
 
+	// Convert XRP drops (6 decimals) to THORChain units (8 decimals)
+	// XRP: 1 XRP = 1,000,000 drops (10^6)
+	// THORChain: uses 8 decimals for all assets
+	// Multiply by 100 (10^2) to convert: 10^6 * 10^2 = 10^8
+	thorchainAmount := from.Amount * 100
+
 	quote, err := p.client.getQuote(ctx, quoteSwapRequest{
 		FromAsset:         fromAsset,
 		ToAsset:           toAsset,
-		Amount:            fmt.Sprintf("%d", from.Amount),
+		Amount:            fmt.Sprintf("%d", thorchainAmount),
 		Destination:       to.Address,
 		StreamingInterval: defaultStreamingInterval,
 		StreamingQuantity: defaultStreamingQuantity,

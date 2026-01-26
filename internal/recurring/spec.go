@@ -24,6 +24,7 @@ var supportedChains = []common.Chain{
 	common.Litecoin,
 	common.Dogecoin,
 	common.BitcoinCash,
+	common.Dash,
 	common.Solana,
 	common.XRP,
 	common.Zcash,

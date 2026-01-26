@@ -207,6 +207,11 @@ func main() {
 		{common.CronosChain, cfg.Rpc.Cronos.URL},
 	}
 
+	// Build chain RPC map for cross-chain token decimals lookup
+	chainRpcMap := make(map[string]*ethclient.Client)
+	evmRpcClients := make(map[common.Chain]*ethclient.Client)
+	evmSdks := make(map[common.Chain]*evmsdk.SDK)
+
 	for _, c := range networkConfigs {
 		evmID, er := c.chain.EvmID()
 		if er != nil {
@@ -218,14 +223,23 @@ func main() {
 			logger.Fatalf("failed to create rpc client: %s %v", c.chain.String(), er)
 		}
 
-		evmSdk := evmsdk.NewSDK(evmID, evmRpc, evmRpc.Client())
+		chainRpcMap[c.chain.String()] = evmRpc
+		evmRpcClients[c.chain] = evmRpc
+		evmSdks[c.chain] = evmsdk.NewSDK(evmID, evmRpc, evmRpc.Client())
+	}
+
+	for _, c := range networkConfigs {
+		evmRpc := evmRpcClients[c.chain]
+		evmSdk := evmSdks[c.chain]
+		mayachainEvmClient := mayachain.NewClient(cfg.MayaChain.URL)
 		network, er := evm.NewNetwork(
 			ctx,
 			c.chain,
 			c.rpcURL,
 			[]evm.Provider{
-				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk),
 				oneinch.NewProvider(oneInchClient, evmRpc, evmSdk),
+				thorchain.NewProviderEvm(thorchainClient, evmRpc, evmSdk, chainRpcMap),
+				mayachain.NewProviderEvm(mayachainEvmClient, evmRpc, evmSdk, chainRpcMap),
 			},
 			signerSend,
 			signerSwap,

@@ -232,7 +232,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/vultisig/commondata v0.0.0-20250710214228-61d9ed8f7778 // indirect
-	github.com/vultisig/go-wrappers v0.0.0-20260106233302-7e12f0dd6a93 // indirect
+	github.com/vultisig/go-wrappers v0.0.0-20260116015747-e12e4d06cf57 // indirect
 	github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 // indirect
 	github.com/zondax/hid v0.9.2 // indirect
 	github.com/zondax/ledger-go v0.14.3 // indirect
