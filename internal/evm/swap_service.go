@@ -23,16 +23,12 @@ func (s *swapService) FindBestAmountOut(
 	ctx context.Context,
 	from From,
 	to To,
-	routePreference string,
 ) ([]byte, error) {
 	if len(s.providers) == 0 {
 		return nil, fmt.Errorf("no providers available")
 	}
 
-	providers := s.filterProviders(routePreference)
-	if len(providers) == 0 {
-		return nil, fmt.Errorf("no providers available for route preference: %s", routePreference)
-	}
+	providers := s.providers
 
 	type providerResult struct {
 		amountOut *big.Int
@@ -65,8 +61,10 @@ func (s *swapService) FindBestAmountOut(
 
 	var bestTx []byte
 	var bestAmountOut = big.NewInt(0)
+	var bestProvider string
 	var lastErr error
 
+	// Log all provider results for debugging
 	for _, result := range results {
 		if result.err != nil {
 			logrus.WithFields(logrus.Fields{
@@ -77,13 +75,23 @@ func (s *swapService) FindBestAmountOut(
 			continue
 		}
 
+		logrus.WithFields(logrus.Fields{
+			"provider":  result.name,
+			"amountOut": result.amountOut.String(),
+		}).Debug("evm swap provider succeeded")
+
 		if result.amountOut != nil && result.amountOut.Cmp(bestAmountOut) > 0 {
 			bestAmountOut = result.amountOut
 			bestTx = result.tx
+			bestProvider = result.name
 		}
 	}
 
 	if bestTx != nil {
+		logrus.WithFields(logrus.Fields{
+			"selectedProvider": bestProvider,
+			"bestAmountOut":    bestAmountOut.String(),
+		}).Info("selected best swap provider")
 		return bestTx, nil
 	}
 
@@ -91,23 +99,4 @@ func (s *swapService) FindBestAmountOut(
 		return nil, fmt.Errorf("all providers failed, last error: %w", lastErr)
 	}
 	return nil, fmt.Errorf("no valid transactions found")
-}
-
-func (s *swapService) filterProviders(routePreference string) []Provider {
-	if routePreference == "" || routePreference == "auto" {
-		return s.providers
-	}
-
-	var filtered []Provider
-	for _, p := range s.providers {
-		if p.Name() == routePreference {
-			filtered = append(filtered, p)
-		}
-	}
-
-	if len(filtered) == 0 {
-		return nil // Return empty to enforce strict route preference
-	}
-
-	return filtered
 }
