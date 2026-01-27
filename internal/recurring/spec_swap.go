@@ -288,20 +288,6 @@ func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.
 		})
 	}
 
-	routePref := util.GetStr(cfg, routePreference)
-	if routePref != "" && routePref != "auto" {
-		constraints = append(constraints, &rtypes.ParameterConstraint{
-			ParameterName: "route_preference",
-			Constraint: &rtypes.Constraint{
-				Type: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-				Value: &rtypes.Constraint_FixedValue{
-					FixedValue: routePref,
-				},
-				Required: false,
-			},
-		})
-	}
-
 	return &rtypes.Rule{
 		Resource:             fromChainLowercase + ".swap",
 		Effect:               rtypes.Effect_EFFECT_ALLOW,
@@ -347,12 +333,6 @@ func (s *SwapSpec) GetRecipeSpecification() (*rtypes.RecipeSchema, error) {
 					biWeekly,
 					monthly,
 				},
-			},
-			routePreference: map[string]any{
-				"type":        "string",
-				"enum":        []any{"auto", "thorchain", "mayachain"},
-				"default":     "auto",
-				"description": "Preferred swap route. 'auto' uses default priority (TC→Maya→1inch).",
 			},
 		},
 		"required": []any{
@@ -470,11 +450,6 @@ func (s *SwapSpec) buildSupportedResources() []*rtypes.ResourcePattern {
 				},
 				{
 					ParameterName:  "to_token_program",
-					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
-					Required:       false,
-				},
-				{
-					ParameterName:  "route_preference",
 					SupportedTypes: rtypes.ConstraintType_CONSTRAINT_TYPE_FIXED,
 					Required:       false,
 				},
