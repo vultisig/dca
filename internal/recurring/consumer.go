@@ -47,10 +47,9 @@ import (
 )
 
 const (
-	fromAsset       = "from"
-	fromAmount      = "fromAmount"
-	toAsset         = "to"
-	routePreference = "routePreference"
+	fromAsset  = "from"
+	fromAmount = "fromAmount"
+	toAsset    = "to"
 )
 
 // Recipient holds the parsed data for a single send recipient
@@ -61,17 +60,16 @@ type Recipient struct {
 
 // parsedConfig holds the parsed configuration from either send or swap schema
 type parsedConfig struct {
-	FromChain       common.Chain
-	FromChainStr    string
-	FromAsset       string
-	FromAddress     string
-	FromAmount      string
-	ToChainStr      string
-	ToAsset         string
-	ToAddress       string
-	ToAssetMap      map[string]any
-	IsSend          bool
-	RoutePreference string
+	FromChain    common.Chain
+	FromChainStr string
+	FromAsset    string
+	FromAddress  string
+	FromAmount   string
+	ToChainStr   string
+	ToAsset      string
+	ToAddress    string
+	ToAssetMap   map[string]any
+	IsSend       bool
 
 	// Recipients holds all parsed recipients for send operations.
 	// Chain handlers can use this for multi-recipient support,
@@ -203,20 +201,17 @@ func parseSwapConfig(cfg map[string]any) (*parsedConfig, error) {
 
 	isSend := fromChainStr == toChainStr && fromAssetToken == toAssetToken && fromAddressStr != toAddressStr
 
-	routePref := util.GetStr(cfg, routePreference)
-
 	return &parsedConfig{
-		FromChain:       fromChain,
-		FromChainStr:    fromChainStr,
-		FromAsset:       fromAssetToken,
-		FromAddress:     fromAddressStr,
-		FromAmount:      fromAmountStr,
-		ToChainStr:      toChainStr,
-		ToAsset:         toAssetToken,
-		ToAddress:       toAddressStr,
-		ToAssetMap:      toAssetMap,
-		IsSend:          isSend,
-		RoutePreference: routePref,
+		FromChain:    fromChain,
+		FromChainStr: fromChainStr,
+		FromAsset:    fromAssetToken,
+		FromAddress:  fromAddressStr,
+		FromAmount:   fromAmountStr,
+		ToChainStr:   toChainStr,
+		ToAsset:      toAssetToken,
+		ToAddress:    toAddressStr,
+		ToAssetMap:   toAssetMap,
+		IsSend:       isSend,
 	}, nil
 }
 
@@ -539,7 +534,6 @@ func (c *Consumer) handle(ctx context.Context, t *asynq.Task) error {
 		pcfg.FromAmount,
 		pcfg.ToAsset,
 		pcfg.ToAddress,
-		pcfg.RoutePreference,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to handle EVM swap: %w", err)
@@ -1104,7 +1098,6 @@ func (c *Consumer) handleEvmSwap(
 	toAssetMap map[string]any,
 	fromChain common.Chain,
 	fromAsset, fromAmount, toAsset, toAddress string,
-	routePreference string,
 ) error {
 	fromAssetTyped := ecommon.HexToAddress(fromAsset)
 	fromAddressTyped, err := c.evmPubToAddress(fromChain, pol.PublicKey, string(pol.PluginID))
@@ -1205,7 +1198,6 @@ func (c *Consumer) handleEvmSwap(
 			AssetID: toAsset,
 			Address: toAddress,
 		},
-		routePreference,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to build swap tx: %w", err)
