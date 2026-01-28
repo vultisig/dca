@@ -105,7 +105,11 @@ func ValidateAssetRoute(
 	}
 
 	if lastErr != nil {
-		return fmt.Errorf("destination asset not available: %w", lastErr)
+		assetDesc := "native"
+		if toAsset != "" {
+			assetDesc = toAsset
+		}
+		return fmt.Errorf("route %s → %s (%s): destination asset not available: %w", fromChain, toChain, assetDesc, lastErr)
 	}
 	return fmt.Errorf("no provider supports %s → %s", fromChain, toChain)
 }
