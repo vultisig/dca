@@ -75,9 +75,10 @@ func TestValidateAssetPool_TokenAvailable(t *testing.T) {
 	assert.NoError(t, err, "ETH USDC should be available")
 }
 
-func TestValidateAssetPool_TokenStaged(t *testing.T) {
+func TestValidateAssetPool_ArbitrumNotSupported(t *testing.T) {
+	// Pool data is irrelevant - Arbitrum is not supported on THORChain (only MayaChain)
 	pools := poolsResponse{
-		{Asset: "ARB.ARB", Status: "Staged"},
+		{Asset: "ARB.ETH", Status: "Staged"},
 	}
 	server := mockPoolsServer(t, pools)
 	defer server.Close()
@@ -85,9 +86,7 @@ func TestValidateAssetPool_TokenStaged(t *testing.T) {
 	client := NewClient(server.URL)
 	ctx := context.Background()
 
-	// For native ARB token on THORChain (if it existed)
 	err := client.ValidateAssetPool(ctx, common.Arbitrum, "")
-	// ARB is not on THORChain, so parseThorNetwork will fail
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "chain not supported")
 }

@@ -25,6 +25,8 @@ func TestChainRouteCapabilities(t *testing.T) {
 		common.Blast,
 		common.Optimism,
 		common.Polygon,
+		common.Zksync,
+		common.CronosChain,
 		common.Bitcoin,
 		common.Litecoin,
 		common.Dogecoin,

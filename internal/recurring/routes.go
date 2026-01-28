@@ -35,9 +35,11 @@ var chainRouteCapabilities = map[common.Chain]ChainRouteCapability{
 	common.Base:      {ThorChainEnabled: true, MayaChainEnabled: false},
 
 	// EVM chains with no cross-chain support (1inch same-chain only)
-	common.Blast:    {SameChainOnly: true},
-	common.Optimism: {SameChainOnly: true},
-	common.Polygon:  {SameChainOnly: true},
+	common.Blast:       {SameChainOnly: true},
+	common.Optimism:    {SameChainOnly: true},
+	common.Polygon:     {SameChainOnly: true},
+	common.Zksync:      {SameChainOnly: true},
+	common.CronosChain: {SameChainOnly: true},
 
 	// Bitcoin - has both THORChain and MayaChain providers
 	common.Bitcoin: {ThorChainEnabled: true, MayaChainEnabled: true},
