@@ -30,7 +30,7 @@ func TestValidateAssetPool_NativeAvailable(t *testing.T) {
 
 func TestValidateAssetPool_NativeStaged(t *testing.T) {
 	pools := poolsResponse{
-		{Asset: "ARB.ARB", Status: "Staged"},
+		{Asset: "ARB.ETH", Status: "Staged"},
 	}
 	server := mockPoolsServer(t, pools)
 	defer server.Close()
