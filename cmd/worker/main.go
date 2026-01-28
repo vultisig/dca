@@ -276,10 +276,11 @@ func main() {
 		xrpClient,
 	)
 
-	// Initialize MayaChain client for Zcash and Dash swaps
+	// Initialize MayaChain client for Zcash, Dash, and Bitcoin swaps
 	mayachainClient := mayachain.NewClient(cfg.MayaChain.URL)
 	mayachainZcash := mayachain.NewProviderZcash(mayachainClient)
 	mayachainDash := mayachain.NewProviderDash(mayachainClient)
+	mayachainBtc := mayachain.NewProviderBtc(mayachainClient)
 
 	// Initialize Zcash network
 	zcashClient := zcash.NewClient(cfg.ZEC.BlockchairURL)
@@ -430,7 +431,7 @@ func main() {
 		evm.NewManager(networks),
 		btc.NewNetwork(
 			thorchainBtc,
-			btc.NewSwapService([]btc.SwapProvider{thorchainBtc}),
+			btc.NewSwapService([]btc.SwapProvider{thorchainBtc, mayachainBtc}),
 			btc.NewSendService(),
 			btc.NewSignerService(btcsdk.NewSDK(blockchairBtcClient), signerSend, txIndexerService),
 			btc.NewSignerService(btcsdk.NewSDK(blockchairBtcClient), signerSwap, txIndexerService),
