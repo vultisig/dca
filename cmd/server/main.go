@@ -11,8 +11,10 @@ import (
 
 	"github.com/vultisig/app-recurring/internal/graceful"
 	"github.com/vultisig/app-recurring/internal/logging"
+	"github.com/vultisig/app-recurring/internal/mayachain"
 	"github.com/vultisig/app-recurring/internal/metrics"
 	"github.com/vultisig/app-recurring/internal/recurring"
+	"github.com/vultisig/app-recurring/internal/thorchain"
 	solanasdk "github.com/vultisig/recipes/sdk/solana"
 	"github.com/vultisig/verifier/plugin"
 	plugin_config "github.com/vultisig/verifier/plugin/config"
@@ -105,13 +107,17 @@ func main() {
 	solanaRPCClient := solanasdk.NewHTTPRPCClient(cfg.Rpc.SolanaURL)
 	solanaSDK := solanasdk.NewSDK(solanaRPCClient)
 
+	// Initialize THORChain and MayaChain clients for pool validation
+	thorClient := thorchain.NewClient(cfg.Rpc.ThorChainURL)
+	mayaClient := mayachain.NewClient(cfg.Rpc.MayaChainURL)
+
 	var spec plugin.Spec
 	switch cfg.Mode {
 	case "send":
 		spec = recurring.NewSendSpec(solanaSDK)
 		logger.Info("Starting server in SEND mode")
 	case "swap":
-		spec = recurring.NewSwapSpec(solanaSDK)
+		spec = recurring.NewSwapSpec(solanaSDK, thorClient, mayaClient)
 		logger.Info("Starting server in SWAP mode")
 	default:
 		logger.Fatalf("invalid MODE: %s (must be 'send' or 'swap')", cfg.Mode)
@@ -164,7 +170,9 @@ type config struct {
 }
 
 type rpcConfig struct {
-	SolanaURL string `envconfig:"RPC_SOLANA_URL" default:"https://solana-rpc.publicnode.com"`
+	SolanaURL    string `envconfig:"RPC_SOLANA_URL" default:"https://solana-rpc.publicnode.com"`
+	ThorChainURL string `envconfig:"RPC_THORCHAIN_URL" default:"https://thornode.ninerealms.com"`
+	MayaChainURL string `envconfig:"RPC_MAYACHAIN_URL" default:"https://mayanode.mayachain.info"`
 }
 
 func newConfig() (config, error) {

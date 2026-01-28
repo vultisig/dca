@@ -22,12 +22,20 @@ import (
 
 type SwapSpec struct {
 	plugin.Unimplemented
-	solanaSDK *solanasdk.SDK
+	solanaSDK  *solanasdk.SDK
+	thorClient *thorchain.Client
+	mayaClient *mayachain.Client
 }
 
-func NewSwapSpec(solanaSDK *solanasdk.SDK) *SwapSpec {
+func NewSwapSpec(
+	solanaSDK *solanasdk.SDK,
+	thorClient *thorchain.Client,
+	mayaClient *mayachain.Client,
+) *SwapSpec {
 	return &SwapSpec{
-		solanaSDK: solanaSDK,
+		solanaSDK:  solanaSDK,
+		thorClient: thorClient,
+		mayaClient: mayaClient,
 	}
 }
 
@@ -122,6 +130,14 @@ func (s *SwapSpec) Suggest(ctx context.Context, cfg map[string]any) (*rtypes.Pol
 		}
 	}
 
+	// For cross-chain swaps, validate that the destination asset has an available pool
+	if fromChainTyped != toChainTyped {
+		toAssetToken := util.GetStr(toAssetMap, "token")
+		if err := ValidateAssetRoute(ctx, s.thorClient, s.mayaClient, fromChainTyped, toChainTyped, toAssetToken); err != nil {
+			return nil, err
+		}
+	}
+
 	rule, err := s.createSwapMetaRule(cfg, fromChainTyped, fromTokenProgram, toTokenProgram)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create swap meta rule: %w", err)
@@ -170,26 +186,9 @@ func (s *SwapSpec) createSwapMetaRule(cfg map[string]any, fromChainTyped common.
 		return nil, fmt.Errorf("'to.chain' could not be empty")
 	}
 
-	toChainTyped, err := common.FromString(toChainStr)
-	if err != nil {
-		return nil, fmt.Errorf("unsupported chain: %s", toChainStr)
-	}
-
-	// Cross-chain swaps require either THORChain or MayaChain support for both chains.
-	//
-	// TODO: This is a workaround - checking IsThorChainSupported and IsMayaChainSupported separately.
-	// Eventually, EVM chains should use the canonical swap router (recipes/sdk/swap) which has all
-	// providers (THORChain, MayaChain, 1inch, LiFi, etc.). Once that's done, this check should be
-	// replaced with canonical.CanRoute() to ensure Suggest() validation matches runtime behavior.
-	// Currently, MayaChain routes like Arbitrum→Ethereum pass validation but fail at runtime because
-	// EVM chains don't have MayaChain configured as a provider.
-	if fromChainTyped != toChainTyped {
-		thorSupported := thorchain.IsThorChainSupported(fromChainTyped, toChainTyped)
-		mayaSupported := mayachain.IsMayaChainSupported(fromChainTyped, toChainTyped)
-		if !thorSupported && !mayaSupported {
-			return nil, fmt.Errorf("cross-chain swaps between %s and %s are not supported", fromChainTyped, toChainTyped)
-		}
-	}
+	// Note: Chain validation and cross-chain route validation (including pool
+	// availability) is done in Suggest() via ValidateAssetRoute() before this
+	// function is called.
 
 	fromAmountStr := util.GetStr(cfg, fromAmount)
 	if fromAmountStr == "" {
