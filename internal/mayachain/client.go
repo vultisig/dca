@@ -55,6 +55,8 @@ type QuoteSwapResponse struct {
 	StreamingSwapBlocks        int64     `json:"streaming_swap_blocks"`
 	StreamingSwapSeconds       int64     `json:"streaming_swap_seconds"`
 	TotalSwapSeconds           int64     `json:"total_swap_seconds"`
+	// Error is returned when the quote fails (e.g., "amount less than dust threshold")
+	Error string `json:"error,omitempty"`
 }
 
 type QuoteFees struct {
@@ -123,6 +125,11 @@ func (c *Client) GetQuote(
 	)
 	if err != nil {
 		return QuoteSwapResponse{}, fmt.Errorf("failed to get quote: %w", err)
+	}
+
+	// MayaChain returns HTTP 200 with error in body for validation failures
+	if resp.Error != "" {
+		return QuoteSwapResponse{}, fmt.Errorf("quote error: %s", resp.Error)
 	}
 
 	return resp, nil
