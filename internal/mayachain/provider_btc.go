@@ -63,9 +63,9 @@ func (p *ProviderBtc) SatsPerByte(ctx context.Context) (uint64, error) {
 
 	for _, addr := range info {
 		if addr.Chain == btc {
-			satsPerByte, er := strconv.ParseUint(addr.GasRate, 10, 64)
-			if er != nil {
-				return 0, fmt.Errorf("btc: failed to parse gas rate: %w", er)
+			satsPerByte, err := strconv.ParseUint(addr.GasRate, 10, 64)
+			if err != nil {
+				return 0, fmt.Errorf("btc: failed to parse gas rate: %w", err)
 			}
 			return satsPerByte, nil
 		}

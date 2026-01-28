@@ -88,11 +88,11 @@ func ValidateAssetRoute(
 
 	// Try THORChain if enabled and supports the route
 	if cap.ThorChainEnabled && thorClient != nil && thorchain.IsThorChainSupported(fromChain, toChain) {
-		if err := thorClient.ValidateAssetPool(ctx, toChain, toAsset); err == nil {
+		err := thorClient.ValidateAssetPool(ctx, toChain, toAsset)
+		if err == nil {
 			return nil // Found available pool on THORChain
-		} else {
-			lastErr = fmt.Errorf("THORChain: %w", err)
 		}
+		lastErr = fmt.Errorf("THORChain: %w", err)
 	}
 
 	// Try MayaChain if enabled and supports the route
