@@ -97,11 +97,11 @@ func ValidateAssetRoute(
 
 	// Try MayaChain if enabled and supports the route
 	if cap.MayaChainEnabled && mayaClient != nil && mayachain.IsMayaChainSupported(fromChain, toChain) {
-		if err := mayaClient.ValidateAssetPool(ctx, toChain, toAsset); err == nil {
+		err := mayaClient.ValidateAssetPool(ctx, toChain, toAsset)
+		if err == nil {
 			return nil // Found available pool on MayaChain
-		} else {
-			lastErr = fmt.Errorf("MayaChain: %w", err)
 		}
+		lastErr = fmt.Errorf("MayaChain: %w", err)
 	}
 
 	if lastErr != nil {
