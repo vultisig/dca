@@ -26,8 +26,8 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74
-	github.com/vultisig/recipes v0.0.0-20260127144858-1dc227b1f61a
-	github.com/vultisig/verifier v0.1.17-0.20260123042809-7a345035b2bb
+	github.com/vultisig/recipes v0.0.0-20260129020926-577976dfb292
+	github.com/vultisig/verifier v0.1.18-0.20260128083922-8ff2daf06e41
 	github.com/vultisig/vultisig-go v0.0.0-20260114092710-6c38516a0c85
 	github.com/xyield/xrpl-go v0.0.0-20230914223425-9abe75c05830
 	golang.org/x/crypto v0.45.0
@@ -63,8 +63,6 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
-	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd // indirect
-	github.com/btcsuite/websocket v0.0.0-20150119174127-31079b680792 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.14.2 // indirect
 	github.com/bytedance/sonic/loader v0.4.0 // indirect
