@@ -126,7 +126,6 @@ github.com/btcsuite/goleveldb v0.0.0-20160330041536-7834afc9e8cd/go.mod h1:F+uVa
 github.com/btcsuite/goleveldb v1.0.0/go.mod h1:QiK9vBlgftBg6rWQIj6wFzbPfRjiykIEhBH4obrXJ/I=
 github.com/btcsuite/snappy-go v0.0.0-20151229074030-0bdef8d06723/go.mod h1:8woku9dyThutzjeg+3xrA5iCpBRH8XEEg3lh6TiUghc=
 github.com/btcsuite/snappy-go v1.0.0/go.mod h1:8woku9dyThutzjeg+3xrA5iCpBRH8XEEg3lh6TiUghc=
-github.com/btcsuite/websocket v0.0.0-20150119174127-31079b680792 h1:R8vQdOQdZ9Y3SkEwmHoWBmX1DNXhXZqlTpq6s4tyJGc=
 github.com/btcsuite/websocket v0.0.0-20150119174127-31079b680792/go.mod h1:ghJtEyQwv5/p4Mg4C0fgbePVuGr935/5ddU9Z3TmDRY=
 github.com/btcsuite/winsvc v1.0.0/go.mod h1:jsenWakMcC0zFBFurPLEAyrnc/teJEM1O46fmI40EZs=
 github.com/bufbuild/protocompile v0.6.0 h1:Uu7WiSQ6Yj9DbkdnOe7U4mNKp58y9WDMKDn28/ZlunY=
@@ -1010,10 +1009,10 @@ github.com/vultisig/go-wrappers v0.0.0-20260116015747-e12e4d06cf57 h1:ZFlNC4JuaY
 github.com/vultisig/go-wrappers v0.0.0-20260116015747-e12e4d06cf57/go.mod h1:vEP0x0RmNlghWxfalt13FvVsBwmobSwimMhJxGfqCD4=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74 h1:goqwk4nQ/NEVIb3OPP9SUx7/u9ZfsUIcd5fIN/e4DVU=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250316003201-2e7e570a4a74/go.mod h1:nOykk4nOy1L3yXtLSlYvVsgizBnCQ3tR2N5uwGPdvaM=
-github.com/vultisig/recipes v0.0.0-20260127144858-1dc227b1f61a h1:eaC4rLKvoDr/pou0cG5enpVb9AYO9nXhdiIz/w24c6o=
-github.com/vultisig/recipes v0.0.0-20260127144858-1dc227b1f61a/go.mod h1:PUz2BoPkuCrk9EFeWavynFSIMM2DNULfFeSS0CGVIVc=
-github.com/vultisig/verifier v0.1.17-0.20260123042809-7a345035b2bb h1:kz6O7BOCWQS+RjWw3Q0sQW65IC2yg6VlmDrNErigFRc=
-github.com/vultisig/verifier v0.1.17-0.20260123042809-7a345035b2bb/go.mod h1:LvPRs+eh9AgI1wEX8RNkRm6Y6rRjMeBhLoygcrQXgZk=
+github.com/vultisig/recipes v0.0.0-20260129020926-577976dfb292 h1:CVXtJBOjJfzMsv+akQK65Jcup9/TSeMUXD8NMJ9O0eg=
+github.com/vultisig/recipes v0.0.0-20260129020926-577976dfb292/go.mod h1:PUz2BoPkuCrk9EFeWavynFSIMM2DNULfFeSS0CGVIVc=
+github.com/vultisig/verifier v0.1.18-0.20260128083922-8ff2daf06e41 h1:JaK4+4e7NdAvD46NxMrplNJk0rPY68wt4v2t4lNiPv0=
+github.com/vultisig/verifier v0.1.18-0.20260128083922-8ff2daf06e41/go.mod h1:a5Ml+4SDzWmI58T6JHz11jnGR/mvp5am5KgW6P7wS74=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110 h1:7WDQ92FAdu08Byjgm3RNS8Sok49sK521PzPcbRpbzCE=
 github.com/vultisig/vultiserver v0.0.0-20250825042420-c6e6ac281110/go.mod h1:HwP2IgW6Mcu/gX8paFuKvfibrGE9UmPgkOFTub6dskM=
 github.com/vultisig/vultisig-go v0.0.0-20260114092710-6c38516a0c85 h1:NAVXp2Mm791Z/teQHUA8T7mhmx3bouyrXvQkLXvAu3M=
